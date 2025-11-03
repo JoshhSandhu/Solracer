@@ -6,8 +6,17 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/SampleScene.unity
-    guid: 8c9cfa26abfee488c85f1582747f6a02
+    path: Assets/Scenes/TokenPicker.unity
+    guid: 4fa9e07b0af460241afb19b8ecf2d86d
+  - enabled: 1
+    path: Assets/Scenes/ModeSelection.unity
+    guid: 2fd555f9e6b599c49b8975ce498c50f7
+  - enabled: 1
+    path: Assets/Scenes/Race.unity
+    guid: 46fde629f225a624582d22eb8041a402
+  - enabled: 1
+    path: Assets/Scenes/Results.unity
+    guid: 628e23436f8a4ca498e05626e994d416
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0
