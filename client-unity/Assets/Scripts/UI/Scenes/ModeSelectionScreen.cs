@@ -6,7 +6,7 @@ using TMPro;
 namespace Solracer.UI
 {
     /// <summary>
-    /// Mode Selection screen - allows player to choose Practice or Competitive mode
+    /// Mode Selection screen
     /// </summary>
     public class ModeSelectionScreen : MonoBehaviour
     {
@@ -30,16 +30,10 @@ namespace Solracer.UI
 
         private void Start()
         {
-            // Auto-find buttons if not assigned
             AutoFindButtons();
-
-            // Setup button listeners
             SetupButtons();
         }
 
-        /// <summary>
-        /// Auto-finds UI buttons by name if not assigned
-        /// </summary>
         private void AutoFindButtons()
         {
             if (practiceButton == null)
@@ -87,8 +81,7 @@ namespace Solracer.UI
                 Debug.Log($"ModeSelectionScreen: Practice mode selected - Loading {practiceSceneName}");
             }
 
-            // TODO: Set mode to Practice (can use a static GameModeManager later)
-            // For now, just load Race scene
+            // TODO, Set mode to Practice
             LoadScene(practiceSceneName);
         }
 
@@ -102,8 +95,7 @@ namespace Solracer.UI
                 Debug.Log($"ModeSelectionScreen: Competitive mode selected - Loading {competitiveSceneName}");
             }
 
-            // TODO: Set mode to Competitive (can use a static GameModeManager later)
-            // For now, just load TokenPicker scene
+            // TODO, Set mode to Competitive
             LoadScene(competitiveSceneName);
         }
 

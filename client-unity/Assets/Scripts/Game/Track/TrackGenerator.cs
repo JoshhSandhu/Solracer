@@ -335,7 +335,7 @@ namespace Solracer.Game
 
             for (int i = 0; i < maxKeys; i++)
             {
-                //calculate position along track (0 to 1)
+                //calculate position along track
                 float time = i / (float)(maxKeys - 1);
                 
                 //map time to color array index
