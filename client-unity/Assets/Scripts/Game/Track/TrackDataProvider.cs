@@ -12,10 +12,6 @@ namespace Solracer.Game
         private const int PointCount = 1000;
         private static float[] cachedPoints = null;
 
-        /// <summary>
-        /// get mock track data as normalized points
-        /// return 1000 points representing height variation along the track
-        /// </summary>
         public static float[] GetMockTrackData()
         {
             //cache points for performance

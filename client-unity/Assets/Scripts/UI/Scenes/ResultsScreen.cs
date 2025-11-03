@@ -7,7 +7,7 @@ using Solracer.Game;
 namespace Solracer.UI
 {
     /// <summary>
-    /// Results screen UI - displays race results and handles navigation
+    /// Results screen UI
     /// </summary>
     public class ResultsScreen : MonoBehaviour
     {
@@ -43,19 +43,11 @@ namespace Solracer.UI
 
         private void Start()
         {
-            // Auto-find UI elements if not assigned
             AutoFindUIElements();
-
-            // Load and display results data
             LoadResultsData();
-
-            // Setup button listeners
             SetupButtons();
         }
 
-        /// <summary>
-        /// Auto-finds UI elements by name if not assigned
-        /// </summary>
         private void AutoFindUIElements()
         {
             if (titleText == null)
@@ -94,9 +86,6 @@ namespace Solracer.UI
             }
         }
 
-        /// <summary>
-        /// Loads and displays results data from GameOverData
-        /// </summary>
         private void LoadResultsData()
         {
             bool isGameOver = GameOverData.IsGameOver;
@@ -117,28 +106,23 @@ namespace Solracer.UI
                 }
             }
 
-            // Set track name
             if (trackNameText != null)
             {
                 trackNameText.text = trackName;
             }
 
-            // Set final time
             if (finalTimeText != null)
             {
                 finalTimeText.text = FormatTime(finalTime);
             }
 
-            // Set score
             if (scoreText != null)
             {
                 scoreText.text = score.ToString();
             }
 
-            // Show/hide swap button based on game state
             if (swapButton != null)
             {
-                // Only show swap button if race was completed (not game over)
                 swapButton.gameObject.SetActive(!isGameOver);
             }
         }
@@ -175,34 +159,22 @@ namespace Solracer.UI
             }
         }
 
-        /// <summary>
-        /// Called when Play Again button is clicked
-        /// </summary>
         public void OnPlayAgainClicked()
         {
             SceneManager.LoadScene("Race");
         }
 
-        /// <summary>
-        /// Called when Mode Selection button is clicked
-        /// </summary>
         public void OnModeSelectionClicked()
         {
             SceneManager.LoadScene("ModeSelection");
         }
 
-        /// <summary>
-        /// Called when Swap button is clicked (placeholder)
-        /// </summary>
         public void OnSwapClicked()
         {
             Debug.Log("Swap on Uniswap clicked (placeholder - will implement in Phase 7)");
-            // TODO: Implement swap functionality in Phase 7
+            // TODO, Implement swap functionality in Phase 7
         }
 
-        /// <summary>
-        /// Finds TextMeshProUGUI component by GameObject name
-        /// </summary>
         private TextMeshProUGUI FindTextByName(string name)
         {
             GameObject obj = GameObject.Find(name);
@@ -213,9 +185,6 @@ namespace Solracer.UI
             return null;
         }
 
-        /// <summary>
-        /// Finds Button component by GameObject name
-        /// </summary>
         private Button FindButtonByName(string name)
         {
             GameObject obj = GameObject.Find(name);
