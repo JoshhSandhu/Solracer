@@ -1,0 +1,3224 @@
+fileFormatVersion: 2
+guid: 05b8e1880c639b64b8caf2075335191e
+TextureImporter:
+  internalIDToNameTable:
+  - first:
+      213: -8611592021536494502
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_0
+  - first:
+      213: 3888580751099759867
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_1
+  - first:
+      213: -7038450683967723787
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_2
+  - first:
+      213: -5789126294624272136
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_3
+  - first:
+      213: -3171112538576802762
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_4
+  - first:
+      213: -608925422278466115
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_5
+  - first:
+      213: 4280201903250590004
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_6
+  - first:
+      213: 7051594977507975118
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_7
+  - first:
+      213: 4262718422481717417
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_8
+  - first:
+      213: -4009608761735706738
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_9
+  - first:
+      213: 4837987455321653437
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_10
+  - first:
+      213: -8231288125936724045
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_11
+  - first:
+      213: 5407522262208425379
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_12
+  - first:
+      213: 8696901852923999368
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_13
+  - first:
+      213: 6276216918157164670
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_14
+  - first:
+      213: 2565071310611646022
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_15
+  - first:
+      213: 4205915954202735587
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_16
+  - first:
+      213: -656218322536710173
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_17
+  - first:
+      213: -5412282624350772781
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_18
+  - first:
+      213: -4352014434553550262
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_19
+  - first:
+      213: 6972471544461621367
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_20
+  - first:
+      213: -1615788475738204273
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_21
+  - first:
+      213: 6433643452320244864
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_22
+  - first:
+      213: -3281980798230112157
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_23
+  - first:
+      213: -6792098748679058344
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_24
+  - first:
+      213: -3149148675236658722
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_25
+  - first:
+      213: 8584687092132023836
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_26
+  - first:
+      213: 4273429582288948321
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_27
+  - first:
+      213: -6896591728062111988
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_28
+  - first:
+      213: 9138193330073739554
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_29
+  - first:
+      213: 3713345817974655150
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_30
+  - first:
+      213: -2372825316770387513
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_31
+  - first:
+      213: 6207474806460668934
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_32
+  - first:
+      213: -3028237746413373499
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_33
+  - first:
+      213: -4971722134402140546
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_34
+  - first:
+      213: -8975632603776876965
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_35
+  - first:
+      213: -1161140287170505091
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_36
+  - first:
+      213: 8368809266716139943
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_37
+  - first:
+      213: -141826674125740411
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_38
+  - first:
+      213: -4047060345014912168
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_39
+  - first:
+      213: 7124741749862216882
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_40
+  - first:
+      213: 5850153310354509197
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_41
+  - first:
+      213: -3047845792704968717
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_42
+  - first:
+      213: 8026257759091192562
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_43
+  - first:
+      213: -4458911072707749100
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_44
+  - first:
+      213: 3129135246355991328
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_45
+  - first:
+      213: -6185341664113360441
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_46
+  - first:
+      213: -58476516155941196
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_47
+  - first:
+      213: -7343419969700960001
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_48
+  - first:
+      213: 4396216016297076756
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_49
+  - first:
+      213: 3996806919878633644
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_50
+  - first:
+      213: -4593586233810654229
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_51
+  - first:
+      213: -7644984294375905521
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_52
+  - first:
+      213: 1960921869576687978
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_53
+  - first:
+      213: -3984219050699528829
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_54
+  - first:
+      213: -2274242801904907894
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_55
+  - first:
+      213: -6307961888657014848
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_56
+  - first:
+      213: -1773975775345108042
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_57
+  - first:
+      213: -1464761716052735690
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_58
+  - first:
+      213: -6499216475642077334
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_59
+  - first:
+      213: -6095918624874193071
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_60
+  - first:
+      213: -5082868576938597556
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_61
+  - first:
+      213: -1523470150094873069
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_62
+  - first:
+      213: -5075477494902974657
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_63
+  - first:
+      213: -5211924853202035424
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_64
+  - first:
+      213: 4240411416763347491
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_65
+  - first:
+      213: -9147180428940428421
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_66
+  - first:
+      213: 6635717937829199672
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_67
+  - first:
+      213: 2738665069903309675
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_68
+  - first:
+      213: 1972451644721793692
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_69
+  - first:
+      213: -4780459330797087319
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_70
+  - first:
+      213: -7074879764623826732
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_71
+  - first:
+      213: 8064378631613820242
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_72
+  - first:
+      213: 6304290594784062371
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_73
+  - first:
+      213: 2684196336105860809
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_74
+  - first:
+      213: -5311099278273030282
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_75
+  - first:
+      213: 432783612824841288
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_76
+  - first:
+      213: -9114639954946094631
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_77
+  - first:
+      213: 8820573566762364250
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_78
+  - first:
+      213: -723321046118549392
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_79
+  - first:
+      213: 9138602675929305653
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_80
+  - first:
+      213: -4937375513128287664
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_81
+  - first:
+      213: -1270783359785373033
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_82
+  - first:
+      213: 6791415538164102688
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_83
+  - first:
+      213: 1897704683961742778
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_84
+  - first:
+      213: -8065096457618747779
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_85
+  - first:
+      213: 2978992081582427929
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_86
+  - first:
+      213: 8733994351122859056
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_87
+  - first:
+      213: 3945806553716988990
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_88
+  - first:
+      213: -4039925250042980485
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_89
+  - first:
+      213: -4066819848412532038
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_90
+  - first:
+      213: 4837633290237785917
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_91
+  - first:
+      213: -8552511858206775076
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_92
+  - first:
+      213: 2083978418128829892
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_93
+  - first:
+      213: -4363428537153184531
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_94
+  - first:
+      213: -5189556534806038578
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_95
+  - first:
+      213: 4816820820924110319
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_96
+  - first:
+      213: -3213876737311300827
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_97
+  - first:
+      213: 4540834830084425325
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_98
+  - first:
+      213: 3625817361426014071
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_99
+  - first:
+      213: 5661370239462395055
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_100
+  - first:
+      213: 6512307097505658110
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_101
+  - first:
+      213: 3697524736591458724
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_102
+  - first:
+      213: -462769371465917641
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_103
+  - first:
+      213: -3825520147073621921
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_104
+  - first:
+      213: 5398364507487748774
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_105
+  - first:
+      213: 5599344160584238732
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_106
+  - first:
+      213: 1522220823563674476
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_107
+  - first:
+      213: 7362265880625559038
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_108
+  - first:
+      213: -4331018133550772350
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_109
+  - first:
+      213: 3160021286947337136
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_110
+  - first:
+      213: -5751464036179032009
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_111
+  - first:
+      213: -8460200439451855009
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_112
+  - first:
+      213: -808186044967671775
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_113
+  - first:
+      213: -2501719265302949093
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_114
+  - first:
+      213: 3146798000309057774
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_115
+  - first:
+      213: 339411998169260274
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_116
+  - first:
+      213: 123260673017539679
+    second: Mobile - Hill Climb Racing 2 - Unused Content - ATV_117
+  externalObjects: {}
+  serializedVersion: 13
+  mipmaps:
+    mipMapMode: 0
+    enableMipMap: 0
+    sRGBTexture: 1
+    linearTexture: 0
+    fadeOut: 0
+    borderMipMap: 0
+    mipMapsPreserveCoverage: 0
+    alphaTestReferenceValue: 0.5
+    mipMapFadeDistanceStart: 1
+    mipMapFadeDistanceEnd: 3
+  bumpmap:
+    convertToNormalMap: 0
+    externalNormalMap: 0
+    heightScale: 0.25
+    normalMapFilter: 0
+    flipGreenChannel: 0
+  isReadable: 0
+  streamingMipmaps: 0
+  streamingMipmapsPriority: 0
+  vTOnly: 0
+  ignoreMipmapLimit: 0
+  grayScaleToAlpha: 0
+  generateCubemap: 6
+  cubemapConvolution: 0
+  seamlessCubemap: 0
+  textureFormat: 1
+  maxTextureSize: 2048
+  textureSettings:
+    serializedVersion: 2
+    filterMode: 1
+    aniso: 1
+    mipBias: 0
+    wrapU: 1
+    wrapV: 1
+    wrapW: 1
+  nPOTScale: 0
+  lightmap: 0
+  compressionQuality: 50
+  spriteMode: 2
+  spriteExtrude: 1
+  spriteMeshType: 1
+  alignment: 0
+  spritePivot: {x: 0.5, y: 0.5}
+  spritePixelsToUnits: 100
+  spriteBorder: {x: 0, y: 0, z: 0, w: 0}
+  spriteGenerateFallbackPhysicsShape: 1
+  alphaUsage: 1
+  alphaIsTransparency: 1
+  spriteTessellationDetail: -1
+  textureType: 8
+  textureShape: 1
+  singleChannelComponent: 0
+  flipbookRows: 1
+  flipbookColumns: 1
+  maxTextureSizeSet: 0
+  compressionQualitySet: 0
+  textureFormatSet: 0
+  ignorePngGamma: 0
+  applyGammaDecoding: 0
+  swizzle: 50462976
+  cookieLightType: 0
+  platformSettings:
+  - serializedVersion: 4
+    buildTarget: DefaultTexturePlatform
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Standalone
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: Android
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: WebGL
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  - serializedVersion: 4
+    buildTarget: iOS
+    maxTextureSize: 2048
+    resizeAlgorithm: 0
+    textureFormat: -1
+    textureCompression: 1
+    compressionQuality: 50
+    crunchedCompression: 0
+    allowsAlphaSplitting: 0
+    overridden: 0
+    ignorePlatformSupport: 0
+    androidETC2FallbackOverride: 0
+    forceMaximumCompressionQuality_BC6H_BC7: 0
+  spriteSheet:
+    serializedVersion: 2
+    sprites:
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_0
+      rect:
+        serializedVersion: 2
+        x: 1
+        y: 502
+        width: 245
+        height: 114
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a5caabdbeaa7d7880800000000000000
+      internalID: -8611592021536494502
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_1
+      rect:
+        serializedVersion: 2
+        x: 262
+        y: 493
+        width: 245
+        height: 130
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: bfc09bd279307f530800000000000000
+      internalID: 3888580751099759867
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_2
+      rect:
+        serializedVersion: 2
+        x: 620
+        y: 379
+        width: 239
+        height: 239
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5f6affce466625e90800000000000000
+      internalID: -7038450683967723787
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_3
+      rect:
+        serializedVersion: 2
+        x: 9
+        y: 409
+        width: 99
+        height: 50
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 8f00c01ae44e8afa0800000000000000
+      internalID: -5789126294624272136
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_4
+      rect:
+        serializedVersion: 2
+        x: 129
+        y: 378
+        width: 123
+        height: 99
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 63ca75b82f1fdf3d0800000000000000
+      internalID: -3171112538576802762
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_5
+      rect:
+        serializedVersion: 2
+        x: 296
+        y: 374
+        width: 140
+        height: 107
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: db5236efd89ac87f0800000000000000
+      internalID: -608925422278466115
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_6
+      rect:
+        serializedVersion: 2
+        x: 459
+        y: 376
+        width: 141
+        height: 107
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 439c33a14f4566b30800000000000000
+      internalID: 4280201903250590004
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_7
+      rect:
+        serializedVersion: 2
+        x: 17
+        y: 261
+        width: 123
+        height: 99
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ecf9a46654c4cd160800000000000000
+      internalID: 7051594977507975118
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_8
+      rect:
+        serializedVersion: 2
+        x: 156
+        y: 260
+        width: 123
+        height: 99
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 9a8498502d7382b30800000000000000
+      internalID: 4262718422481717417
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_9
+      rect:
+        serializedVersion: 2
+        x: 336
+        y: 282
+        width: 16
+        height: 42
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e87037433120b58c0800000000000000
+      internalID: -4009608761735706738
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_10
+      rect:
+        serializedVersion: 2
+        x: 370
+        y: 261
+        width: 123
+        height: 99
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: db04e3635fbf32340800000000000000
+      internalID: 4837987455321653437
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_11
+      rect:
+        serializedVersion: 2
+        x: 0
+        y: 121
+        width: 861
+        height: 125
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3b796a98f0794cd80800000000000000
+      internalID: -8231288125936724045
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_12
+      rect:
+        serializedVersion: 2
+        x: 278
+        y: 121
+        width: 123
+        height: 99
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3ad23f1e8d06b0b40800000000000000
+      internalID: 5407522262208425379
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_13
+      rect:
+        serializedVersion: 2
+        x: 415
+        y: 199
+        width: 27
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 884b8f5382a91b870800000000000000
+      internalID: 8696901852923999368
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_14
+      rect:
+        serializedVersion: 2
+        x: 438
+        y: 199
+        width: 23
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e700e04c80a991750800000000000000
+      internalID: 6276216918157164670
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_15
+      rect:
+        serializedVersion: 2
+        x: 460
+        y: 199
+        width: 27
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6468d8444c6f89320800000000000000
+      internalID: 2565071310611646022
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_16
+      rect:
+        serializedVersion: 2
+        x: 493
+        y: 199
+        width: 15
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3e3f665c64a6e5a30800000000000000
+      internalID: 4205915954202735587
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_17
+      rect:
+        serializedVersion: 2
+        x: 504
+        y: 199
+        width: 31
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3efb81699e4a4e6f0800000000000000
+      internalID: -656218322536710173
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_18
+      rect:
+        serializedVersion: 2
+        x: 535
+        y: 199
+        width: 29
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3d1ad8fe0a5b3e4b0800000000000000
+      internalID: -5412282624350772781
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_19
+      rect:
+        serializedVersion: 2
+        x: 570
+        y: 199
+        width: 56
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a4a20130ee98a93c0800000000000000
+      internalID: -4352014434553550262
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_20
+      rect:
+        serializedVersion: 2
+        x: 632
+        y: 199
+        width: 24
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 778772e8de133c060800000000000000
+      internalID: 6972471544461621367
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_21
+      rect:
+        serializedVersion: 2
+        x: 656
+        y: 199
+        width: 48
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f87547f21f09399e0800000000000000
+      internalID: -1615788475738204273
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_22
+      rect:
+        serializedVersion: 2
+        x: 702
+        y: 199
+        width: 20
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 084e01b02a4e84950800000000000000
+      internalID: 6433643452320244864
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_23
+      rect:
+        serializedVersion: 2
+        x: 729
+        y: 199
+        width: 27
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 36857d94adf0472d0800000000000000
+      internalID: -3281980798230112157
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_24
+      rect:
+        serializedVersion: 2
+        x: 755
+        y: 199
+        width: 18
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 85c0c959c2e9db1a0800000000000000
+      internalID: -6792098748679058344
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_25
+      rect:
+        serializedVersion: 2
+        x: 772
+        y: 199
+        width: 16
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ed180abf6f9fb44d0800000000000000
+      internalID: -3149148675236658722
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_26
+      rect:
+        serializedVersion: 2
+        x: 786
+        y: 199
+        width: 29
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c1e096a3d6fe22770800000000000000
+      internalID: 8584687092132023836
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_27
+      rect:
+        serializedVersion: 2
+        x: 788
+        y: 217
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 16c8af040954e4b30800000000000000
+      internalID: 4273429582288948321
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_28
+      rect:
+        serializedVersion: 2
+        x: 815
+        y: 192
+        width: 18
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c0fd5ffec526a40a0800000000000000
+      internalID: -6896591728062111988
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_29
+      rect:
+        serializedVersion: 2
+        x: 415
+        y: 160
+        width: 18
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 221a3efda6261de70800000000000000
+      internalID: 9138193330073739554
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_30
+      rect:
+        serializedVersion: 2
+        x: 441
+        y: 160
+        width: 26
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ea8cf88e854788330800000000000000
+      internalID: 3713345817974655150
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_31
+      rect:
+        serializedVersion: 2
+        x: 457
+        y: 178
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7c9e8d732f7021fd0800000000000000
+      internalID: -2372825316770387513
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_32
+      rect:
+        serializedVersion: 2
+        x: 464
+        y: 153
+        width: 20
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 60c5647a271652650800000000000000
+      internalID: 6207474806460668934
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_33
+      rect:
+        serializedVersion: 2
+        x: 483
+        y: 153
+        width: 20
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5c7f99d50d989f5d0800000000000000
+      internalID: -3028237746413373499
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_34
+      rect:
+        serializedVersion: 2
+        x: 503
+        y: 160
+        width: 16
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e7673016f05e00bb0800000000000000
+      internalID: -4971722134402140546
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_35
+      rect:
+        serializedVersion: 2
+        x: 518
+        y: 160
+        width: 20
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b5ef679a3b5207380800000000000000
+      internalID: -8975632603776876965
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_36
+      rect:
+        serializedVersion: 2
+        x: 544
+        y: 160
+        width: 20
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d769ec09f0dc2efe0800000000000000
+      internalID: -1161140287170505091
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_37
+      rect:
+        serializedVersion: 2
+        x: 563
+        y: 153
+        width: 19
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7a1ec9f20bbf32470800000000000000
+      internalID: 8368809266716139943
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_38
+      rect:
+        serializedVersion: 2
+        x: 588
+        y: 160
+        width: 26
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5866f0d2461280ef0800000000000000
+      internalID: -141826674125740411
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_39
+      rect:
+        serializedVersion: 2
+        x: 614
+        y: 160
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 85bf0d6fe04f5d7c0800000000000000
+      internalID: -4047060345014912168
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_40
+      rect:
+        serializedVersion: 2
+        x: 631
+        y: 153
+        width: 18
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2b4beec7fda20e260800000000000000
+      internalID: 7124741749862216882
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_41
+      rect:
+        serializedVersion: 2
+        x: 648
+        y: 160
+        width: 23
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d8d8149b07bef2150800000000000000
+      internalID: 5850153310354509197
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_42
+      rect:
+        serializedVersion: 2
+        x: 668
+        y: 160
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3f7c6a35660e3b5d0800000000000000
+      internalID: -3047845792704968717
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_43
+      rect:
+        serializedVersion: 2
+        x: 685
+        y: 160
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2f27a5e28eef26f60800000000000000
+      internalID: 8026257759091192562
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_44
+      rect:
+        serializedVersion: 2
+        x: 702
+        y: 160
+        width: 19
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 41bd232f004ce12c0800000000000000
+      internalID: -4458911072707749100
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_45
+      rect:
+        serializedVersion: 2
+        x: 721
+        y: 160
+        width: 17
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 02b043d7debec6b20800000000000000
+      internalID: 3129135246355991328
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_46
+      rect:
+        serializedVersion: 2
+        x: 737
+        y: 160
+        width: 18
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7c189102780492aa0800000000000000
+      internalID: -6185341664113360441
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_47
+      rect:
+        serializedVersion: 2
+        x: 770
+        y: 160
+        width: 15
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4be92da1bef303ff0800000000000000
+      internalID: -58476516155941196
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_48
+      rect:
+        serializedVersion: 2
+        x: 784
+        y: 160
+        width: 15
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ff8e675d17ee61a90800000000000000
+      internalID: -7343419969700960001
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_49
+      rect:
+        serializedVersion: 2
+        x: 755
+        y: 160
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4182547bc2f720d30800000000000000
+      internalID: 4396216016297076756
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_50
+      rect:
+        serializedVersion: 2
+        x: 416
+        y: 121
+        width: 19
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ca86037b7b2877730800000000000000
+      internalID: 3996806919878633644
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_51
+      rect:
+        serializedVersion: 2
+        x: 435
+        y: 121
+        width: 13
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: beb679088ad4040c0800000000000000
+      internalID: -4593586233810654229
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_52
+      rect:
+        serializedVersion: 2
+        x: 448
+        y: 121
+        width: 16
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f07a8440a4f87e590800000000000000
+      internalID: -7644984294375905521
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_53
+      rect:
+        serializedVersion: 2
+        x: 463
+        y: 121
+        width: 20
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a61d96c0d08963b10800000000000000
+      internalID: 1960921869576687978
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_54
+      rect:
+        serializedVersion: 2
+        x: 498
+        y: 114
+        width: 28
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 385e5b7f1e535b8c0800000000000000
+      internalID: -3984219050699528829
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_55
+      rect:
+        serializedVersion: 2
+        x: 516
+        y: 139
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a89087b98344070e0800000000000000
+      internalID: -2274242801904907894
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_56
+      rect:
+        serializedVersion: 2
+        x: 523
+        y: 121
+        width: 19
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0cf75e1551e9578a0800000000000000
+      internalID: -6307961888657014848
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_57
+      rect:
+        serializedVersion: 2
+        x: 541
+        y: 121
+        width: 16
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6bb18666e629167e0800000000000000
+      internalID: -1773975775345108042
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_58
+      rect:
+        serializedVersion: 2
+        x: 564
+        y: 121
+        width: 16
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 639c51adafe1cabe0800000000000000
+      internalID: -1464761716052735690
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_59
+      rect:
+        serializedVersion: 2
+        x: 579
+        y: 121
+        width: 30
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a6fdcfabc052ec5a0800000000000000
+      internalID: -6499216475642077334
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_60
+      rect:
+        serializedVersion: 2
+        x: 608
+        y: 121
+        width: 30
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 15f9fa8ee42f66ba0800000000000000
+      internalID: -6095918624874193071
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_61
+      rect:
+        serializedVersion: 2
+        x: 635
+        y: 121
+        width: 13
+        height: 24
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c43649f95f50679b0800000000000000
+      internalID: -5082868576938597556
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_62
+      rect:
+        serializedVersion: 2
+        x: 654
+        y: 121
+        width: 13
+        height: 24
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 31e1fad58fb8bdae0800000000000000
+      internalID: -1523470150094873069
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_63
+      rect:
+        serializedVersion: 2
+        x: 666
+        y: 121
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f3791d20c184099b0800000000000000
+      internalID: -5075477494902974657
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_64
+      rect:
+        serializedVersion: 2
+        x: 690
+        y: 121
+        width: 22
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 02ddcd0c5f58ba7b0800000000000000
+      internalID: -5211924853202035424
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_65
+      rect:
+        serializedVersion: 2
+        x: 711
+        y: 121
+        width: 29
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 322b0b587b7f8da30800000000000000
+      internalID: 4240411416763347491
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_66
+      rect:
+        serializedVersion: 2
+        x: 713
+        y: 139
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b7bb99c1ddfae0180800000000000000
+      internalID: -9147180428940428421
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_67
+      rect:
+        serializedVersion: 2
+        x: 740
+        y: 114
+        width: 18
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 83f3ff19e4ec61c50800000000000000
+      internalID: 6635717937829199672
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_68
+      rect:
+        serializedVersion: 2
+        x: 757
+        y: 121
+        width: 16
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b6b6b5afe51b10620800000000000000
+      internalID: 2738665069903309675
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_69
+      rect:
+        serializedVersion: 2
+        x: 772
+        y: 121
+        width: 16
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c9a0744025e8f5b10800000000000000
+      internalID: 1972451644721793692
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_70
+      rect:
+        serializedVersion: 2
+        x: 787
+        y: 121
+        width: 13
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 9a553ac019568adb0800000000000000
+      internalID: -4780459330797087319
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_71
+      rect:
+        serializedVersion: 2
+        x: 800
+        y: 121
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4d06ff0a65af0dd90800000000000000
+      internalID: -7074879764623826732
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_72
+      rect:
+        serializedVersion: 2
+        x: 817
+        y: 121
+        width: 23
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 25da79773ad6aef60800000000000000
+      internalID: 8064378631613820242
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_73
+      rect:
+        serializedVersion: 2
+        x: 482
+        y: 115
+        width: 9
+        height: 13
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 3aba0f6f4e65d7750800000000000000
+      internalID: 6304290594784062371
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_74
+      rect:
+        serializedVersion: 2
+        x: 839
+        y: 121
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 9ceaef0a85e204520800000000000000
+      internalID: 2684196336105860809
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_75
+      rect:
+        serializedVersion: 2
+        x: 177
+        y: 1
+        width: 140
+        height: 107
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 677d3b7885f2b46b0800000000000000
+      internalID: -5311099278273030282
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_76
+      rect:
+        serializedVersion: 2
+        x: 416
+        y: 82
+        width: 24
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 84ce803276e810600800000000000000
+      internalID: 432783612824841288
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_77
+      rect:
+        serializedVersion: 2
+        x: 441
+        y: 82
+        width: 30
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 9d90bdd904b428180800000000000000
+      internalID: -9114639954946094631
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_78
+      rect:
+        serializedVersion: 2
+        x: 470
+        y: 82
+        width: 30
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: a5d2212fce8f86a70800000000000000
+      internalID: 8820573566762364250
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_79
+      rect:
+        serializedVersion: 2
+        x: 497
+        y: 82
+        width: 13
+        height: 24
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0783a83475f36f5f0800000000000000
+      internalID: -723321046118549392
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_80
+      rect:
+        serializedVersion: 2
+        x: 516
+        y: 82
+        width: 13
+        height: 24
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 532533227b6d2de70800000000000000
+      internalID: 9138602675929305653
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_81
+      rect:
+        serializedVersion: 2
+        x: 528
+        y: 82
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 052c641512bea7bb0800000000000000
+      internalID: -4937375513128287664
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_82
+      rect:
+        serializedVersion: 2
+        x: 552
+        y: 82
+        width: 26
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 792f38564454d5ee0800000000000000
+      internalID: -1270783359785373033
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_83
+      rect:
+        serializedVersion: 2
+        x: 578
+        y: 82
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 026f6521374ff3e50800000000000000
+      internalID: 6791415538164102688
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_84
+      rect:
+        serializedVersion: 2
+        x: 595
+        y: 75
+        width: 18
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ab572280b50065a10800000000000000
+      internalID: 1897704683961742778
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_85
+      rect:
+        serializedVersion: 2
+        x: 612
+        y: 82
+        width: 23
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d7e8f54a085031090800000000000000
+      internalID: -8065096457618747779
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_86
+      rect:
+        serializedVersion: 2
+        x: 632
+        y: 82
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 91f0c6bc381875920800000000000000
+      internalID: 2978992081582427929
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_87
+      rect:
+        serializedVersion: 2
+        x: 649
+        y: 82
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 03442f07691653970800000000000000
+      internalID: 8733994351122859056
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_88
+      rect:
+        serializedVersion: 2
+        x: 666
+        y: 82
+        width: 19
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: e3c95b2a72252c630800000000000000
+      internalID: 3945806553716988990
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_89
+      rect:
+        serializedVersion: 2
+        x: 685
+        y: 82
+        width: 17
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b779e08b36d4fe7c0800000000000000
+      internalID: -4039925250042980485
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_90
+      rect:
+        serializedVersion: 2
+        x: 701
+        y: 82
+        width: 18
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ab2fcd115e0cf87c0800000000000000
+      internalID: -4066819848412532038
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_91
+      rect:
+        serializedVersion: 2
+        x: 726
+        y: 82
+        width: 23
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d373a3ab8d9b22340800000000000000
+      internalID: 4837633290237785917
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_92
+      rect:
+        serializedVersion: 2
+        x: 728
+        y: 100
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: cd8e44237cf5f4980800000000000000
+      internalID: -8552511858206775076
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_93
+      rect:
+        serializedVersion: 2
+        x: 21
+        y: 27
+        width: 16
+        height: 42
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4cd36247457cbec10800000000000000
+      internalID: 2083978418128829892
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_94
+      rect:
+        serializedVersion: 2
+        x: 62
+        y: 27
+        width: 99
+        height: 50
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: dec9e282ddcf173c0800000000000000
+      internalID: -4363428537153184531
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_95
+      rect:
+        serializedVersion: 2
+        x: 416
+        y: 43
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ec73419b3ddfaf7b0800000000000000
+      internalID: -5189556534806038578
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_96
+      rect:
+        serializedVersion: 2
+        x: 432
+        y: 36
+        width: 20
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: fe513e91409c8d240800000000000000
+      internalID: 4816820820924110319
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_97
+      rect:
+        serializedVersion: 2
+        x: 451
+        y: 43
+        width: 23
+        height: 24
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 5232ba0a2240663d0800000000000000
+      internalID: -3213876737311300827
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_98
+      rect:
+        serializedVersion: 2
+        x: 464
+        y: 61
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: d6647e63839440f30800000000000000
+      internalID: 4540834830084425325
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_99
+      rect:
+        serializedVersion: 2
+        x: 472
+        y: 43
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 77fdd380ead715230800000000000000
+      internalID: 3625817361426014071
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_100
+      rect:
+        serializedVersion: 2
+        x: 489
+        y: 43
+        width: 19
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: faccf11dc3a319e40800000000000000
+      internalID: 5661370239462395055
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_101
+      rect:
+        serializedVersion: 2
+        x: 508
+        y: 37
+        width: 35
+        height: 31
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ef4741f2dcc506a50800000000000000
+      internalID: 6512307097505658110
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_102
+      rect:
+        serializedVersion: 2
+        x: 549
+        y: 43
+        width: 20
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 4a1f0c8582f305330800000000000000
+      internalID: 3697524736591458724
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_103
+      rect:
+        serializedVersion: 2
+        x: 569
+        y: 43
+        width: 19
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 73bd7d065b9e399f0800000000000000
+      internalID: -462769371465917641
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_104
+      rect:
+        serializedVersion: 2
+        x: 587
+        y: 43
+        width: 13
+        height: 24
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f50a398d1b509eac0800000000000000
+      internalID: -3825520147073621921
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_105
+      rect:
+        serializedVersion: 2
+        x: 606
+        y: 43
+        width: 27
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 6a242e4fae7daea40800000000000000
+      internalID: 5398364507487748774
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_106
+      rect:
+        serializedVersion: 2
+        x: 632
+        y: 43
+        width: 17
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c8608c2f8ddd4bd40800000000000000
+      internalID: 5599344160584238732
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_107
+      rect:
+        serializedVersion: 2
+        x: 649
+        y: 43
+        width: 19
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: c63273226c3002510800000000000000
+      internalID: 1522220823563674476
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_108
+      rect:
+        serializedVersion: 2
+        x: 667
+        y: 43
+        width: 12
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ef53aacbfc50c2660800000000000000
+      internalID: 7362265880625559038
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_109
+      rect:
+        serializedVersion: 2
+        x: 677
+        y: 43
+        width: 20
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 28f4ee944f125e3c0800000000000000
+      internalID: -4331018133550772350
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_110
+      rect:
+        serializedVersion: 2
+        x: 703
+        y: 43
+        width: 20
+        height: 25
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 0b33b233e96aadb20800000000000000
+      internalID: 3160021286947337136
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_111
+      rect:
+        serializedVersion: 2
+        x: 723
+        y: 43
+        width: 16
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 7384d118ee1be20b0800000000000000
+      internalID: -5751464036179032009
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_112
+      rect:
+        serializedVersion: 2
+        x: 746
+        y: 43
+        width: 19
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f575edd3684579a80800000000000000
+      internalID: -8460200439451855009
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_113
+      rect:
+        serializedVersion: 2
+        x: 764
+        y: 43
+        width: 12
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 1282645f21fb8c4f0800000000000000
+      internalID: -808186044967671775
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_114
+      rect:
+        serializedVersion: 2
+        x: 766
+        y: 61
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: b13ddd7359b184dd0800000000000000
+      internalID: -2501719265302949093
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_115
+      rect:
+        serializedVersion: 2
+        x: 774
+        y: 43
+        width: 16
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: ee8b45cdb1cabab20800000000000000
+      internalID: 3146798000309057774
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_116
+      rect:
+        serializedVersion: 2
+        x: 789
+        y: 43
+        width: 16
+        height: 18
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: 2f0626ff965d5b400800000000000000
+      internalID: 339411998169260274
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    - serializedVersion: 2
+      name: Mobile - Hill Climb Racing 2 - Unused Content - ATV_117
+      rect:
+        serializedVersion: 2
+        x: 804
+        y: 43
+        width: 8
+        height: 7
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: -1
+      bones: []
+      spriteID: f5c6cf5dde8e5b100800000000000000
+      internalID: 123260673017539679
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline: []
+    customData: 
+    physicsShape: []
+    bones: []
+    spriteID: 
+    internalID: 0
+    vertices: []
+    indices: 
+    edges: []
+    weights: []
+    secondaryTextures: []
+    spriteCustomMetadata:
+      entries: []
+    nameFileIdTable:
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_0: -8611592021536494502
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_1: 3888580751099759867
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_10: 4837987455321653437
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_100: 5661370239462395055
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_101: 6512307097505658110
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_102: 3697524736591458724
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_103: -462769371465917641
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_104: -3825520147073621921
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_105: 5398364507487748774
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_106: 5599344160584238732
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_107: 1522220823563674476
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_108: 7362265880625559038
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_109: -4331018133550772350
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_11: -8231288125936724045
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_110: 3160021286947337136
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_111: -5751464036179032009
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_112: -8460200439451855009
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_113: -808186044967671775
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_114: -2501719265302949093
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_115: 3146798000309057774
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_116: 339411998169260274
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_117: 123260673017539679
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_12: 5407522262208425379
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_13: 8696901852923999368
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_14: 6276216918157164670
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_15: 2565071310611646022
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_16: 4205915954202735587
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_17: -656218322536710173
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_18: -5412282624350772781
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_19: -4352014434553550262
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_2: -7038450683967723787
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_20: 6972471544461621367
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_21: -1615788475738204273
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_22: 6433643452320244864
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_23: -3281980798230112157
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_24: -6792098748679058344
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_25: -3149148675236658722
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_26: 8584687092132023836
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_27: 4273429582288948321
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_28: -6896591728062111988
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_29: 9138193330073739554
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_3: -5789126294624272136
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_30: 3713345817974655150
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_31: -2372825316770387513
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_32: 6207474806460668934
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_33: -3028237746413373499
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_34: -4971722134402140546
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_35: -8975632603776876965
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_36: -1161140287170505091
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_37: 8368809266716139943
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_38: -141826674125740411
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_39: -4047060345014912168
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_4: -3171112538576802762
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_40: 7124741749862216882
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_41: 5850153310354509197
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_42: -3047845792704968717
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_43: 8026257759091192562
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_44: -4458911072707749100
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_45: 3129135246355991328
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_46: -6185341664113360441
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_47: -58476516155941196
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_48: -7343419969700960001
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_49: 4396216016297076756
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_5: -608925422278466115
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_50: 3996806919878633644
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_51: -4593586233810654229
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_52: -7644984294375905521
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_53: 1960921869576687978
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_54: -3984219050699528829
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_55: -2274242801904907894
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_56: -6307961888657014848
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_57: -1773975775345108042
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_58: -1464761716052735690
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_59: -6499216475642077334
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_6: 4280201903250590004
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_60: -6095918624874193071
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_61: -5082868576938597556
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_62: -1523470150094873069
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_63: -5075477494902974657
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_64: -5211924853202035424
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_65: 4240411416763347491
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_66: -9147180428940428421
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_67: 6635717937829199672
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_68: 2738665069903309675
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_69: 1972451644721793692
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_7: 7051594977507975118
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_70: -4780459330797087319
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_71: -7074879764623826732
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_72: 8064378631613820242
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_73: 6304290594784062371
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_74: 2684196336105860809
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_75: -5311099278273030282
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_76: 432783612824841288
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_77: -9114639954946094631
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_78: 8820573566762364250
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_79: -723321046118549392
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_8: 4262718422481717417
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_80: 9138602675929305653
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_81: -4937375513128287664
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_82: -1270783359785373033
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_83: 6791415538164102688
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_84: 1897704683961742778
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_85: -8065096457618747779
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_86: 2978992081582427929
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_87: 8733994351122859056
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_88: 3945806553716988990
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_89: -4039925250042980485
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_9: -4009608761735706738
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_90: -4066819848412532038
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_91: 4837633290237785917
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_92: -8552511858206775076
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_93: 2083978418128829892
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_94: -4363428537153184531
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_95: -5189556534806038578
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_96: 4816820820924110319
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_97: -3213876737311300827
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_98: 4540834830084425325
+      Mobile - Hill Climb Racing 2 - Unused Content - ATV_99: 3625817361426014071
+  mipmapLimitGroupName: 
+  pSDRemoveMatte: 0
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

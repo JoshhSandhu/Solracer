@@ -7,8 +7,8 @@ TimeManager:
   Fixed Timestep:
     m_Count: 2356703
     m_Rate:
-      m_Denominator: 60000
-      m_Numerator: 1000
+      m_Denominator: 1
+      m_Numerator: 141120000
   Maximum Allowed Timestep: 0.33333334
   m_TimeScale: 1
   Maximum Particle Timestep: 0.03
