@@ -36,7 +36,7 @@ namespace Solracer.Game
 
         private void OnTriggerEnter2D(Collider2D other)
         {
-            if (other.gameObject.name.Contains("ATV") || other.CompareTag("Player"))
+            if (other.GetComponent<Rigidbody2D>() != null)
             {
                 if (!hasTriggered || !triggerOnce)
                 {
