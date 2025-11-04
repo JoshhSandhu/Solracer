@@ -3195,7 +3195,7 @@ MonoBehaviour:
   upsideDownTimeThreshold: 10
   finishLine: {fileID: 0}
   autoCreateFinishLine: 1
-  finishLineSize: {x: 2, y: 10}
+  finishLineSize: {x: 10, y: 100}
 --- !u!4 &2054209001
 Transform:
   m_ObjectHideFlags: 0
