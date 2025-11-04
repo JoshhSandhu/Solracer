@@ -441,6 +441,51 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &213116918
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 213116920}
+  - component: {fileID: 213116919}
+  m_Layer: 0
+  m_Name: CoinManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &213116919
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 213116918}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 180b432ada9f7c34bbaf4a63a7a0e0e6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Solracer.Game.CoinCollectionManager
+  debugLogging: 0
+--- !u!4 &213116920
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 213116918}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &228811726
 GameObject:
   m_ObjectHideFlags: 0
@@ -1168,7 +1213,7 @@ Transform:
   m_GameObject: {fileID: 729379814}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2619.6782, y: 1276.053, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2442,6 +2487,62 @@ Rigidbody2D:
   m_SleepingMode: 1
   m_CollisionDetection: 0
   m_Constraints: 0
+--- !u!1 &1605507502
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1605507504}
+  - component: {fileID: 1605507503}
+  m_Layer: 0
+  m_Name: CoinSpawner
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1605507503
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1605507502}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4e3aa6329f502674ebf547a45d0f6b47, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Solracer.Game.CoinSpawner
+  trackGenerator: {fileID: 1640221894}
+  coinPrefab: {fileID: 3445821374694949791, guid: 1a70af138a6c6b844a4857c1a7336c63, type: 3}
+  coinSprites:
+  - {fileID: 21300000, guid: c100c09c84fb9e8469d065fb275d6533, type: 3}
+  - {fileID: 21300000, guid: 1f71ae72b23a0b44ca9bd931352bbda1, type: 3}
+  - {fileID: 21300000, guid: 1ac3afd39b5c51c41b36b95f888d47b4, type: 3}
+  coinCount: 50
+  minCoinDistance: 5
+  coinHeightOffset: 1
+  heightVariation: 0.5
+  skipStartPercent: 0.1
+  skipEndPercent: 0.1
+--- !u!4 &1605507504
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1605507502}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1640221893
 GameObject:
   m_ObjectHideFlags: 0
@@ -2487,7 +2588,7 @@ MonoBehaviour:
   seed: 42
   smoothTrack: 1
   smoothingFactor: 1
-  pointDensityMultiplier: 3
+  pointDensityMultiplier: 5
   maxPoints: 0
 --- !u!68 &1640221895
 EdgeCollider2D:
@@ -3092,7 +3193,9 @@ MonoBehaviour:
   trackGenerator: {fileID: 1640221894}
   upsideDownAngleThreshold: 90
   upsideDownTimeThreshold: 10
-  trackEndThreshold: 3
+  finishLine: {fileID: 0}
+  autoCreateFinishLine: 1
+  finishLineSize: {x: 2, y: 10}
 --- !u!4 &2054209001
 Transform:
   m_ObjectHideFlags: 0
@@ -3102,7 +3205,7 @@ Transform:
   m_GameObject: {fileID: 2054208999}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2619.6782, y: 1276.053, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3123,3 +3226,5 @@ SceneRoots:
   - {fileID: 844012210}
   - {fileID: 729379816}
   - {fileID: 2054209001}
+  - {fileID: 1605507504}
+  - {fileID: 213116920}
