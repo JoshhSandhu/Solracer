@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
+using Solracer.Auth;
 
 namespace Solracer.UI
 {
@@ -32,6 +33,7 @@ namespace Solracer.UI
         {
             AutoFindButtons();
             SetupButtons();
+            CheckAuthenticationStatus();
         }
 
         private void AutoFindButtons()
@@ -95,8 +97,34 @@ namespace Solracer.UI
                 Debug.Log($"ModeSelectionScreen: Competitive mode selected - Loading {competitiveSceneName}");
             }
 
+            // Check if user is authenticated (competitive mode requires authentication)
+            if (!AuthenticationData.CanAccessCompetitiveMode)
+            {
+                Debug.LogWarning("ModeSelectionScreen: Competitive mode requires authentication. Please login first.");
+                // Could redirect to login screen here if needed
+                return;
+            }
+
             // TODO, Set mode to Competitive
             LoadScene(competitiveSceneName);
+        }
+
+        /// <summary>
+        /// Checks authentication status and updates UI accordingly
+        /// </summary>
+        private void CheckAuthenticationStatus()
+        {
+            if (competitiveButton != null)
+            {
+                // Disable competitive button if user is in guest mode
+                bool canAccessCompetitive = AuthenticationData.CanAccessCompetitiveMode;
+                competitiveButton.interactable = canAccessCompetitive;
+
+                if (debugLogging)
+                {
+                    Debug.Log($"ModeSelectionScreen: Competitive mode access: {canAccessCompetitive} (Guest: {AuthenticationData.IsGuestMode}, Authenticated: {AuthenticationData.IsAuthenticated})");
+                }
+            }
         }
 
         /// <summary>
