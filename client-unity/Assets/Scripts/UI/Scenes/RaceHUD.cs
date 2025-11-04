@@ -199,7 +199,7 @@ namespace Solracer.UI
             lastUpdateTime = Time.time;
         }
 
-        ///resets and starts the timer
+        //sresets and starts the timer
         public void ResetAndStartTimer()
         {
             ResetTimer();

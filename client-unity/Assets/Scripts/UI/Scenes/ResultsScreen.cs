@@ -24,6 +24,9 @@ namespace Solracer.UI
         [Tooltip("Score text")]
         [SerializeField] private TextMeshProUGUI scoreText;
 
+        [Tooltip("Coins collected text")]
+        [SerializeField] private TextMeshProUGUI coinsCollectedText;
+
         [Header("Buttons")]
         [Tooltip("Play Again button")]
         [SerializeField] private Button playAgainButton;
@@ -70,6 +73,11 @@ namespace Solracer.UI
                 scoreText = FindTextByName("ScoreText") ?? FindTextByName("Score");
             }
 
+            if (coinsCollectedText == null)
+            {
+                coinsCollectedText = FindTextByName("CoinsCollectedText") ?? FindTextByName("CoinsCollected");
+            }
+
             if (playAgainButton == null)
             {
                 playAgainButton = FindButtonByName("PlayAgainButton") ?? FindButtonByName("PlayAgain");
@@ -92,6 +100,7 @@ namespace Solracer.UI
             string trackName = GameOverData.TrackName;
             float finalTime = GameOverData.FinalTime;
             int score = GameOverData.Score;
+            int coinsCollected = GameOverData.CoinsCollected;
 
             // Set title
             if (titleText != null)
@@ -119,6 +128,11 @@ namespace Solracer.UI
             if (scoreText != null)
             {
                 scoreText.text = score.ToString();
+            }
+
+            if (coinsCollectedText != null)
+            {
+                coinsCollectedText.text = coinsCollected.ToString();
             }
 
             if (swapButton != null)
