@@ -211,10 +211,18 @@ namespace Solracer.Game
                 finalSpeed = atvController.CurrentSpeed;
             }
 
+            // Save collected coins before game over
+            var coinManager = FindAnyObjectByType<CoinCollectionManager>();
+            if (coinManager != null)
+            {
+                coinManager.SaveCollectedCoins();
+            }
+
             //storing game over data
+            string trackName = GetTrackName();
             GameOverData.SetGameOverData(
                 isGameOver: true,
-                trackName: "Track",         //TODO, Get actual track name
+                trackName: trackName,
                 finalTime: finalTime,
                 score: CalculateScore(finalTime, finalSpeed),
                 reason: reason
@@ -247,9 +255,17 @@ namespace Solracer.Game
                 finalSpeed = atvController.CurrentSpeed;
             }
 
+            // Save collected coins before race complete
+            var coinManager = FindAnyObjectByType<CoinCollectionManager>();
+            if (coinManager != null)
+            {
+                coinManager.SaveCollectedCoins();
+            }
+
+            string trackName = GetTrackName();
             GameOverData.SetGameOverData(
                 isGameOver: false,
-                trackName: "Track", 
+                trackName: trackName,
                 finalTime: finalTime,
                 score: CalculateScore(finalTime, finalSpeed),
                 reason: "completed"
@@ -283,6 +299,13 @@ namespace Solracer.Game
         {
             SceneManager.LoadScene("Results");
         }
+
+        //get track name based on selected coin
+        private string GetTrackName()
+        {
+            CoinType selectedCoin = CoinSelectionData.SelectedCoin;
+            return $"{CoinSelectionData.GetCoinName(selectedCoin)} Track";
+        }
     }
 
     /// <summary>
@@ -295,6 +318,7 @@ namespace Solracer.Game
         private static float finalTime = 0f;
         private static int score = 0;
         private static string reason = "";
+        private static int coinsCollected = 0;
 
         public static void SetGameOverData(bool isGameOver, string trackName, float finalTime, int score, string reason)
         {
@@ -303,6 +327,9 @@ namespace Solracer.Game
             GameOverData.finalTime = finalTime;
             GameOverData.score = score;
             GameOverData.reason = reason;
+            
+            // Get coins collected from CoinSelectionData
+            coinsCollected = CoinSelectionData.GetSelectedCoinCount();
         }
 
         public static bool IsGameOver => isGameOver;
@@ -310,6 +337,7 @@ namespace Solracer.Game
         public static float FinalTime => finalTime;
         public static int Score => score;
         public static string Reason => reason;
+        public static int CoinsCollected => coinsCollected;
     }
 }
 
