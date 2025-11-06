@@ -16,17 +16,22 @@ FastAPI backend for Solracer game with PostgreSQL/Supabase database.
    # BIRDEYE_API_KEY=your_key_here  # Optional, for higher rate limits
    ```
 
-3. **Seed tokens database**:
+3. **Apply database migrations** (optional, for new setups):
+   ```bash
+   alembic upgrade head
+   ```
+
+4. **Seed tokens database**:
    ```bash
    python scripts/seed_tokens.py
    ```
 
-4. **Run the server**:
+5. **Run the server**:
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
-5. **Access API docs**:
+6. **Access API docs**:
    - Swagger UI: http://localhost:8000/docs
    - ReDoc: http://localhost:8000/redoc
 
@@ -47,8 +52,12 @@ backend/
 │           ├── tokens.py # Token endpoints
 │           ├── tracks.py # Track endpoints
 │           └── races.py  # Race management endpoints
+├── alembic/              # Database migrations
+│   ├── versions/        # Migration files
+│   └── env.py           # Alembic configuration
 ├── scripts/
-│   └── seed_tokens.py   # Database seeding script
+│   ├── seed_tokens.py   # Database seeding script
+│   └── test_races.ps1   # Race endpoint test script
 └── requirements.txt     # Python dependencies
 ```
 
@@ -74,6 +83,27 @@ Submit race result with input trace for verification.
 ### GET `/api/v1/races/{race_id}/status`
 Get current race status (waiting, active, settled) and winner information.
 
+## Database Migrations
+
+The backend uses Alembic for database schema migrations.
+
+**Apply migrations**:
+```bash
+alembic upgrade head
+```
+
+**Create new migration**:
+```bash
+alembic revision --autogenerate -m "Description"
+```
+
+**Check migration status**:
+```bash
+alembic current
+```
+
+See `documentation/PHASE3_4_DATABASE_OPTIMIZATION.md` for detailed migration guide.
+
 ## Database Setup
 
 The backend uses PostgreSQL (via Supabase or local PostgreSQL).
@@ -88,18 +118,25 @@ The backend uses PostgreSQL (via Supabase or local PostgreSQL).
    DATABASE_URL=postgresql://postgres:password@db.project.supabase.co:5432/postgres
    ```
 
-3. **Seed tokens**:
+3. **Apply database migrations** (optional, for new setups):
+   ```bash
+   alembic upgrade head
+   ```
+
+4. **Seed tokens database**:
    ```bash
    python scripts/seed_tokens.py
    ```
 
-## Chart Data Integration
+5. **Run the server**:
+   ```bash
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
 
-The backend fetches real token price data from Birdeye API and normalizes it to generate race tracks.
+6. **Access API docs**:
+   - Swagger UI: http://localhost:8000/docs
+   - ReDoc: http://localhost:8000/redoc
 
-- **API**: Birdeye (https://birdeye.so)
-- **Cache Duration**: 1 hour (configurable)
-- **Normalization**: Prices converted to 0-1 range
 
 
 
