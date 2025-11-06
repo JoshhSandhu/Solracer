@@ -61,6 +61,7 @@ class RaceResponse(BaseModel):
 
     class Config:
         from_attributes = True
+    
 
 
 class CreateRaceRequest(BaseModel):
@@ -72,7 +73,6 @@ class CreateRaceRequest(BaseModel):
 
 class SubmitResultRequest(BaseModel):
     """Request schema for submitting race result."""
-    race_id: str = Field(..., description="Race ID (PDA address)")
     wallet_address: str = Field(..., description="Player wallet address")
     finish_time_ms: int = Field(..., ge=0, description="Race completion time in milliseconds")
     coins_collected: int = Field(default=0, ge=0, description="Number of coins collected")

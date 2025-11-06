@@ -31,7 +31,6 @@ FastAPI backend for Solracer game with PostgreSQL/Supabase database.
    - ReDoc: http://localhost:8000/redoc
 
 
-
 ## Project Structure
 
 ```
@@ -46,7 +45,8 @@ backend/
 │   └── api/
 │       └── routes/       # API endpoint routes
 │           ├── tokens.py # Token endpoints
-│           └── tracks.py # Track endpoints
+│           ├── tracks.py # Track endpoints
+│           └── races.py  # Race management endpoints
 ├── scripts/
 │   └── seed_tokens.py   # Database seeding script
 └── requirements.txt     # Python dependencies
@@ -64,6 +64,15 @@ Get normalized track data for a token. Fetches real chart data from Birdeye API.
 - `token_mint` (required): Solana token mint address
 - `seed` (optional): Seed for deterministic generation
 - `force_refresh` (optional): Force refresh chart data (default: false)
+
+### POST `/api/v1/races/create_or_join`
+Create a new race or join an existing waiting race. Automatic matchmaking based on token and entry fee.
+
+### POST `/api/v1/races/{race_id}/submit_result`
+Submit race result with input trace for verification.
+
+### GET `/api/v1/races/{race_id}/status`
+Get current race status (waiting, active, settled) and winner information.
 
 ## Database Setup
 
