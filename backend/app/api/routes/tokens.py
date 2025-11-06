@@ -19,36 +19,37 @@ async def get_tokens(db: Session = Depends(get_db)):
     """
     Get list of curated tokens.
     
-    Returns all tokens available for racing.
-    Initially returns mock data, later will query database.
+    Returns all tokens available for racing from the database.
     """
-    # TODO: Query database once tokens are seeded
-    # For now, return mock data matching the game's token selection
-    mock_tokens = [
-        {
-            "mint_address": "So11111111111111111111111111111111111111112",  # SOL
-            "symbol": "SOL",
-            "name": "Solana",
-            "decimals": 9,
-            "logo_url": None
-        },
-        {
-            "mint_address": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",  # BONK
-            "symbol": "BONK",
-            "name": "Bonk",
-            "decimals": 5,
-            "logo_url": None
-        },
-        {
-            "mint_address": "METADDFL6wWMWEoKTFJwcThTbUcafjRB9ivkSqYJWy",  # META
-            "symbol": "META",
-            "name": "Meta",
-            "decimals": 9,
-            "logo_url": None
-        }
-    ]
+    tokens = db.query(Token).all()
     
-    return mock_tokens
+    if not tokens:
+        # Return mock data if database is empty (for initial setup)
+        return [
+            TokenResponse(
+                mint_address="So11111111111111111111111111111111111111112",
+                symbol="SOL",
+                name="Solana",
+                decimals=9,
+                logo_url=None
+            ),
+            TokenResponse(
+                mint_address="DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+                symbol="BONK",
+                name="Bonk",
+                decimals=5,
+                logo_url=None
+            ),
+            TokenResponse(
+                mint_address="METADDFL6wWMWEoKTFJwcThTbUcafjRB9ivkSqYJWy",
+                symbol="META",
+                name="Meta",
+                decimals=9,
+                logo_url=None
+            )
+        ]
+    
+    return [TokenResponse.model_validate(token) for token in tokens]
 
 
 @router.get("/tokens/{mint_address}", response_model=TokenResponse)
@@ -58,34 +59,10 @@ async def get_token(mint_address: str, db: Session = Depends(get_db)):
     
     Returns token details including symbol, name, and decimals.
     """
-    # TODO: Query database once tokens are seeded
-    # For now, return mock data or 404
-    mock_tokens = {
-        "So11111111111111111111111111111111111111112": {
-            "mint_address": "So11111111111111111111111111111111111111112",
-            "symbol": "SOL",
-            "name": "Solana",
-            "decimals": 9,
-            "logo_url": None
-        },
-        "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263": {
-            "mint_address": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
-            "symbol": "BONK",
-            "name": "Bonk",
-            "decimals": 5,
-            "logo_url": None
-        },
-        "METADDFL6wWMWEoKTFJwcThTbUcafjRB9ivkSqYJWy": {
-            "mint_address": "METADDFL6wWMWEoKTFJwcThTbUcafjRB9ivkSqYJWy",
-            "symbol": "META",
-            "name": "Meta",
-            "decimals": 9,
-            "logo_url": None
-        }
-    }
+    token = db.query(Token).filter(Token.mint_address == mint_address).first()
     
-    if mint_address not in mock_tokens:
+    if not token:
         raise HTTPException(status_code=404, detail="Token not found")
     
-    return mock_tokens[mint_address]
+    return TokenResponse.model_validate(token)
 

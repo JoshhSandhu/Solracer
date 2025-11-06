@@ -11,22 +11,26 @@ FastAPI backend for Solracer game with PostgreSQL/Supabase database.
 
 2. **Set up environment variables**:
    ```bash
-   cp .env.example .env
-   # Edit .env and add your DATABASE_URL
+   # Create .env file with DATABASE_URL
+   # DATABASE_URL=postgresql://postgres:password@db.project.supabase.co:5432/postgres
+   # BIRDEYE_API_KEY=your_key_here  # Optional, for higher rate limits
    ```
 
-3. **Run the server**:
+3. **Seed tokens database**:
+   ```bash
+   python scripts/seed_tokens.py
+   ```
+
+4. **Run the server**:
    ```bash
    uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
-4. **Access API docs**:
+5. **Access API docs**:
    - Swagger UI: http://localhost:8000/docs
    - ReDoc: http://localhost:8000/redoc
 
-## Documentation
 
-See [PHASE3_BACKEND_SETUP.md](./PHASE3_BACKEND_SETUP.md) for detailed setup instructions and explanations.
 
 ## Project Structure
 
@@ -37,24 +41,56 @@ backend/
 │   ├── database.py       # Database connection & session management
 │   ├── models.py         # SQLAlchemy database models
 │   ├── schemas.py        # Pydantic request/response schemas
+│   ├── services/         # Business logic services
+│   │   └── chart_data.py # Chart data fetching & normalization
 │   └── api/
 │       └── routes/       # API endpoint routes
-├── requirements.txt      # Python dependencies
-├── .env.example          # Environment variables template
-└── PHASE3_BACKEND_SETUP.md  # Detailed setup guide
+│           ├── tokens.py # Token endpoints
+│           └── tracks.py # Track endpoints
+├── scripts/
+│   └── seed_tokens.py   # Database seeding script
+└── requirements.txt     # Python dependencies
 ```
 
 ## API Endpoints
 
 ### GET `/api/v1/tokens`
-Get list of curated tokens.
+Get list of curated tokens from database.
 
-### GET `/api/v1/track?token_mint=<address>&seed=<optional>`
-Get track data for a token.
+### GET `/api/v1/track?token_mint=<address>&seed=<optional>&force_refresh=<optional>`
+Get normalized track data for a token. Fetches real chart data from Birdeye API.
+
+**Query Parameters**:
+- `token_mint` (required): Solana token mint address
+- `seed` (optional): Seed for deterministic generation
+- `force_refresh` (optional): Force refresh chart data (default: false)
 
 ## Database Setup
 
 The backend uses PostgreSQL (via Supabase or local PostgreSQL).
 
-See [PHASE3_BACKEND_SETUP.md](./PHASE3_BACKEND_SETUP.md) for database setup instructions.
+1. **Create Supabase project** (recommended):
+   - Go to https://supabase.com
+   - Create new project
+   - Get connection string from Project Settings → Database
+
+2. **Set DATABASE_URL** in `.env`:
+   ```
+   DATABASE_URL=postgresql://postgres:password@db.project.supabase.co:5432/postgres
+   ```
+
+3. **Seed tokens**:
+   ```bash
+   python scripts/seed_tokens.py
+   ```
+
+## Chart Data Integration
+
+The backend fetches real token price data from Birdeye API and normalizes it to generate race tracks.
+
+- **API**: Birdeye (https://birdeye.so)
+- **Cache Duration**: 1 hour (configurable)
+- **Normalization**: Prices converted to 0-1 range
+
+
 

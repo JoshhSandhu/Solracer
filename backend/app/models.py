@@ -171,6 +171,7 @@ class Token(Base):
     
     # Chart data (cached)
     last_chart_update = Column(DateTime(timezone=True), nullable=True)  # Last time chart data was fetched
+    cached_chart_data = Column(Text, nullable=True)  # JSON string of normalized chart samples
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
