@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from pathlib import Path
 
-from app.api.routes import tokens, tracks
+from app.api.routes import tokens, tracks, races
 from app.database import engine, Base
 
 # Load environment variables from .env file
@@ -72,6 +72,7 @@ app.add_middleware(
 # Include API routers
 app.include_router(tokens.router, prefix=API_V1_PREFIX, tags=["tokens"])
 app.include_router(tracks.router, prefix=API_V1_PREFIX, tags=["tracks"])
+app.include_router(races.router, prefix=API_V1_PREFIX, tags=["races"])
 
 
 @app.get("/")
