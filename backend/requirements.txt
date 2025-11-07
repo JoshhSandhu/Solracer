@@ -34,3 +34,9 @@ structlog==24.2.0
 pytest==8.3.3
 pytest-asyncio==0.24.0
 
+# Solana Integration (Phase 4)
+solana==0.36.6
+solders==0.26.0
+anchorpy==0.21.0
+base58==2.1.1
+
