@@ -10,6 +10,7 @@ from solders.hash import Hash
 import hashlib
 from typing import Tuple
 import os
+import base58
 
 
 def derive_race_pda(
@@ -116,11 +117,15 @@ def derive_race_pda_simple(
         return str(pda), bump
     except Exception as e:
         #fallback: use a deterministic hash-based approach
-        #this matches the backend's current race_id generation
+        #generate a valid-looking Pubkey format (base58 encoded)
         seed_string = f"{program_id_str}_{race_id}_{token_mint_str}_{entry_fee_sol}"
-        pda_hash = hashlib.sha256(seed_string.encode()).hexdigest()[:32]
-        #return a mock PDA address
-        return f"PDA_{pda_hash}", 255
+        pda_hash = hashlib.sha256(seed_string.encode()).digest()
+        #pad to 32 bytes and encode as base58 (like a real Pubkey)
+        padded_hash = pda_hash[:32].ljust(32, b'\x00')
+        #create a valid base58-encoded address
+        pda_address = base58.b58encode(padded_hash).decode('utf-8')
+        #return a valid-looking address
+        return pda_address, 255
 
 
 def get_program_id() -> str:

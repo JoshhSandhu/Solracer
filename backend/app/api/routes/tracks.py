@@ -38,7 +38,7 @@ async def get_track(
     Returns:
         TrackResponse with token info, seed, and normalized samples
     """
-    # Get token from database
+    #get token from database
     token = db.query(Token).filter(Token.mint_address == token_mint).first()
     
     if not token:
@@ -47,13 +47,13 @@ async def get_track(
             detail=f"Token with mint address {token_mint} not found. Please ensure token is seeded in database."
         )
     
-    # Generate seed if not provided use hash of token mint + current time for uniqueness
+    #generate seed if not provided use hash of token mint + current time for uniqueness
     if seed is None:
-        # Use a deterministic seed based on token mint for consistency
+        #use a deterministic seed based on token mint for consistency
        
         seed = hash(token_mint) % 1000000
     
-    # Fetch normalized chart data
+    #fetch normalized chart data
     normalized_samples = await chart_data_service.get_chart_data_for_token(
         db=db,
         token=token,
@@ -61,20 +61,20 @@ async def get_track(
     )
     
     if not normalized_samples:
-        # Fallback to mock data if API fetch fails
-        # Use seed for deterministic generation
+        #fallback to mock data if API fetch fails
+        #use seed for deterministic generation
         random.seed(seed)
         
         num_samples = 1000
         samples: List[TrackSample] = []
         
         for i in range(num_samples):
-            x = i / (num_samples - 1)  # Normalized X (0-1)
+            x = i / (num_samples - 1)  #normalized X (0-1)
             
-            # Generate Y using sine wave with noise (normalized to 0-1)
-            base_y = 0.5 + 0.3 * math.sin(x * math.pi * 4)  # Base sine wave
-            noise = random.uniform(-0.1, 0.1)  # Random noise
-            y = max(0.0, min(1.0, base_y + noise))  # Clamp to 0-1
+            #generate Y using sine wave with noise (normalized to 0-1)
+            base_y = 0.5 + 0.3 * math.sin(x * math.pi * 4)  #base sine wave
+            noise = random.uniform(-0.1, 0.1)  #random noise
+            y = max(0.0, min(1.0, base_y + noise))  #clamp to 0-1
             
             samples.append(TrackSample(x=x, y=y))
         
@@ -86,7 +86,7 @@ async def get_track(
             point_count=len(samples)
         )
     
-    # Convert normalized samples to TrackSample objects
+    #convert normalized samples to TrackSample objects
     samples = [
         TrackSample(x=sample["x"], y=sample["y"])
         for sample in normalized_samples
