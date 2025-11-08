@@ -24,7 +24,7 @@ async def get_tokens(db: Session = Depends(get_db)):
     tokens = db.query(Token).all()
     
     if not tokens:
-        # Return mock data if database is empty (for initial setup)
+        #return mock data if database is empty (for initial setup)
         return [
             TokenResponse(
                 mint_address="So11111111111111111111111111111111111111112",

@@ -164,7 +164,8 @@ async def create_or_join_race(
         "player2_wallet": race.player2_wallet,
         "status": race.status.value,
         "track_seed": race.track_seed,
-        "created_at": race.created_at
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature
     }
     
     return RaceResponse(**race_dict)
