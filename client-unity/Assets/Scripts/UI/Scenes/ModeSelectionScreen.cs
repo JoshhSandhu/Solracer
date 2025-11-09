@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
 using Solracer.Auth;
+using Solracer.Game;
 
 namespace Solracer.UI
 {
@@ -83,7 +84,8 @@ namespace Solracer.UI
                 Debug.Log($"ModeSelectionScreen: Practice mode selected - Loading {practiceSceneName}");
             }
 
-            // TODO, Set mode to Practice
+            // Set mode to Practice
+            GameModeData.CurrentMode = GameMode.Practice;
             LoadScene(practiceSceneName);
         }
 
@@ -105,7 +107,8 @@ namespace Solracer.UI
                 return;
             }
 
-            // TODO, Set mode to Competitive
+            // Set mode to Competitive
+            GameModeData.CurrentMode = GameMode.Competitive;
             LoadScene(competitiveSceneName);
         }
 

@@ -84,6 +84,24 @@ namespace Solracer.Game
             }
             return 0;
         }
+
+        /// <summary>
+        /// Get the Solana mint address for a coin type.
+        /// </summary>
+        public static string GetCoinMintAddress(CoinType coinType)
+        {
+            switch (coinType)
+            {
+                case CoinType.BONK:
+                    return "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
+                case CoinType.Solana:
+                    return "So11111111111111111111111111111111111111112";
+                case CoinType.Zcash:
+                    return "METADDFL6wWMWEoKTFJwcThTbUcafjRB9ivkSqYJWy";
+                default:
+                    return "So11111111111111111111111111111111111111112";
+            }
+        }
     }
 }
 
