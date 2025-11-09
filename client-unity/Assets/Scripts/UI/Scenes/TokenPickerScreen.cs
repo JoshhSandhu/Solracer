@@ -3,12 +3,15 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Solracer.Game;
+using Solracer.Network;
+using Solracer.Auth;
 
 namespace Solracer.UI
 {
     /// <summary>
-    /// Token Picker screen - coin selection dropdown
+    /// Token Picker screen
     /// </summary>
     public class TokenPickerScreen : MonoBehaviour
     {
@@ -20,10 +23,10 @@ namespace Solracer.UI
         [SerializeField] private Button backToModeSelectionButton;
 
         [Header("Coin Settings")]
-        [Tooltip("Coin sprites (BONK, Solana, Zcash) - assign directly or load from Resources")]
+        [Tooltip("Coin sprites (BONK, Solana, Zcash)")]
         [SerializeField] private Sprite[] coinSpritesArray = new Sprite[3];
 
-        [Tooltip("Path to coin sprites folder (relative to Resources folder) - only used if sprites not assigned")]
+        [Tooltip("Path to coin sprites folder (relative to Resources folder)")]
         [SerializeField] private string coinSpritesPath = "Scripts/UI/Coins";
 
         [Header("Settings")]
@@ -36,24 +39,36 @@ namespace Solracer.UI
         [Tooltip("Enable debug logging")]
         [SerializeField] private bool debugLogging = true;
 
+        [Header("On-Chain Race Settings")]
+        [Tooltip("Entry fee in SOL")]
+        [SerializeField] private float entryFeeSol = 0.01f;
+
+        [Tooltip("Show loading UI during transaction")]
+        [SerializeField] private GameObject loadingPanel;
+
+        [Tooltip("Loading text")]
+        [SerializeField] private TextMeshProUGUI loadingText;
+
+        private bool isCreatingRace = false;
+
 
         private void Start()
         {
-            // Auto-find UI elements if not assigned
+            //auto find UI elements if not assigned
             AutoFindUIElements();
 
-            // Load coin sprites
+            //load coin sprites
             LoadCoinSprites();
 
-            // Setup dropdown
+            //setup dropdown
             SetupDropdown();
 
-            // Setup button listener
+            //setup button listener
             SetupButton();
         }
 
         /// <summary>
-        /// Auto-finds UI elements by name if not assigned
+        /// auto find  UI elements by name if not assigned
         /// </summary>
         private void AutoFindUIElements()
         {
@@ -75,13 +90,14 @@ namespace Solracer.UI
         }
 
         /// <summary>
-        /// Loads coin sprites from Resources folder or uses assigned sprites
+        /// loads coin sprites from Resources folder or uses assigned sprites
         /// </summary>
         private void LoadCoinSprites()
         {
-            // Check if sprites are already assigned
+            //check if sprites are already assigned
             bool hasAssignedSprites = coinSpritesArray != null && coinSpritesArray.Length >= 3 && 
-                                      coinSpritesArray[0] != null && coinSpritesArray[1] != null && coinSpritesArray[2] != null;
+                                      coinSpritesArray[0] != null && coinSpritesArray[1] != null 
+                                      && coinSpritesArray[2] != null;
 
             if (hasAssignedSprites)
             {
@@ -92,7 +108,7 @@ namespace Solracer.UI
                 return;
             }
 
-            // Load from Resources if not assigned
+            //load from Resources if not assigned
             string[] coinNames = { "BONK_Coin", "Solana_Coin", "Zcash_Coin" };
             
             for (int i = 0; i < coinNames.Length; i++)
@@ -121,7 +137,7 @@ namespace Solracer.UI
         }
 
         /// <summary>
-        /// Sets up the coin dropdown with options
+        /// sets up the coin dropdown with options
         /// </summary>
         private void SetupDropdown()
         {
@@ -130,11 +146,8 @@ namespace Solracer.UI
                 Debug.LogWarning("TokenPickerScreen: Coin dropdown not found!");
                 return;
             }
-
-            // Clear existing options
             coinDropdown.ClearOptions();
 
-            // Add coin options
             List<string> options = new List<string>
             {
                 CoinSelectionData.GetCoinName(CoinType.BONK),
@@ -143,12 +156,8 @@ namespace Solracer.UI
             };
 
             coinDropdown.AddOptions(options);
-
-            // Set default selection (BONK)
             coinDropdown.value = 0;
             OnCoinSelected(0);
-
-            // Add listener for selection changes
             coinDropdown.onValueChanged.AddListener(OnCoinSelected);
 
             if (debugLogging)
@@ -158,7 +167,7 @@ namespace Solracer.UI
         }
 
         /// <summary>
-        /// Called when coin selection changes
+        /// called when coin selection changes
         /// </summary>
         private void OnCoinSelected(int index)
         {
@@ -168,13 +177,8 @@ namespace Solracer.UI
                 return;
             }
 
-            // Convert index to CoinType
             CoinType selectedCoin = (CoinType)index;
-
-            // Store selected coin
             CoinSelectionData.SelectedCoin = selectedCoin;
-
-            // Store sprite if available
             if (coinSpritesArray != null && index < coinSpritesArray.Length && coinSpritesArray[index] != null)
             {
                 CoinSelectionData.CoinSprite = coinSpritesArray[index];
@@ -187,7 +191,7 @@ namespace Solracer.UI
         }
 
         /// <summary>
-        /// Sets up button click listener
+        /// sets up button click listener
         /// </summary>
         private void SetupButton()
         {
@@ -202,7 +206,7 @@ namespace Solracer.UI
         }
 
         /// <summary>
-        /// Called when Back to Mode Selection button is clicked
+        /// called when Back to Mode Selection button is clicked
         /// </summary>
         public void OnBackToModeSelectionClicked()
         {
@@ -215,26 +219,120 @@ namespace Solracer.UI
         }
 
         /// <summary>
-        /// Called when Start Race button is clicked (if you add one)
+        /// called when Start Race button is clicked
         /// </summary>
-        public void OnStartRaceClicked()
+        public async void OnStartRaceClicked()
         {
-            if (debugLogging)
+            if (isCreatingRace)
             {
-                Debug.Log($"TokenPickerScreen: Start Race clicked - Loading {raceSceneName}");
+                Debug.LogWarning("TokenPickerScreen: Race creation already in progress");
+                return;
             }
 
-            LoadRaceScene();
+            if (debugLogging)
+            {
+                Debug.Log($"TokenPickerScreen: Start Race clicked - Creating race on-chain");
+            }
+
+            await CreateRaceAndLoadScene();
         }
 
         /// <summary>
-        /// Loads Race scene
+        /// creates race on chain and loads race scene.
+        /// </summary>
+        private async Task CreateRaceAndLoadScene()
+        {
+            isCreatingRace = true;
+            ShowLoadingUI(true);
+            UpdateLoadingText("Preparing race...");
+
+            try
+            {
+                CoinType selectedCoin = CoinSelectionData.SelectedCoin;
+                string tokenMint = CoinSelectionData.GetCoinMintAddress(selectedCoin);
+
+                if (string.IsNullOrEmpty(tokenMint))
+                {
+                    Debug.LogError("TokenPickerScreen: Invalid token mint address");
+                    UpdateLoadingText("Invalid token selection");
+                    ShowLoadingUI(false);
+                    isCreatingRace = false;
+                    return;
+                }
+
+                // Only create race on-chain in competitive mode
+                if (GameModeData.IsCompetitive)
+                {
+                    var authManager = AuthenticationFlowManager.Instance;
+                    if (authManager == null || !authManager.IsAuthenticated)
+                    {
+                        Debug.LogError("TokenPickerScreen: User not authenticated");
+                        UpdateLoadingText("Please log in first");
+                        ShowLoadingUI(false);
+                        isCreatingRace = false;
+                        return;
+                    }
+
+                    UpdateLoadingText("Creating race on-chain...");
+                    string raceId = await OnChainRaceManager.CreateRaceOnChainAsync(
+                        tokenMint,
+                        entryFeeSol,
+                        (message, progress) =>
+                        {
+                            UpdateLoadingText(message);
+                        }
+                    );
+
+                    if (string.IsNullOrEmpty(raceId))
+                    {
+                        Debug.LogError("TokenPickerScreen: Failed to create race on-chain");
+                        UpdateLoadingText("Failed to create race. Please try again.");
+                        ShowLoadingUI(false);
+                        isCreatingRace = false;
+                        return;
+                    }
+
+                    RaceData.CurrentRaceId = raceId;
+                    RaceData.EntryFeeSol = entryFeeSol;
+
+                    if (debugLogging)
+                    {
+                        Debug.Log($"TokenPickerScreen: Race created successfully! Race ID: {raceId}");
+                    }
+                }
+                else
+                {
+                    // Practice mode: no on-chain race creation
+                    RaceData.ClearRaceData();
+                    if (debugLogging)
+                    {
+                        Debug.Log("TokenPickerScreen: Practice mode - skipping on-chain race creation");
+                    }
+                }
+
+                UpdateLoadingText("Loading race...");
+                await Task.Delay(500);                  //brief delay to show success message
+                LoadRaceScene();
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"TokenPickerScreen: Error creating race: {e.Message}");
+                UpdateLoadingText($"Error: {e.Message}");
+                ShowLoadingUI(false);
+                isCreatingRace = false;
+            }
+        }
+
+        /// <summary>
+        /// loads Race scene
         /// </summary>
         private void LoadRaceScene()
         {
             if (string.IsNullOrEmpty(raceSceneName))
             {
                 Debug.LogError("TokenPickerScreen: Race scene name is empty!");
+                ShowLoadingUI(false);
+                isCreatingRace = false;
                 return;
             }
 
@@ -245,11 +343,39 @@ namespace Solracer.UI
             catch (System.Exception e)
             {
                 Debug.LogError($"TokenPickerScreen: Failed to load scene '{raceSceneName}': {e.Message}");
+                ShowLoadingUI(false);
+                isCreatingRace = false;
             }
         }
 
         /// <summary>
-        /// Loads Mode Selection scene
+        /// show or hide loading UI.
+        /// </summary>
+        private void ShowLoadingUI(bool show)
+        {
+            if (loadingPanel != null)
+            {
+                loadingPanel.SetActive(show);
+            }
+        }
+
+        /// <summary>
+        /// update loading text.
+        /// </summary>
+        private void UpdateLoadingText(string text)
+        {
+            if (loadingText != null)
+            {
+                loadingText.text = text;
+            }
+            else if (debugLogging)
+            {
+                Debug.Log($"[TokenPickerScreen] {text}");
+            }
+        }
+
+        /// <summary>
+        /// loads Mode Selection scene
         /// </summary>
         private void LoadModeSelectionScene()
         {

@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using System.Threading.Tasks;
 using Solracer.Game;
+using Solracer.Network;
 
 namespace Solracer.Game
 {
@@ -39,7 +41,10 @@ namespace Solracer.Game
         private bool isUpsideDown = false;
         private float upsideDownTimer = 0f;
 
-        // Properties
+        // Input trace recorder
+        private InputTraceRecorder inputTraceRecorder;
+
+        //properties
         //check if the game is active or not
         public bool IsGameActive => isGameActive;
 
@@ -69,13 +74,27 @@ namespace Solracer.Game
                 }
             }
 
+            //find or create input trace recorder
+            inputTraceRecorder = FindAnyObjectByType<InputTraceRecorder>();
+            if (inputTraceRecorder == null)
+            {
+                GameObject recorderObj = new GameObject("InputTraceRecorder");
+                inputTraceRecorder = recorderObj.AddComponent<InputTraceRecorder>();
+                DontDestroyOnLoad(recorderObj);
+            }
+
             SetupFinishLine();
             Debug.Log($"RaceManager: Initialized - ATV: {(atvController != null ? "Found" : "Missing")}, Track: {(trackGenerator != null ? "Found" : "Missing")}, Finish Line: {(finishLine != null ? "Found" : "Missing")}");
         }
 
         private void Start()
         {
-            //creating finishline after track in generated
+            //start recording input trace
+            if (inputTraceRecorder != null)
+            {
+                inputTraceRecorder.StartRecording();
+                Debug.Log("RaceManager: Started input trace recording");
+            }
         }
 
         private void Update()
@@ -187,13 +206,19 @@ namespace Solracer.Game
         }
 
         //game over when ATV flipped
-        public void TriggerGameOver(string reason = "flipped")
+        public async void TriggerGameOver(string reason = "flipped")
         {
             if (!isGameActive)
                 return;
 
             isGameActive = false;
             Debug.Log($"RaceManager: Game Over - {reason}");
+
+            //stop recording input trace
+            if (inputTraceRecorder != null)
+            {
+                inputTraceRecorder.StopRecording();
+            }
 
             //race data for results
             float finalTime = 0f;
@@ -211,11 +236,27 @@ namespace Solracer.Game
                 finalSpeed = atvController.CurrentSpeed;
             }
 
-            // Save collected coins before game over
+            //save collected coins before game over
             var coinManager = FindAnyObjectByType<CoinCollectionManager>();
+            int coinsCollected = 0;
             if (coinManager != null)
             {
                 coinManager.SaveCollectedCoins();
+                coinsCollected = CoinSelectionData.GetSelectedCoinCount();
+            }
+
+            //calculate input hash for replay verification
+            string inputHash = "";
+            if (inputTraceRecorder != null)
+            {
+                inputHash = inputTraceRecorder.CalculateInputHash();
+            }
+
+            //submit result onchain if race was created onchain
+            if (RaceData.HasActiveRace())
+            {
+                Debug.Log("[RaceManager] Submitting result on-chain (game over)...");
+                await SubmitResultOnChain(finalTime, coinsCollected, inputHash);
             }
 
             //storing game over data
@@ -232,13 +273,18 @@ namespace Solracer.Game
         }
 
         //race complete
-        public void TriggerRaceComplete()
+        public async void TriggerRaceComplete()
         {
             if (!isGameActive)
                 return;
 
             isGameActive = false;
             Debug.Log("RaceManager: Race Complete!");
+
+            if (inputTraceRecorder != null)
+            {
+                inputTraceRecorder.StopRecording();
+            }
 
             float finalTime = 0f;
             float finalSpeed = 0f;
@@ -257,9 +303,25 @@ namespace Solracer.Game
 
             // Save collected coins before race complete
             var coinManager = FindAnyObjectByType<CoinCollectionManager>();
+            int coinsCollected = 0;
             if (coinManager != null)
             {
                 coinManager.SaveCollectedCoins();
+                coinsCollected = CoinSelectionData.GetSelectedCoinCount();
+            }
+
+            //calculate input hash for replay verification
+            string inputHash = "";
+            if (inputTraceRecorder != null)
+            {
+                inputHash = inputTraceRecorder.CalculateInputHash();
+                Debug.Log($"[RaceManager] Input hash calculated: {inputHash.Substring(0, Mathf.Min(16, inputHash.Length))}...");
+            }
+
+            if (RaceData.HasActiveRace())
+            {
+                Debug.Log("[RaceManager] Submitting result on-chain...");
+                await SubmitResultOnChain(finalTime, coinsCollected, inputHash);
             }
 
             string trackName = GetTrackName();
@@ -272,6 +334,61 @@ namespace Solracer.Game
             );
 
             LoadResultsScene();
+        }
+
+        /// <summary>
+        /// submit race result onchain.
+        /// </summary>
+        private async Task SubmitResultOnChain(float finalTime, int coinsCollected, string inputHash)
+        {
+            // Only submit on-chain in competitive mode
+            if (!GameModeData.IsCompetitive)
+            {
+                Debug.Log("[RaceManager] Practice mode - skipping on-chain result submission");
+                return;
+            }
+
+            try
+            {
+                string raceId = RaceData.CurrentRaceId;
+                if (string.IsNullOrEmpty(raceId))
+                {
+                    Debug.LogWarning("[RaceManager] No active race ID, skipping on-chain submission");
+                    return;
+                }
+
+                int finishTimeMs = Mathf.RoundToInt(finalTime * 1000f);
+
+                if (string.IsNullOrEmpty(inputHash) || inputHash.Length != 64)
+                {
+                    Debug.LogWarning($"[RaceManager] Invalid input hash length: {inputHash?.Length ?? 0}. Using placeholder.");
+                    inputHash = new string('0', 64); //placeholder
+                }
+
+                bool success = await OnChainRaceManager.SubmitResultOnChainAsync(
+                    raceId,
+                    finishTimeMs,
+                    coinsCollected,
+                    inputHash,
+                    (message, progress) =>
+                    {
+                        Debug.Log($"[RaceManager] {message} ({progress * 100:F0}%)");
+                    }
+                );
+
+                if (success)
+                {
+                    Debug.Log("[RaceManager] Result submitted successfully on-chain!");
+                }
+                else
+                {
+                    Debug.LogWarning("[RaceManager] Failed to submit result on-chain");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[RaceManager] Error submitting result on-chain: {ex.Message}");
+            }
         }
 
         //score based on speed { later will be based on coins }
