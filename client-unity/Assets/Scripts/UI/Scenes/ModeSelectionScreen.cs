@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
+using System.Threading.Tasks;
 using Solracer.Auth;
 using Solracer.Game;
 
@@ -19,12 +20,16 @@ namespace Solracer.UI
         [Tooltip("Competitive mode button")]
         [SerializeField] private Button competitiveButton;
 
+        [Header("Authentication Modal")]
+        [Tooltip("Transaction signing modal for competitive mode authentication")]
+        [SerializeField] private TransactionSigningModal authModal;
+
         [Header("Scene Names")]
         [Tooltip("Scene to load for Practice mode")]
         [SerializeField] private string practiceSceneName = "Race";
 
-        [Tooltip("Scene to load for Competitive mode (usually TokenPicker)")]
-        [SerializeField] private string competitiveSceneName = "TokenPicker";
+        [Tooltip("Scene to load for Competitive mode (both modes go to Race)")]
+        [SerializeField] private string competitiveSceneName = "Race";
 
         [Header("Settings")]
         [Tooltip("Enable debug logging")]
@@ -35,6 +40,22 @@ namespace Solracer.UI
             AutoFindButtons();
             SetupButtons();
             CheckAuthenticationStatus();
+            AutoFindAuthModal();
+        }
+
+        /// <summary>
+        /// Auto-find authentication modal if not assigned
+        /// </summary>
+        private void AutoFindAuthModal()
+        {
+            if (authModal == null)
+            {
+                authModal = FindObjectOfType<TransactionSigningModal>();
+                if (authModal == null && debugLogging)
+                {
+                    Debug.LogWarning("ModeSelectionScreen: TransactionSigningModal not found. Competitive mode will proceed without modal.");
+                }
+            }
         }
 
         private void AutoFindButtons()
@@ -64,8 +85,11 @@ namespace Solracer.UI
                 Debug.LogWarning("ModeSelectionScreen: Practice button not found!");
             }
 
+            // Set up competitive button listener
             if (competitiveButton != null)
             {
+                // Remove any existing listeners to avoid conflicts
+                competitiveButton.onClick.RemoveAllListeners();
                 competitiveButton.onClick.AddListener(OnCompetitiveClicked);
             }
             else
@@ -96,21 +120,27 @@ namespace Solracer.UI
         {
             if (debugLogging)
             {
-                Debug.Log($"ModeSelectionScreen: Competitive mode selected - Loading {competitiveSceneName}");
+                Debug.Log("ModeSelectionScreen: Competitive button clicked (user approved)");
             }
 
-            // Check if user is authenticated (competitive mode requires authentication)
             if (!AuthenticationData.CanAccessCompetitiveMode)
             {
                 Debug.LogWarning("ModeSelectionScreen: Competitive mode requires authentication. Please login first.");
-                // Could redirect to login screen here if needed
                 return;
+            }
+
+            if (debugLogging)
+            {
+                Debug.Log("ModeSelectionScreen: Competitive mode approved - Loading Race");
             }
 
             // Set mode to Competitive
             GameModeData.CurrentMode = GameMode.Competitive;
-            LoadScene(competitiveSceneName);
+            
+            // Load Race scene directly (hardcoded to ensure correct flow)
+            LoadScene("Race");
         }
+
 
         /// <summary>
         /// Checks authentication status and updates UI accordingly

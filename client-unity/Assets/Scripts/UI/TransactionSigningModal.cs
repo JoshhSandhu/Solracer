@@ -1,110 +1,87 @@
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 
 namespace Solracer.UI
 {
     /// <summary>
-    /// Modal UI for transaction signing with Privy
+    /// Simplified transaction signing modal
+    /// The Competitive button is assigned as the approve button
+    /// When clicked, it approves the transaction signing
     /// </summary>
     public class TransactionSigningModal : MonoBehaviour
     {
         [Header("UI References")]
-        [Tooltip("Main modal panel GameObject")]
-        [SerializeField] private GameObject modalPanel;
-
-        [Tooltip("Modal title text")]
-        [SerializeField] private TextMeshProUGUI titleText;
-
-        [Tooltip("Modal description/instruction text")]
-        [SerializeField] private TextMeshProUGUI descriptionText;
-
-        [Tooltip("Approve/Sign button")]
+        [Tooltip("Approve button (assign Competitive button here)")]
         [SerializeField] private Button approveButton;
-
-        [Tooltip("Reject/Cancel button")]
-        [SerializeField] private Button rejectButton;
-
-        [Tooltip("Loading indicator GameObject")]
-        [SerializeField] private GameObject loadingIndicator;
-
-        [Tooltip("Loading text (optional)")]
-        [SerializeField] private TextMeshProUGUI loadingText;
 
         private System.Action<bool> onUserDecision;
 
         private void Start()
         {
+            // Set up approve button listener
             if (approveButton != null)
+            {
                 approveButton.onClick.AddListener(OnApproveClicked);
-            
-            if (rejectButton != null)
-                rejectButton.onClick.AddListener(OnRejectClicked);
-
-            HideModal();
+            }
+            else
+            {
+                Debug.LogWarning("TransactionSigningModal: Approve button not assigned!");
+            }
         }
 
         /// <summary>
         /// Show the transaction signing modal
+        /// Sets up callback - when approve button is clicked, it will be invoked
         /// </summary>
         public void ShowModal(string title, string description, System.Action<bool> callback)
         {
             onUserDecision = callback;
             
-            if (titleText != null)
-                titleText.text = title ?? "Sign Transaction";
-            
-            if (descriptionText != null)
-                descriptionText.text = description ?? "Please approve this transaction in your wallet.";
-
-            if (modalPanel != null)
-                modalPanel.SetActive(true);
-
-            if (loadingIndicator != null)
-                loadingIndicator.SetActive(false);
-
+            // Enable the approve button if it exists
             if (approveButton != null)
+            {
                 approveButton.interactable = true;
-
-            if (rejectButton != null)
-                rejectButton.interactable = true;
+            }
         }
 
         /// <summary>
-        /// Hide the modal
+        /// Hide the modal (disable approve button)
         /// </summary>
         public void HideModal()
         {
-            if (modalPanel != null)
-                modalPanel.SetActive(false);
+            if (approveButton != null)
+            {
+                approveButton.interactable = false;
+            }
         }
 
         /// <summary>
-        /// Called when user clicks Approve button
+        /// Called when approve button (Competitive button) is clicked
         /// </summary>
         private void OnApproveClicked()
         {
-            if (loadingIndicator != null)
-                loadingIndicator.SetActive(true);
-
-            if (loadingText != null)
-                loadingText.text = "Signing transaction...";
-
             if (approveButton != null)
+            {
                 approveButton.interactable = false;
+            }
 
-            if (rejectButton != null)
-                rejectButton.interactable = false;
-
+            // Invoke callback with approval
             onUserDecision?.Invoke(true);
         }
 
         /// <summary>
-        /// Called when user clicks Reject button
+        /// Approve the transaction programmatically
         /// </summary>
-        private void OnRejectClicked()
+        public void Approve()
         {
-            HideModal();
+            OnApproveClicked();
+        }
+
+        /// <summary>
+        /// Reject the transaction (optional - not used for Competitive button)
+        /// </summary>
+        public void Reject()
+        {
             onUserDecision?.Invoke(false);
         }
 
@@ -113,27 +90,21 @@ namespace Solracer.UI
         /// </summary>
         public void SetLoading(bool isLoading, string message = null)
         {
-            if (loadingIndicator != null)
-                loadingIndicator.SetActive(isLoading);
-
-            if (loadingText != null && !string.IsNullOrEmpty(message))
-                loadingText.text = message;
-
             if (approveButton != null)
+            {
                 approveButton.interactable = !isLoading;
-
-            if (rejectButton != null)
-                rejectButton.interactable = !isLoading;
+            }
         }
 
         /// <summary>
-        /// Update loading message
+        /// Update loading message (no-op, kept for compatibility)
         /// </summary>
         public void UpdateLoadingMessage(string message)
         {
-            if (loadingText != null)
-                loadingText.text = message;
+            // Loading message handled by calling component if needed
         }
     }
 }
+
+
 

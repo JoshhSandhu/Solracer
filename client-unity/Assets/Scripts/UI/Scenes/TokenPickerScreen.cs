@@ -219,22 +219,17 @@ namespace Solracer.UI
         }
 
         /// <summary>
-        /// called when Start Race button is clicked
+        /// called when Start Race button is clicked (now goes to Mode Selection)
         /// </summary>
-        public async void OnStartRaceClicked()
+        public void OnStartRaceClicked()
         {
-            if (isCreatingRace)
-            {
-                Debug.LogWarning("TokenPickerScreen: Race creation already in progress");
-                return;
-            }
-
             if (debugLogging)
             {
-                Debug.Log($"TokenPickerScreen: Start Race clicked - Creating race on-chain");
+                Debug.Log($"TokenPickerScreen: Continue clicked - Loading {modeSelectionSceneName}");
             }
 
-            await CreateRaceAndLoadScene();
+            // Just load ModeSelection scene - race creation will happen in RaceManager
+            LoadModeSelectionScene();
         }
 
         /// <summary>
