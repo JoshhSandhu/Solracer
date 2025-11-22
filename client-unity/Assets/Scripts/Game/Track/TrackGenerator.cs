@@ -1,5 +1,7 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using Solracer.Network;
 
 namespace Solracer.Game
 {
@@ -100,22 +102,73 @@ namespace Solracer.Game
             }
         }
 
-        private void Start()
+        private async void Start()
         {
-            GenerateTrack();
+            await GenerateTrackAsync();
         }
 
-        //generates the track from mock data
-        public void GenerateTrack()
+        /// <summary>
+        /// Async wrapper for GenerateTrack
+        /// </summary>
+        private async Task GenerateTrackAsync()
         {
-            //get track data
-            if (useSeed)
+            await GenerateTrack();
+        }
+
+        //generates the track from mock data or API
+        public async Task GenerateTrack()
+        {
+            // In competitive mode, try to fetch from API first
+            if (GameModeData.IsCompetitive)
             {
-                trackData = TrackDataProvider.GetMockTrackDataWithSeed(seed);
+                // Get token mint address from selected coin
+                CoinType selectedCoin = CoinSelectionData.SelectedCoin;
+                string tokenMint = CoinSelectionData.GetCoinMintAddress(selectedCoin);
+                
+                if (!string.IsNullOrEmpty(tokenMint))
+                {
+                    // Try to fetch real track data from backend
+                    var trackApiClient = TrackAPIClient.Instance;
+                    if (trackApiClient != null)
+                    {
+                        int? seedValue = useSeed ? (int?)seed : null;
+                        var apiResponse = await trackApiClient.GetTrackData(tokenMint, seedValue);
+                        
+                        if (apiResponse != null && apiResponse.samples != null && apiResponse.samples.Length > 0)
+                        {
+                            // Convert API response to float array
+                            trackData = new float[apiResponse.samples.Length];
+                            for (int i = 0; i < apiResponse.samples.Length; i++)
+                            {
+                                trackData[i] = apiResponse.samples[i].y; // y is normalized 0-1
+                            }
+                            
+                            Debug.Log($"[TrackGenerator] Using real track data from API. Token: {apiResponse.token_symbol}, Points: {trackData.Length}");
+                        }
+                        else
+                        {
+                            Debug.LogWarning("[TrackGenerator] Failed to fetch track data from API, falling back to mock data");
+                            // Fall through to mock data
+                        }
+                    }
+                }
             }
-            else
+            
+            // Use mock data if:
+            // - Practice mode
+            // - API fetch failed
+            // - No token mint available
+            if (trackData == null || trackData.Length == 0)
             {
-                trackData = TrackDataProvider.GetMockTrackData();
+                if (useSeed)
+                {
+                    trackData = TrackDataProvider.GetMockTrackDataWithSeed(seed);
+                }
+                else
+                {
+                    trackData = TrackDataProvider.GetMockTrackData();
+                }
+                Debug.Log($"[TrackGenerator] Using mock track data (Mode: {GameModeData.CurrentMode})");
             }
 
             //generate world space points
@@ -422,9 +475,9 @@ namespace Solracer.Game
         }
 
         //regenerates the track with current settings
-        public void RegenerateTrack()
+        public async void RegenerateTrack()
         {
-            GenerateTrack();
+            await GenerateTrack();
         }
 
         //ensure valid parameter values

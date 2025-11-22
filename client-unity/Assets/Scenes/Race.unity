@@ -893,7 +893,7 @@ Transform:
   m_GameObject: {fileID: 396010414}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -1.83, z: 0}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 20, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2576,8 +2576,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Solracer.Game.TrackGenerator
   trackLength: 500
   heightRange: {x: -50, y: 50}
-  startX: -30
-  yOffset: -10
+  startX: 0
+  yOffset: -2
   lineWidth: 0.5
   trackColor: {r: 1, g: 1, b: 1, a: 1}
   useSlopeColors: 1
@@ -3170,6 +3170,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2054209001}
   - component: {fileID: 2054209000}
+  - component: {fileID: 2054209002}
   m_Layer: 0
   m_Name: Race Manager
   m_TagString: Untagged
@@ -3196,6 +3197,7 @@ MonoBehaviour:
   finishLine: {fileID: 0}
   autoCreateFinishLine: 1
   finishLineSize: {x: 10, y: 100}
+  defaultEntryFeeSol: 0.01
 --- !u!4 &2054209001
 Transform:
   m_ObjectHideFlags: 0
@@ -3211,6 +3213,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2054209002
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2054208999}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0596558cd33c304cb16c877cc541b88, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Solracer.Game.InputTraceRecorder
+  recordingInterval: 0.0167
+  inputActionsAsset: {fileID: -944628639613478452, guid: a32a7b06c04bf9548806a9afacefc05c, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
