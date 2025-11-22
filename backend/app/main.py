@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from pathlib import Path
 
-from app.api.routes import tokens, tracks, races
+from app.api.routes import tokens, tracks, races, solana_transactions
 from app.database import engine, Base
 
 # Load environment variables from .env file
@@ -35,11 +35,19 @@ async def lifespan(app: FastAPI):
     - Startup: Create database tables (if they don't exist)
     - Shutdown: Clean up resources
     """
-    # Startup: Create database tables
+    # Startup: Create database tables (test connection)
     print("Starting Solracer Backend...")
-    print(f"Creating database tables...")
-    Base.metadata.create_all(bind=engine)
-    print("Database tables created")
+    try:
+        print(f"Testing database connection...")
+        # Try to connect and create tables
+        Base.metadata.create_all(bind=engine)
+        print("✓ Database connection successful. Tables created/verified.")
+    except Exception as e:
+        print(f"⚠ Warning: Database connection failed: {e}")
+        print("⚠ Backend will continue, but database-dependent endpoints may not work.")
+        print("⚠ For Phase 4.4 testing, transaction endpoints (/transactions/build, /transactions/submit)")
+        print("⚠ and track endpoint (/track) should still work without database.")
+        print("⚠ To fix: Update DATABASE_URL in backend/.env file with valid connection string.")
     
     yield
     
@@ -73,6 +81,7 @@ app.add_middleware(
 app.include_router(tokens.router, prefix=API_V1_PREFIX, tags=["tokens"])
 app.include_router(tracks.router, prefix=API_V1_PREFIX, tags=["tracks"])
 app.include_router(races.router, prefix=API_V1_PREFIX, tags=["races"])
+app.include_router(solana_transactions.router, prefix=API_V1_PREFIX, tags=["solana-transactions"])
 
 
 @app.get("/")

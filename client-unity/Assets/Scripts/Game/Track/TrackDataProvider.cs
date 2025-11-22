@@ -28,13 +28,13 @@ namespace Solracer.Game
                 float value = 0f;                //multiple sine waves combined
 
                 //Lower frequency waves for smoother, more spread out hills
-                value += Mathf.Sin(t * Mathf.PI * 0.5f) * 0.5f;  //very long wave (2 complete cycles over track)
-                value += Mathf.Sin(t * Mathf.PI * 1f) * 0.3f;     //long wave (1 complete cycle)
-                value += Mathf.Sin(t * Mathf.PI * 2f) * 0.15f;    //medium wave (2 cycles)
+                value += Mathf.Sin(t * Mathf.PI * 0.5f) * 0.5f;     //very long wave (2 complete cycles over track)
+                value += Mathf.Sin(t * Mathf.PI * 1f) * 0.3f;       //long wave (1 complete cycle)
+                value += Mathf.Sin(t * Mathf.PI * 2f) * 0.15f;      //medium wave (2 cycles)
                 //Reduced noise for smoother terrain
-                value += Random.Range(-0.05f, 0.05f);            //minimal random noise
-                value = (value + 1f) * 0.5f;                     //normalize to 0-1
-                value = Mathf.Clamp01(value);                     //clamp to valid range
+                value += Random.Range(-0.05f, 0.05f);               //minimal random noise
+                value = (value + 1f) * 0.5f;                        //normalize to 0-1
+                value = Mathf.Clamp01(value);                       //clamp to valid range
                 cachedPoints[i] = value;
             }
             return cachedPoints;
@@ -55,11 +55,11 @@ namespace Solracer.Game
           
                 float value = 0f;
                 //Lower frequency waves for smoother, more spread out hills
-                value += Mathf.Sin(t * Mathf.PI * 0.5f) * 0.5f;  //very long wave (2 complete cycles over track)
-                value += Mathf.Sin(t * Mathf.PI * 1f) * 0.3f;     //long wave (1 complete cycle)
-                value += Mathf.Sin(t * Mathf.PI * 2f) * 0.15f;    //medium wave (2 cycles)
+                value += Mathf.Sin(t * Mathf.PI * 0.5f) * 0.5f;     //very long wave (2 complete cycles over track)
+                value += Mathf.Sin(t * Mathf.PI * 1f) * 0.3f;       //long wave (1 complete cycle)
+                value += Mathf.Sin(t * Mathf.PI * 2f) * 0.15f;      //medium wave (2 cycles)
                 //Reduced noise for smoother terrain
-                value += Random.Range(-0.05f, 0.05f);            //minimal random noise
+                value += Random.Range(-0.05f, 0.05f);               //minimal random noise
                 value = (value + 1f) * 0.5f;
                 value = Mathf.Clamp01(value);
                 points[i] = value;

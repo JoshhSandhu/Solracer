@@ -1,0 +1,361 @@
+{
+  "address": "BW9EBdw58SZzzYY3rczk6qGeRUf21ZyPJyd6QKs4GbtM",
+  "metadata": {
+    "name": "solracer_program",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "claim_prize",
+      "discriminator": [
+        157,
+        233,
+        139,
+        121,
+        246,
+        62,
+        234,
+        235
+      ],
+      "accounts": [
+        {
+          "name": "race",
+          "writable": true
+        },
+        {
+          "name": "winner",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_race",
+      "discriminator": [
+        233,
+        107,
+        148,
+        159,
+        241,
+        155,
+        226,
+        54
+      ],
+      "accounts": [
+        {
+          "name": "race",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  97,
+                  99,
+                  101
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "race_id"
+              },
+              {
+                "kind": "arg",
+                "path": "token_mint"
+              },
+              {
+                "kind": "arg",
+                "path": "entry_fee_sol"
+              }
+            ]
+          }
+        },
+        {
+          "name": "player1",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "race_id",
+          "type": "string"
+        },
+        {
+          "name": "token_mint",
+          "type": "pubkey"
+        },
+        {
+          "name": "entry_fee_sol",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "join_race",
+      "discriminator": [
+        207,
+        91,
+        222,
+        84,
+        249,
+        246,
+        229,
+        54
+      ],
+      "accounts": [
+        {
+          "name": "race",
+          "writable": true
+        },
+        {
+          "name": "player2",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "settle_race",
+      "discriminator": [
+        172,
+        32,
+        72,
+        212,
+        155,
+        33,
+        161,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "race",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "submit_result",
+      "discriminator": [
+        240,
+        42,
+        89,
+        180,
+        10,
+        239,
+        9,
+        214
+      ],
+      "accounts": [
+        {
+          "name": "race",
+          "writable": true
+        },
+        {
+          "name": "player",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "finish_time_ms",
+          "type": "u64"
+        },
+        {
+          "name": "coins_collected",
+          "type": "u64"
+        },
+        {
+          "name": "input_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Race",
+      "discriminator": [
+        114,
+        93,
+        186,
+        119,
+        99,
+        123,
+        162,
+        192
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidRaceStatus",
+      "msg": "Invalid race status for this operation"
+    },
+    {
+      "code": 6001,
+      "name": "Player2AlreadySet",
+      "msg": "Player2 is already set"
+    },
+    {
+      "code": 6002,
+      "name": "PlayerNotInRace",
+      "msg": "Player is not in this race"
+    },
+    {
+      "code": 6003,
+      "name": "ResultAlreadySubmitted",
+      "msg": "Result already submitted for this player"
+    },
+    {
+      "code": 6004,
+      "name": "ResultsNotComplete",
+      "msg": "Both results must be submitted before settling"
+    },
+    {
+      "code": 6005,
+      "name": "NotWinner",
+      "msg": "Only the winner can claim the prize"
+    }
+  ],
+  "types": [
+    {
+      "name": "Race",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "race_id",
+            "type": "string"
+          },
+          {
+            "name": "token_mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "entry_fee_sol",
+            "type": "u64"
+          },
+          {
+            "name": "player1",
+            "type": "pubkey"
+          },
+          {
+            "name": "player2",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "RaceStatus"
+              }
+            }
+          },
+          {
+            "name": "player1_result",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "RaceResult"
+                }
+              }
+            }
+          },
+          {
+            "name": "player2_result",
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "RaceResult"
+                }
+              }
+            }
+          },
+          {
+            "name": "winner",
+            "type": {
+              "option": "pubkey"
+            }
+          },
+          {
+            "name": "escrow_amount",
+            "type": "u64"
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RaceResult",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "finish_time_ms",
+            "type": "u64"
+          },
+          {
+            "name": "coins_collected",
+            "type": "u64"
+          },
+          {
+            "name": "input_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RaceStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Waiting"
+          },
+          {
+            "name": "Active"
+          },
+          {
+            "name": "Settled"
+          }
+        ]
+      }
+    }
+  ]
+}
