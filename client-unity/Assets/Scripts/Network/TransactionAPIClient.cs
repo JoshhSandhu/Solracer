@@ -165,12 +165,12 @@ namespace Solracer.Network
     {
         public string instruction_type;  // "create_race", "join_race", "submit_result", "claim_prize"
         public string wallet_address;
-        public string token_mint;        // Required for create_race
-        public float entry_fee_sol;      // Required for create_race
-        public string race_id;           // Required for join_race, submit_result, claim_prize
-        public int finish_time_ms;       // Required for submit_result
-        public int coins_collected;      // Required for submit_result
-        public string input_hash;        // Required for submit_result (64 hex characters)
+        public string token_mint;        // for create_race
+        public float entry_fee_sol;      // for create_race
+        public string race_id;           // for join_race, submit_result, claim_prize
+        public int finish_time_ms;       // for submit_result
+        public int coins_collected;      // for submit_result
+        public string input_hash;        // for submit_result (64 hex characters)
     }
 
     /// <summary>

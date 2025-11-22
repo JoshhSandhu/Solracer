@@ -35,11 +35,19 @@ async def lifespan(app: FastAPI):
     - Startup: Create database tables (if they don't exist)
     - Shutdown: Clean up resources
     """
-    # Startup: Create database tables
+    # Startup: Create database tables (test connection)
     print("Starting Solracer Backend...")
-    print(f"Creating database tables...")
-    Base.metadata.create_all(bind=engine)
-    print("Database tables created")
+    try:
+        print(f"Testing database connection...")
+        # Try to connect and create tables
+        Base.metadata.create_all(bind=engine)
+        print("✓ Database connection successful. Tables created/verified.")
+    except Exception as e:
+        print(f"⚠ Warning: Database connection failed: {e}")
+        print("⚠ Backend will continue, but database-dependent endpoints may not work.")
+        print("⚠ For Phase 4.4 testing, transaction endpoints (/transactions/build, /transactions/submit)")
+        print("⚠ and track endpoint (/track) should still work without database.")
+        print("⚠ To fix: Update DATABASE_URL in backend/.env file with valid connection string.")
     
     yield
     

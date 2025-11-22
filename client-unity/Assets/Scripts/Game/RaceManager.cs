@@ -3,6 +3,7 @@ using UnityEngine.SceneManagement;
 using System.Threading.Tasks;
 using Solracer.Game;
 using Solracer.Network;
+using Solracer.Auth;
 
 namespace Solracer.Game
 {
@@ -34,6 +35,10 @@ namespace Solracer.Game
 
         [Tooltip("Finish line collider size (if auto-created)")]
         [SerializeField] private Vector2 finishLineSize = new Vector2(2f, 10f);
+
+        [Header("On-Chain Race Settings")]
+        [Tooltip("Default entry fee in SOL (used if not set elsewhere)")]
+        [SerializeField] private float defaultEntryFeeSol = 0.01f;
 
         // Game state
         private bool isGameActive = true;
@@ -87,8 +92,14 @@ namespace Solracer.Game
             Debug.Log($"RaceManager: Initialized - ATV: {(atvController != null ? "Found" : "Missing")}, Track: {(trackGenerator != null ? "Found" : "Missing")}, Finish Line: {(finishLine != null ? "Found" : "Missing")}");
         }
 
-        private void Start()
+        private async void Start()
         {
+            // If competitive mode, create race on-chain before starting (if not already created)
+            if (GameModeData.IsCompetitive)
+            {
+                await CreateRaceOnChainIfNeeded();
+            }
+
             //start recording input trace
             if (inputTraceRecorder != null)
             {
@@ -334,6 +345,63 @@ namespace Solracer.Game
             );
 
             LoadResultsScene();
+        }
+
+        /// <summary>
+        /// Creates race on-chain if in competitive mode and race hasn't been created yet
+        /// </summary>
+        private async Task CreateRaceOnChainIfNeeded()
+        {
+            // Only create if not already created
+            if (!string.IsNullOrEmpty(RaceData.CurrentRaceId))
+            {
+                Debug.Log($"[RaceManager] Race already created on-chain: {RaceData.CurrentRaceId}");
+                return;
+            }
+
+            // Check authentication
+            var authManager = AuthenticationFlowManager.Instance;
+            if (authManager == null || !authManager.IsAuthenticated)
+            {
+                Debug.LogError("[RaceManager] User not authenticated - cannot create race on-chain");
+                return;
+            }
+
+            // Get selected token
+            CoinType selectedCoin = CoinSelectionData.SelectedCoin;
+            string tokenMint = CoinSelectionData.GetCoinMintAddress(selectedCoin);
+
+            if (string.IsNullOrEmpty(tokenMint))
+            {
+                Debug.LogError("[RaceManager] Invalid token mint address - cannot create race on-chain");
+                return;
+            }
+
+            // Get entry fee (use stored value or default)
+            float entryFee = RaceData.EntryFeeSol > 0 ? RaceData.EntryFeeSol : defaultEntryFeeSol;
+
+            Debug.Log($"[RaceManager] Creating race on-chain... Token: {tokenMint}, Entry Fee: {entryFee} SOL");
+
+            // Create race on-chain
+            string raceId = await OnChainRaceManager.CreateRaceOnChainAsync(
+                tokenMint,
+                entryFee,
+                (message, progress) =>
+                {
+                    Debug.Log($"[RaceManager] {message} ({progress * 100:F0}%)");
+                }
+            );
+
+            if (!string.IsNullOrEmpty(raceId))
+            {
+                RaceData.CurrentRaceId = raceId;
+                RaceData.EntryFeeSol = entryFee;
+                Debug.Log($"[RaceManager] Race created successfully on-chain! Race ID: {raceId}");
+            }
+            else
+            {
+                Debug.LogError("[RaceManager] Failed to create race on-chain");
+            }
         }
 
         /// <summary>
