@@ -256,6 +256,10 @@ async def submit_result(
         race.status = RaceStatus.SETTLED
         race.settled_at = datetime.now()
         db.commit()
+        
+        # Phase 7: Trigger payout processing (async, non-blocking)
+        # Payout will be processed when winner calls /payouts/{race_id}/process
+        # For automatic processing, a background worker would handle this
     
     return {
         "message": "Result submitted successfully",
