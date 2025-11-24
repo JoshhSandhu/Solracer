@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from pathlib import Path
 
-from app.api.routes import tokens, tracks, races, solana_transactions
+from app.api.routes import tokens, tracks, races, solana_transactions, payouts
 from app.database import engine, Base
 
 # Load environment variables from .env file
@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠ Warning: Database connection failed: {e}")
         print("⚠ Backend will continue, but database-dependent endpoints may not work.")
-        print("⚠ For Phase 4.4 testing, transaction endpoints (/transactions/build, /transactions/submit)")
+        print("⚠ For Phase 6 testing, transaction endpoints (/transactions/build, /transactions/submit)")
         print("⚠ and track endpoint (/track) should still work without database.")
         print("⚠ To fix: Update DATABASE_URL in backend/.env file with valid connection string.")
     
@@ -82,6 +82,7 @@ app.include_router(tokens.router, prefix=API_V1_PREFIX, tags=["tokens"])
 app.include_router(tracks.router, prefix=API_V1_PREFIX, tags=["tracks"])
 app.include_router(races.router, prefix=API_V1_PREFIX, tags=["races"])
 app.include_router(solana_transactions.router, prefix=API_V1_PREFIX, tags=["solana-transactions"])
+app.include_router(payouts.router, prefix=API_V1_PREFIX, tags=["payouts"])
 
 
 @app.get("/")
