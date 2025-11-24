@@ -94,7 +94,7 @@ class RaceStatusResponse(BaseModel):
         from_attributes = True
 
 
-# Phase 4.3: Transaction-related schemas
+# Phase 6: Transaction-related schemas (Legacy: Phase 4.3)
 class BuildTransactionRequest(BaseModel):
     """Request schema for building a transaction."""
     instruction_type: str = Field(..., description="Instruction type: create_race, join_race, submit_result, claim_prize")
@@ -140,3 +140,47 @@ class ClaimPrizeRequest(BaseModel):
     """Request schema for claiming prize."""
     race_id: str = Field(..., description="Race ID")
     wallet_address: str = Field(..., description="Winner wallet address")
+
+
+# Phase 7: Payout-related schemas
+class PayoutStatusEnum(str, Enum):
+    """Payout status enumeration."""
+    PENDING = "pending"
+    SWAPPING = "swapping"
+    PAID = "paid"
+    FALLBACK_SOL = "fallback_sol"
+    FAILED = "failed"
+
+
+class PayoutResponse(BaseModel):
+    """Response schema for payout information."""
+    payout_id: str
+    race_id: str
+    winner_wallet: str
+    prize_amount_sol: float
+    token_mint: str
+    token_amount: Optional[float] = None
+    swap_status: PayoutStatusEnum
+    swap_tx_signature: Optional[str] = None
+    transfer_tx_signature: Optional[str] = None
+    fallback_sol_amount: Optional[float] = None
+    fallback_tx_signature: Optional[str] = None
+    error_message: Optional[str] = None
+    created_at: datetime
+    swap_started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ProcessPayoutResponse(BaseModel):
+    """Response schema for processing payout."""
+    status: str = Field(..., description="Status: ready_for_signing, processing, completed, failed")
+    payout_id: str
+    transaction: Optional[str] = Field(None, description="Base64-encoded transaction (if ready_for_signing)")
+    swap_transaction: Optional[str] = Field(None, description="Jupiter swap transaction (if using swap)")
+    method: str = Field(..., description="Method: claim_prize, jupiter_swap, fallback_sol")
+    amount_sol: Optional[float] = None
+    amount_tokens: Optional[float] = None
+    error: Optional[str] = None

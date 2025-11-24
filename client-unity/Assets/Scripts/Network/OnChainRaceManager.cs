@@ -375,6 +375,93 @@ namespace Solracer.Network
             }
         }
 
+        /// <summary>
+        /// Claim prize for a race (winner only)
+        /// </summary>
+        public static async Task<bool> ClaimPrizeOnChainAsync(
+            string raceId,
+            Action<string, float> onProgress = null)
+        {
+            try
+            {
+                if (apiClient == null || authManager == null)
+                {
+                    Initialize();
+                }
+
+                if (!authManager.IsAuthenticated)
+                {
+                    Debug.LogError("[OnChainRaceManager] User not authenticated");
+                    return false;
+                }
+
+                string walletAddress = authManager.WalletAddress;
+
+                // Build transaction
+                onProgress?.Invoke("Building claim prize transaction...", 0.3f);
+                var buildRequest = new BuildTransactionRequest
+                {
+                    instruction_type = "claim_prize",
+                    wallet_address = walletAddress,
+                    race_id = raceId
+                };
+
+                var buildResponse = await apiClient.BuildTransactionAsync(buildRequest);
+                if (buildResponse == null)
+                {
+                    return false;
+                }
+
+                // Show transaction signing modal and sign transaction
+                onProgress?.Invoke("Waiting for transaction approval...", 0.6f);
+                bool userApproved = await ShowTransactionSigningModal(
+                    "Claim Prize Transaction",
+                    "Please approve the transaction to claim your prize.",
+                    onProgress
+                );
+
+                if (!userApproved)
+                {
+                    Debug.LogWarning("[OnChainRaceManager] User rejected transaction signing.");
+                    return false;
+                }
+
+                onProgress?.Invoke("Signing transaction...", 0.65f);
+                string signedTransaction = await authManager.SignTransaction(buildResponse.transaction_bytes);
+                if (string.IsNullOrEmpty(signedTransaction))
+                {
+                    HideSigningModal();
+                    return false;
+                }
+
+                // Submit transaction
+                onProgress?.Invoke("Submitting transaction...", 0.8f);
+                var submitRequest = new SubmitTransactionRequest
+                {
+                    signed_transaction_bytes = signedTransaction,
+                    instruction_type = "claim_prize",
+                    race_id = raceId
+                };
+
+                var submitResponse = await apiClient.SubmitTransactionAsync(submitRequest);
+                if (submitResponse != null && !string.IsNullOrEmpty(submitResponse.transaction_signature))
+                {
+                    HideSigningModal();
+                    onProgress?.Invoke("Prize claimed successfully!", 1f);
+                    Debug.Log($"[OnChainRaceManager] Prize claimed on-chain! TX: {submitResponse.transaction_signature}");
+                    return true;
+                }
+
+                HideSigningModal();
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[OnChainRaceManager] Error claiming prize on-chain: {ex.Message}");
+                return false;
+            }
+        }
+
         private static async Task<bool> ShowTransactionSigningModal(string title, string description, Action<string, float> onProgressUpdate)
         {
             var modal = GetSigningModal();

@@ -1,5 +1,5 @@
 """
-Solana transaction endpoints for Phase 4.3.
+Solana transaction endpoints for Phase 6 (Legacy: Phase 4.3).
 
 Handles transaction building and submission for on-chain race operations.
 """
