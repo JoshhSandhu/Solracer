@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
 using Newtonsoft.Json;
+using Solracer.Config;  // ADD THIS
 
 namespace Solracer.Network
 {
@@ -27,7 +28,8 @@ namespace Solracer.Network
         }
 
         [Header("API Configuration")]
-        [SerializeField] private string apiBaseUrl = "http://localhost:8000";
+        [Tooltip("API base URL (overridden by APIConfig if not set manually)")]
+        [SerializeField] private string apiBaseUrl = "";  // CHANGE: Remove hardcoded URL
         private const string API_PREFIX = "/api/v1";
 
         private void Awake()
@@ -40,6 +42,13 @@ namespace Solracer.Network
             {
                 instance = this;
                 DontDestroyOnLoad(gameObject);
+                
+                // ADD THIS: Initialize API URL from config
+                if (string.IsNullOrEmpty(apiBaseUrl))
+                {
+                    apiBaseUrl = APIConfig.GetApiBaseUrl();
+                }
+                Debug.Log($"[PayoutAPIClient] Initialized with API URL: {apiBaseUrl}");
             }
         }
 
