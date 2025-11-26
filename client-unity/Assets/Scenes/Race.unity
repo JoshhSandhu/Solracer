@@ -435,7 +435,7 @@ Transform:
   m_GameObject: {fileID: 73933554}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 6.12, z: -5}
+  m_LocalPosition: {x: 4, y: 11, z: -5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2114,7 +2114,7 @@ Transform:
   m_GameObject: {fileID: 1471975064}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 6.12, z: -5}
+  m_LocalPosition: {x: 4, y: 11, z: -5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2574,7 +2574,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c670045fe109b7c4da4efd5fcc822fc2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Solracer.Game.TrackGenerator
-  trackLength: 500
+  trackLength: 1000
   heightRange: {x: -50, y: 50}
   startX: 0
   yOffset: -2
@@ -2588,7 +2588,7 @@ MonoBehaviour:
   seed: 42
   smoothTrack: 1
   smoothingFactor: 1
-  pointDensityMultiplier: 5
+  pointDensityMultiplier: 7
   maxPoints: 0
 --- !u!68 &1640221895
 EdgeCollider2D:
@@ -3047,7 +3047,7 @@ Transform:
   m_GameObject: {fileID: 1965750650}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 5.12, z: 0}
+  m_LocalPosition: {x: 4, y: 10, z: 0}
   m_LocalScale: {x: 0.8, y: 0.8, z: 0.8}
   m_ConstrainProportionsScale: 1
   m_Children:
