@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
 using Newtonsoft.Json;
+using Solracer.Config;
 
 namespace Solracer.Network
 {
@@ -27,7 +28,8 @@ namespace Solracer.Network
         }
 
         [Header("API Configuration")]
-        [SerializeField] private string apiBaseUrl = "http://localhost:8000";
+        [Tooltip("API base URL (overridden by APIConfig if not set manually)")]
+        [SerializeField] private string apiBaseUrl = "";
         private const string API_PREFIX = "/api/v1";
 
         private void Awake()
@@ -40,6 +42,13 @@ namespace Solracer.Network
             {
                 instance = this;
                 DontDestroyOnLoad(gameObject);
+                
+                // Initialize API URL from config
+                if (string.IsNullOrEmpty(apiBaseUrl))
+                {
+                    apiBaseUrl = APIConfig.GetApiBaseUrl();
+                }
+                Debug.Log($"[TrackAPIClient] Initialized with API URL: {apiBaseUrl}");
             }
         }
 
@@ -58,6 +67,11 @@ namespace Solracer.Network
 
                 using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
                 {
+                    // Add certificate handler for self-signed certs (development only)
+                    #if !UNITY_EDITOR
+                        webRequest.certificateHandler = new CertificateHandlerBypass();
+                    #endif
+
                     var operation = webRequest.SendWebRequest();
 
                     while (!operation.isDone)

@@ -183,7 +183,10 @@ namespace Solracer.UI
 
             if (swapButton != null)
             {
-                swapButton.gameObject.SetActive(!isGameOver);
+                // Show swap button if not game over AND in competitive mode
+                bool shouldShow = !isGameOver && GameModeData.IsCompetitive;
+                swapButton.gameObject.SetActive(shouldShow);
+                Debug.Log($"[ResultsScreen] Swap button visibility: {shouldShow} (isGameOver: {isGameOver}, isCompetitive: {GameModeData.IsCompetitive})");
             }
         }
 
@@ -239,11 +242,23 @@ namespace Solracer.UI
                     swapButton.interactable = false;
                 }
 
+                // Only process payout in competitive mode
+                if (!GameModeData.IsCompetitive)
+                {
+                    Debug.LogWarning("[ResultsScreen] Practice mode - payouts are not available.");
+                    ShowError("Payouts are only available in competitive mode.");
+                    if (swapButton != null)
+                    {
+                        swapButton.interactable = true;
+                    }
+                    return;
+                }
+
                 // Get race ID
                 string raceId = RaceData.CurrentRaceId;
                 if (string.IsNullOrEmpty(raceId))
                 {
-                    Debug.LogError("[ResultsScreen] No race ID found. Cannot process payout.");
+                    Debug.LogWarning("[ResultsScreen] No race ID found. Race may not have been created on-chain.");
                     ShowError("No race ID found. Cannot process payout.");
                     if (swapButton != null)
                     {
@@ -483,21 +498,24 @@ namespace Solracer.UI
         }
 
         /// <summary>
-        /// Show error message to user (simple implementation - can be enhanced with UI)
+        /// Show error message to user
         /// </summary>
         private void ShowError(string message)
         {
             Debug.LogError($"[ResultsScreen] Error: {message}");
-            // TODO: Show error in UI (e.g., error text component)
+            ShowPayoutError(message);
         }
 
         /// <summary>
-        /// Show success message to user (simple implementation - can be enhanced with UI)
+        /// Show success message to user
         /// </summary>
         private void ShowSuccess(string message)
         {
             Debug.Log($"[ResultsScreen] Success: {message}");
-            // TODO: Show success in UI (e.g., success text component)
+            // Hide any error messages and refresh payout status to show updated state
+            HidePayoutError();
+            // The payout status will be refreshed automatically after transaction submission
+            // which will update the UI with the new status (e.g., "paid", "swapping", etc.)
         }
 
         /// <summary>
@@ -505,18 +523,46 @@ namespace Solracer.UI
         /// </summary>
         private async void LoadPayoutStatus()
         {
-            string raceId = RaceData.CurrentRaceId;
-            if(string.IsNullOrEmpty(raceId))
+            // Only show payout UI in competitive mode
+            if (!GameModeData.IsCompetitive)
             {
-                // No race ID, hide payout status
-                if(payoutStatusContainer != null)
+                // Practice mode - hide payout section
+                Debug.Log("[ResultsScreen] Practice mode - hiding payout UI");
+                if (payoutStatusContainer != null)
                 {
                     payoutStatusContainer.SetActive(false);
+                }
+                if (swapButton != null)
+                {
+                    swapButton.gameObject.SetActive(false);
                 }
                 return;
             }
 
-            // Check if the mode is competitive (only competitive races have payouts)
+            string raceId = RaceData.CurrentRaceId;
+            if(string.IsNullOrEmpty(raceId))
+            {
+                // No race ID in competitive mode - this shouldn't happen, but handle gracefully
+                Debug.LogWarning("[ResultsScreen] Competitive mode but no race ID found. Race may not have been created on-chain.");
+                if(payoutStatusContainer != null)
+                {
+                    payoutStatusContainer.SetActive(false);
+                }
+                if (swapButton != null)
+                {
+                    swapButton.gameObject.SetActive(false);
+                }
+                return;
+            }
+
+            // Competitive mode with race ID - show swap button and fetch payout status
+            Debug.Log($"[ResultsScreen] Competitive mode with race ID: {raceId} - showing swap button");
+
+            // Ensure swap button is visible (it might have been hidden by LoadResultsData if game over)
+            if (swapButton != null && !GameOverData.IsGameOver)
+            {
+                swapButton.gameObject.SetActive(true);
+            }
 
             try
             {
@@ -528,10 +574,21 @@ namespace Solracer.UI
 
                 if(payoutStatus == null)
                 {
-                    // No payout exists
+                    // No payout exists yet (race not settled) - show button but hide status container
+                    Debug.Log("[ResultsScreen] No payout status found - race may not be settled yet. Showing swap button.");
                     if(payoutStatusContainer != null)
                     {
                         payoutStatusContainer.SetActive(false);
+                    }
+                    // Button should already be visible from above, but ensure it's enabled
+                    if (swapButton != null)
+                    {
+                        swapButton.interactable = true;
+                        var buttonText = swapButton.GetComponentInChildren<TextMeshProUGUI>();
+                        if (buttonText != null)
+                        {
+                            buttonText.text = "Claim Prize";
+                        }
                     }
                     return;
                 }
@@ -540,7 +597,7 @@ namespace Solracer.UI
                 UpdatePayoutUI(payoutStatus);
 
                 // If the status is still processing, start polling
-                if(payoutStatus.swap_status == "pending" || payoutStatus.swap_status == "swaping")
+                if(payoutStatus.swap_status == "pending" || payoutStatus.swap_status == "swapping")
                 {
                     StartPayoutStatusPolling();
                 }
@@ -548,7 +605,14 @@ namespace Solracer.UI
             catch (Exception ex)
             {
                 Debug.LogError($"[ResultsScreen] Error loading payout status: {ex.Message}");
+                Debug.LogError($"Stack trace: {ex.StackTrace}");
                 ShowPayoutError("Failed to load payout status");
+                // Still show button even if there's an error
+                if (swapButton != null && !GameOverData.IsGameOver)
+                {
+                    swapButton.gameObject.SetActive(true);
+                    swapButton.interactable = true;
+                }
             }
             finally
             {
