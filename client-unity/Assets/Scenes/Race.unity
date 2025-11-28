@@ -3072,7 +3072,7 @@ Rigidbody2D:
   m_Mass: 2
   m_LinearDamping: 0
   m_AngularDamping: 0.05
-  m_GravityScale: 0.5
+  m_GravityScale: 1
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -3149,10 +3149,10 @@ MonoBehaviour:
   inputActionsAsset: {fileID: -944628639613478452, guid: a32a7b06c04bf9548806a9afacefc05c, type: 3}
   frontTire: {fileID: 228811730}
   backTire: {fileID: 1543651441}
-  accelerationTorque: 200
+  accelerationTorque: 250
   brakeTorque: 100
   maxAngularVelocity: 50
-  maxSpeed: 20
+  maxSpeed: 25
   midAirTorque: 10
   checkGrounded: 1
   groundCheckDistance: 0.5
