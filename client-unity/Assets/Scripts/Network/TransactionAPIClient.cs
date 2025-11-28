@@ -4,6 +4,7 @@ using UnityEngine;
 using UnityEngine.Networking;
 using System.Text;
 using Newtonsoft.Json;
+using Solracer.Config;
 
 namespace Solracer.Network
 {
@@ -29,7 +30,8 @@ namespace Solracer.Network
         }
 
         [Header("API Configuration")]
-        [SerializeField] private string apiBaseUrl = "http://localhost:8000";
+        [Tooltip("API base URL (overridden by APIConfig if not set manually)")]
+        [SerializeField] private string apiBaseUrl = "";
         private const string API_PREFIX = "/api/v1";
 
         private void Awake()
@@ -42,6 +44,13 @@ namespace Solracer.Network
             {
                 instance = this;
                 DontDestroyOnLoad(gameObject);
+                
+                // Initialize API URL from config
+                if (string.IsNullOrEmpty(apiBaseUrl))
+                {
+                    apiBaseUrl = APIConfig.GetApiBaseUrl();
+                }
+                Debug.Log($"[TransactionAPIClient] Initialized with API URL: {apiBaseUrl}");
             }
         }
 
@@ -146,11 +155,12 @@ namespace Solracer.Network
         }
 
         /// <summary>
-        /// set the API base URL
+        /// Set the API base URL (updates both local and config)
         /// </summary>
         public void SetApiBaseUrl(string url)
         {
             apiBaseUrl = url;
+            APIConfig.SetApiBaseUrl(url); // Also update config for other clients
             Debug.Log($"[TransactionAPIClient] API base URL set to: {apiBaseUrl}");
         }
     }
