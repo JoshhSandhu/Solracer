@@ -1,9 +1,11 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using System.Collections;
 using System.Threading.Tasks;
 using Solracer.Game;
 using Solracer.Network;
 using Solracer.Auth;
+using TMPro;
 
 namespace Solracer.Game
 {
@@ -19,12 +21,25 @@ namespace Solracer.Game
         [Tooltip("Track Generator to check track end")]
         [SerializeField] private TrackGenerator trackGenerator;
 
-        [Header("Game Over Settings")]
+        [Header("Flip/Respawn Settings")]
         [Tooltip("Upside down detection angle threshold (degrees)")]
         [SerializeField] private float upsideDownAngleThreshold = 90f;
 
-        [Tooltip("Time ATV must be upside down before game over (seconds)")]
-        [SerializeField] private float upsideDownTimeThreshold = 5f;
+        [Tooltip("Time ATV must be upside down before respawn (seconds)")]
+        [SerializeField] private float upsideDownTimeThreshold = 10f;
+
+        [Tooltip("Respawn height above flipped position (units)")]
+        [SerializeField] private float respawnHeight = 10f;
+
+        [Header("Stuck Detection Settings")]
+        [Tooltip("Check if ATV is stuck/lodged in track")]
+        [SerializeField] private bool enableStuckDetection = true;
+
+        [Tooltip("Time ATV must be stuck before auto-respawn (seconds)")]
+        [SerializeField] private float stuckTimeThreshold = 3f;
+
+        [Tooltip("Minimum speed to consider ATV stuck (m/s)")]
+        [SerializeField] private float stuckSpeedThreshold = 0.5f;
 
         [Header("Track End Detection")]
         [Tooltip("Finish line GameObject (with trigger collider)")]
@@ -40,11 +55,26 @@ namespace Solracer.Game
         [Tooltip("Default entry fee in SOL (used if not set elsewhere)")]
         [SerializeField] private float defaultEntryFeeSol = 0.01f;
 
+        [Header("Countdown Settings")]
+        [Tooltip("Countdown UI text (for competitive mode)")]
+        [SerializeField] private TextMeshProUGUI countdownText;
+        [Tooltip("Countdown panel (shown during countdown)")]
+        [SerializeField] private GameObject countdownPanel;
+        [Tooltip("Countdown duration (seconds between each number)")]
+        [SerializeField] private float countdownInterval = 1f;
+
         // Game state
-        private bool isGameActive = true;
+        private bool isGameActive = false; // Start as false, enable after countdown
         private bool hasReachedEnd = false;
         private bool isUpsideDown = false;
         private float upsideDownTimer = 0f;
+        private bool countdownComplete = false;
+        
+        // Stuck detection
+        private float stuckTimer = 0f;
+        private Vector3 lastPosition;
+        private float lastPositionCheckTime = 0f;
+        private const float POSITION_CHECK_INTERVAL = 0.5f; // Check position every 0.5 seconds
 
         // Input trace recorder
         private InputTraceRecorder inputTraceRecorder;
@@ -94,18 +124,111 @@ namespace Solracer.Game
 
         private async void Start()
         {
-            // If competitive mode, create race on-chain before starting (if not already created)
-            if (GameModeData.IsCompetitive)
+            // If competitive mode, check if both players are ready and show countdown
+            if (GameModeData.IsCompetitive && RaceData.HasActiveRace())
             {
-                await CreateRaceOnChainIfNeeded();
+                await WaitForBothPlayersReady();
+            }
+            else
+            {
+                // Practice mode or no race - start immediately
+                StartRace();
+            }
+        }
+
+        private async Task WaitForBothPlayersReady()
+        {
+            var raceClient = RaceAPIClient.Instance;
+            if (raceClient == null)
+            {
+                Debug.LogWarning("[RaceManager] RaceAPIClient not found - starting race immediately");
+                StartRace();
+                return;
             }
 
-            //start recording input trace
+            // Poll until both players are ready
+            bool bothReady = false;
+            int maxAttempts = 30; // 30 attempts * 2 seconds = 60 seconds max wait
+            int attempts = 0;
+
+            while (!bothReady && attempts < maxAttempts)
+            {
+                var status = await raceClient.GetRaceStatusAsync(RaceData.CurrentRaceId);
+                if (status != null && status.both_ready && status.status == "active")
+                {
+                    bothReady = true;
+                    break;
+                }
+
+                await Task.Delay(2000); // Wait 2 seconds between checks
+                attempts++;
+            }
+
+            if (bothReady)
+            {
+                // Start countdown
+                StartCoroutine(CountdownCoroutine());
+            }
+            else
+            {
+                Debug.LogWarning("[RaceManager] Both players not ready - starting race anyway");
+                StartRace();
+            }
+        }
+
+        private IEnumerator CountdownCoroutine()
+        {
+            // Show countdown panel
+            if (countdownPanel != null)
+                countdownPanel.SetActive(true);
+            if (countdownText != null)
+                countdownText.gameObject.SetActive(true);
+
+            // 3-2-1 countdown
+            for (int i = 3; i > 0; i--)
+            {
+                if (countdownText != null)
+                    countdownText.text = i.ToString();
+                
+                yield return new WaitForSeconds(countdownInterval);
+            }
+
+            // Show "GO!"
+            if (countdownText != null)
+                countdownText.text = "GO!";
+            
+            yield return new WaitForSeconds(countdownInterval);
+
+            // Hide countdown
+            if (countdownPanel != null)
+                countdownPanel.SetActive(false);
+            if (countdownText != null)
+                countdownText.gameObject.SetActive(false);
+
+            countdownComplete = true;
+            StartRace();
+        }
+
+        private void StartRace()
+        {
+            isGameActive = true;
+            countdownComplete = true;
+
+            // Start recording input trace
             if (inputTraceRecorder != null)
             {
                 inputTraceRecorder.StartRecording();
                 Debug.Log("RaceManager: Started input trace recording");
             }
+
+            // Start race HUD timer
+            var raceHUD = FindAnyObjectByType<Solracer.UI.RaceHUD>();
+            if (raceHUD != null)
+            {
+                raceHUD.StartTimer();
+            }
+
+            Debug.Log("RaceManager: Race started!");
         }
 
         private void Update()
@@ -119,13 +242,21 @@ namespace Solracer.Game
                     CreateFinishLine();
                 }
             }
-            if (!isGameActive)
+            
+            // Don't process game logic until countdown is complete
+            if (!countdownComplete || !isGameActive)
                 return;
 
             CheckUpsideDown();
+            
+            // Check for stuck ATV
+            if (enableStuckDetection)
+            {
+                CheckIfStuck();
+            }
         }
 
-        //checks if the ATV is flipped
+        //checks if the ATV is flipped and respawns if upside down for too long
         private void CheckUpsideDown()
         {
             if (atvController == null)
@@ -153,7 +284,8 @@ namespace Solracer.Game
                 upsideDownTimer += Time.deltaTime;
                 if (upsideDownTimer >= upsideDownTimeThreshold)
                 {
-                    TriggerGameOver("flipped");
+                    // Respawn player 10 units above current position
+                    RespawnPlayer();
                 }
             }
             else
@@ -163,6 +295,93 @@ namespace Solracer.Game
                     Debug.Log("RaceManager: ATV recovered from upside down position");
                 }
                 upsideDownTimer = 0f;
+            }
+        }
+
+        /// <summary>
+        /// Respawn the player 10 units above their current flipped position
+        /// </summary>
+        private void RespawnPlayer()
+        {
+            if (atvController == null)
+            {
+                Debug.LogWarning("RaceManager: Cannot respawn - ATV Controller is null!");
+                return;
+            }
+
+            Transform atvTransform = atvController.transform;
+            Vector3 currentPosition = atvTransform.position;
+            
+            // Calculate respawn position (10 units above current position)
+            Vector3 respawnPosition = currentPosition + Vector3.up * respawnHeight;
+            
+            // Reset rotation to upright (0 degrees on Z axis)
+            Quaternion respawnRotation = Quaternion.Euler(0f, 0f, 0f);
+            
+            // Get Rigidbody2D to reset velocity
+            Rigidbody2D rb = atvController.GetComponent<Rigidbody2D>();
+            if (rb != null)
+            {
+                rb.linearVelocity = Vector2.zero;
+                rb.angularVelocity = 0f;
+            }
+            
+            // Set new position and rotation
+            atvTransform.position = respawnPosition;
+            atvTransform.rotation = respawnRotation;
+            
+            // Reset timers
+            upsideDownTimer = 0f;
+            stuckTimer = 0f;
+            lastPosition = respawnPosition; // Update last position to prevent immediate re-trigger
+            
+            Debug.Log($"RaceManager: Player respawned at {respawnPosition} (was flipped for {upsideDownTimeThreshold} seconds)");
+        }
+
+        /// <summary>
+        /// Check if ATV is stuck/lodged in the track and respawn if needed
+        /// </summary>
+        private void CheckIfStuck()
+        {
+            if (atvController == null)
+                return;
+
+            float currentSpeed = atvController.CurrentSpeed;
+            Transform atvTransform = atvController.transform;
+            Vector3 currentPosition = atvTransform.position;
+
+            // Check position periodically
+            if (Time.time - lastPositionCheckTime >= POSITION_CHECK_INTERVAL)
+            {
+                float distanceMoved = Vector3.Distance(currentPosition, lastPosition);
+                
+                // ATV is stuck if:
+                // 1. Speed is very low (below threshold)
+                // 2. Hasn't moved much since last check
+                // 3. Is not upside down (separate check)
+                bool isMovingSlowly = currentSpeed < stuckSpeedThreshold;
+                bool hasntMovedMuch = distanceMoved < 0.1f; // Less than 0.1 units moved
+                bool notUpsideDown = !isUpsideDown;
+
+                if (isMovingSlowly && hasntMovedMuch && notUpsideDown)
+                {
+                    stuckTimer += POSITION_CHECK_INTERVAL;
+                    
+                    if (stuckTimer >= stuckTimeThreshold)
+                    {
+                        Debug.Log($"RaceManager: ATV detected as stuck (speed: {currentSpeed:F2} m/s, moved: {distanceMoved:F2} units) - respawning");
+                        RespawnPlayer();
+                        stuckTimer = 0f;
+                    }
+                }
+                else
+                {
+                    // Reset stuck timer if ATV is moving normally
+                    stuckTimer = 0f;
+                }
+
+                lastPosition = currentPosition;
+                lastPositionCheckTime = Time.time;
             }
         }
 
