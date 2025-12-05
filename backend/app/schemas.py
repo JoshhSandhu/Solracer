@@ -59,6 +59,11 @@ class RaceResponse(BaseModel):
     track_seed: int
     created_at: datetime
     solana_tx_signature: Optional[str] = None  # Transaction signature for race creation
+    is_private: bool = False
+    join_code: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    player1_ready: bool = False
+    player2_ready: bool = False
 
     class Config:
         from_attributes = True
@@ -70,6 +75,37 @@ class CreateRaceRequest(BaseModel):
     token_mint: str = Field(..., description="Solana token mint address")
     wallet_address: str = Field(..., description="Player wallet address")
     entry_fee_sol: float = Field(..., ge=0.005, le=0.02, description="Entry fee in SOL (0.005-0.02)")
+    is_private: bool = Field(default=False, description="Whether race is private (requires join code)")
+
+
+class JoinRaceByCodeRequest(BaseModel):
+    """Request schema for joining a race by code."""
+    join_code: str = Field(..., min_length=6, max_length=6, description="6-character join code")
+    wallet_address: str = Field(..., description="Player wallet address")
+
+
+class JoinRaceByIdRequest(BaseModel):
+    """Request schema for joining a race by ID."""
+    wallet_address: str = Field(..., description="Player wallet address")
+
+
+class MarkReadyRequest(BaseModel):
+    """Request schema for marking player as ready."""
+    wallet_address: str = Field(..., description="Player wallet address")
+
+
+class PublicRaceListItem(BaseModel):
+    """Response schema for public race list item."""
+    race_id: str
+    token_mint: str
+    token_symbol: str
+    entry_fee_sol: float
+    player1_wallet: str
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 
 class SubmitResultRequest(BaseModel):
@@ -81,6 +117,18 @@ class SubmitResultRequest(BaseModel):
     input_trace: Optional[List[dict]] = Field(None, description="Input trace for verification")
 
 
+class PlayerResult(BaseModel):
+    """Player result information."""
+    wallet_address: str
+    player_number: int
+    finish_time_ms: Optional[int] = None
+    coins_collected: Optional[int] = None
+    verified: Optional[bool] = None
+
+    class Config:
+        from_attributes = True
+
+
 class RaceStatusResponse(BaseModel):
     """Response schema for race status."""
     race_id: str
@@ -89,6 +137,11 @@ class RaceStatusResponse(BaseModel):
     player2_wallet: Optional[str] = None
     winner_wallet: Optional[str] = None
     is_settled: bool
+    player1_ready: bool = False
+    player2_ready: bool = False
+    both_ready: bool = False  # True when both players are ready (race can start)
+    player1_result: Optional[PlayerResult] = None  # Player 1's result (if submitted)
+    player2_result: Optional[PlayerResult] = None  # Player 2's result (if submitted)
 
     class Config:
         from_attributes = True
@@ -121,6 +174,11 @@ class SubmitTransactionRequest(BaseModel):
     signed_transaction_bytes: str = Field(..., description="Base64-encoded signed transaction bytes")
     instruction_type: str = Field(..., description="Instruction type")
     race_id: Optional[str] = Field(None, description="Race ID (for tracking)")
+    # Optional fields for submit_result instruction
+    wallet_address: Optional[str] = Field(None, description="Wallet address (for submit_result)")
+    finish_time_ms: Optional[int] = Field(None, description="Finish time in milliseconds (for submit_result)")
+    coins_collected: Optional[int] = Field(None, description="Coins collected (for submit_result)")
+    input_hash: Optional[str] = Field(None, description="Input hash for replay verification (for submit_result)")
 
 
 class SubmitTransactionResponse(BaseModel):

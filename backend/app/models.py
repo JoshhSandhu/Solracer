@@ -58,6 +58,13 @@ class Race(Base):
     # Race state
     status = Column(SQLEnum(RaceStatus), nullable=False, default=RaceStatus.WAITING, index=True)
     
+    # Lobby system fields
+    is_private = Column(Boolean, nullable=False, default=False, index=True)  # Private (join code) vs Public (auto-match)
+    join_code = Column(String, nullable=True, unique=True, index=True)  # 6-character join code for private races
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)  # Race expiration time (5min public, 10min private)
+    player1_ready = Column(Boolean, nullable=False, default=False)  # Player 1 ready status
+    player2_ready = Column(Boolean, nullable=False, default=False)  # Player 2 ready status
+    
     # Track data (for replay verification)
     track_seed = Column(Integer, nullable=False)  # Seed for deterministic track generation
     track_data = Column(Text, nullable=True)  # JSON string of normalized track samples
