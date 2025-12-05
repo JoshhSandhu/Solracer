@@ -77,6 +77,20 @@ namespace Solracer.UI
         [SerializeField] private Button swapButton;
 
         [Space]
+        [Header("Opponent Comparison UI")]
+        [Tooltip("Opponent comparison container")]
+        [SerializeField] private GameObject opponentComparisonContainer;
+        
+        [Tooltip("Opponent time text")]
+        [SerializeField] private TextMeshProUGUI opponentTimeText;
+        
+        [Tooltip("Opponent coins text")]
+        [SerializeField] private TextMeshProUGUI opponentCoinsText;
+        
+        [Tooltip("Winner indicator text")]
+        [SerializeField] private TextMeshProUGUI winnerIndicatorText;
+
+        [Space]
         [Header("Settings")]
         [Tooltip("Title text for game over")]
         [SerializeField] private string gameOverTitle = "Game Over";
@@ -84,10 +98,15 @@ namespace Solracer.UI
         [Tooltip("Title text for race complete (can include player name)")]
         [SerializeField] private string raceCompleteTitle = "Race Complete!";
 
+        [Tooltip("Race status polling interval (seconds)")]
+        [SerializeField] private float raceStatusPollInterval = 2.5f;
+
         // Private feilds
         private PayoutStatusResponse currentPayoutStatus = null;
         private bool isPayoutLoading = false;
         private Coroutine payoutStatusPollingCoroutine = null;
+        private Coroutine raceStatusPollingCoroutine = null;
+        private RaceStatusResponse currentRaceStatus = null;
 
         private void Start()
         {
@@ -95,6 +114,17 @@ namespace Solracer.UI
             LoadResultsData();
             SetupButtons();
             LoadPayoutStatus();
+            
+            // Start race status polling if in competitive mode
+            if (GameModeData.IsCompetitive && !string.IsNullOrEmpty(RaceData.CurrentRaceId))
+            {
+                StartRaceStatusPolling();
+            }
+        }
+
+        private void OnDestroy()
+        {
+            StopRaceStatusPolling();
         }
 
         private void AutoFindUIElements()
@@ -282,14 +312,83 @@ namespace Solracer.UI
                     return;
                 }
 
-                // Process payout (get transaction from backend)
+                // Check if race is settled before processing payout
+                var raceClient = RaceAPIClient.Instance;
+                if (raceClient != null)
+                {
+                    var raceStatus = await raceClient.GetRaceStatusAsync(raceId);
+                    if (raceStatus != null && !raceStatus.is_settled)
+                    {
+                        Debug.LogWarning($"[ResultsScreen] Race is not settled yet. Status: {raceStatus.status}");
+                        ShowError("Race is not finished yet. Please wait for the opponent to complete the race.");
+                        if (swapButton != null)
+                        {
+                            swapButton.interactable = true;
+                        }
+                        return;
+                    }
+                }
+
+                // Step 1: Settle race on-chain (if needed)
+                Debug.Log($"[ResultsScreen] Step 1: Checking if on-chain settlement is needed...");
                 var payoutClient = PayoutAPIClient.Instance;
+                
+                try
+                {
+                    var settleResponse = await payoutClient.GetSettleTransaction(raceId);
+                    
+                    if (settleResponse != null && !string.IsNullOrEmpty(settleResponse.transaction_bytes))
+                    {
+                        Debug.Log($"[ResultsScreen] On-chain settlement required. Signing and submitting settle_race transaction...");
+                        
+                        // Sign and submit the settle_race transaction
+                        bool settleSuccess = await SignAndSubmitSettleTransaction(settleResponse);
+                        
+                        if (!settleSuccess)
+                        {
+                            Debug.LogWarning("[ResultsScreen] Failed to settle race on-chain, but continuing with payout...");
+                            // Don't fail - the on-chain settlement might not be strictly required
+                            // or the race might already be settled on-chain
+                        }
+                        else
+                        {
+                            Debug.Log("[ResultsScreen] ✅ Race settled on-chain successfully!");
+                        }
+                    }
+                    else
+                    {
+                        Debug.Log($"[ResultsScreen] On-chain settlement not needed or already settled.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[ResultsScreen] Error checking settle transaction: {ex.Message}. Continuing...");
+                    // Continue - settlement might not be required
+                }
+
+                // Step 2: Process payout (get transaction from backend)
                 var payoutResponse = await payoutClient.ProcessPayout(raceId);
 
                 if (payoutResponse == null)
                 {
                     Debug.LogError("[ResultsScreen] Failed to process payout. Backend returned null.");
-                    ShowError("Failed to process payout. Please try again.");
+                    // Check if race is settled - if not, show a more helpful message
+                    if (raceClient != null)
+                    {
+                        var raceStatus = await raceClient.GetRaceStatusAsync(raceId);
+                        if (raceStatus != null && !raceStatus.is_settled)
+                        {
+                            ShowError("Race is not finished yet. Please wait for the opponent to complete the race.");
+                        }
+                        else
+                        {
+                            ShowError("Failed to process payout. Please try again.");
+                        }
+                    }
+                    else
+                    {
+                        ShowError("Failed to process payout. Please try again.");
+                    }
                     if (swapButton != null)
                     {
                         swapButton.interactable = true;
@@ -452,6 +551,58 @@ namespace Solracer.UI
         }
 
         /// <summary>
+        /// Sign and submit the settle_race transaction
+        /// </summary>
+        private async Task<bool> SignAndSubmitSettleTransaction(SettleTransactionResponse settleResponse)
+        {
+            try
+            {
+                var authManager = AuthenticationFlowManager.Instance;
+                if (authManager == null || !authManager.IsAuthenticated)
+                {
+                    Debug.LogError("[ResultsScreen] User not authenticated. Cannot sign settle transaction.");
+                    return false;
+                }
+
+                Debug.Log($"[ResultsScreen] Signing settle_race transaction...");
+
+                // Sign the transaction
+                string signedTransaction = await authManager.SignTransaction(settleResponse.transaction_bytes);
+                if (string.IsNullOrEmpty(signedTransaction))
+                {
+                    Debug.LogError("[ResultsScreen] Failed to sign settle_race transaction");
+                    return false;
+                }
+
+                Debug.Log($"[ResultsScreen] Submitting settle_race transaction...");
+
+                // Submit transaction to Solana network
+                var apiClient = TransactionAPIClient.Instance;
+                var submitRequest = new SubmitTransactionRequest
+                {
+                    signed_transaction_bytes = signedTransaction,
+                    instruction_type = "settle_race",
+                    race_id = settleResponse.race_id
+                };
+
+                var submitResponse = await apiClient.SubmitTransactionAsync(submitRequest);
+                if (submitResponse != null && !string.IsNullOrEmpty(submitResponse.transaction_signature))
+                {
+                    Debug.Log($"[ResultsScreen] ✅ settle_race transaction submitted! TX: {submitResponse.transaction_signature}");
+                    return true;
+                }
+
+                Debug.LogError("[ResultsScreen] Failed to submit settle_race transaction");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ResultsScreen] Error signing/submitting settle transaction: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Get transaction signing modal from scene
         /// </summary>
         private TransactionSigningModal GetTransactionSigningModal()
@@ -575,13 +726,38 @@ namespace Solracer.UI
                 if(payoutStatus == null)
                 {
                     // No payout exists yet (race not settled) - show button but hide status container
-                    Debug.Log("[ResultsScreen] No payout status found - race may not be settled yet. Showing swap button.");
+                    Debug.Log("[ResultsScreen] No payout status found - race may not be settled yet. Checking race status.");
                     if(payoutStatusContainer != null)
                     {
                         payoutStatusContainer.SetActive(false);
                     }
-                    // Button should already be visible from above, but ensure it's enabled
-                    if (swapButton != null)
+                    // Check race status to determine if button should be enabled
+                    var raceClient = RaceAPIClient.Instance;
+                    if (raceClient != null && swapButton != null)
+                    {
+                        var raceStatus = await raceClient.GetRaceStatusAsync(raceId);
+                        if (raceStatus != null && !raceStatus.is_settled)
+                        {
+                            // Race not settled - disable button and show waiting message
+                            swapButton.interactable = false;
+                            var buttonText = swapButton.GetComponentInChildren<TextMeshProUGUI>();
+                            if (buttonText != null)
+                            {
+                                buttonText.text = "Waiting for Opponent...";
+                            }
+                        }
+                        else
+                        {
+                            // Race is settled or status unknown - enable button
+                            swapButton.interactable = true;
+                            var buttonText = swapButton.GetComponentInChildren<TextMeshProUGUI>();
+                            if (buttonText != null)
+                            {
+                                buttonText.text = "Claim Prize";
+                            }
+                        }
+                    }
+                    else if (swapButton != null)
                     {
                         swapButton.interactable = true;
                         var buttonText = swapButton.GetComponentInChildren<TextMeshProUGUI>();
@@ -590,6 +766,7 @@ namespace Solracer.UI
                             buttonText.text = "Claim Prize";
                         }
                     }
+                    // Race status polling will check for settlement
                     return;
                 }
 
@@ -938,6 +1115,200 @@ namespace Solracer.UI
                 payoutErrorText.gameObject.SetActive(false);
             }
         }
+        #endregion
+
+        #region Race Status Polling & Opponent Comparison
+
+        /// <summary>
+        /// Start polling race status to check when opponent finishes and race is settled
+        /// </summary>
+        private void StartRaceStatusPolling()
+        {
+            if (raceStatusPollingCoroutine != null)
+            {
+                StopCoroutine(raceStatusPollingCoroutine);
+            }
+            raceStatusPollingCoroutine = StartCoroutine(PollRaceStatus());
+        }
+
+        /// <summary>
+        /// Stop race status polling
+        /// </summary>
+        private void StopRaceStatusPolling()
+        {
+            if (raceStatusPollingCoroutine != null)
+            {
+                StopCoroutine(raceStatusPollingCoroutine);
+                raceStatusPollingCoroutine = null;
+            }
+        }
+
+        /// <summary>
+        /// Poll race status every few seconds to check for settlement and opponent results
+        /// </summary>
+        private System.Collections.IEnumerator PollRaceStatus()
+        {
+            string raceId = RaceData.CurrentRaceId;
+            if (string.IsNullOrEmpty(raceId))
+            {
+                yield break;
+            }
+
+            var raceClient = RaceAPIClient.Instance;
+            if (raceClient == null)
+            {
+                yield break;
+            }
+
+            var authManager = AuthenticationFlowManager.Instance;
+            if (authManager == null)
+            {
+                yield break;
+            }
+
+            string myWallet = authManager.WalletAddress;
+
+            while (true)
+            {
+                yield return new WaitForSeconds(raceStatusPollInterval);
+
+                var task = raceClient.GetRaceStatusAsync(raceId);
+                
+                // Wait for async task to complete
+                while (!task.IsCompleted)
+                {
+                    yield return null;
+                }
+                
+                // Handle result outside try-catch to avoid yield issues
+                RaceStatusResponse status = null;
+                bool hasError = false;
+                
+                try
+                {
+                    status = task.Result;
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"[ResultsScreen] Error polling race status: {ex.Message}");
+                    hasError = true;
+                }
+                
+                if (!hasError && status != null)
+                {
+                    currentRaceStatus = status;
+                    
+                        // Update opponent comparison if race is settled
+                        if (status.is_settled)
+                        {
+                            UpdateOpponentComparison(status, myWallet);
+                            StopRaceStatusPolling(); // Stop polling once settled
+                            
+                            // Enable claim button and update text
+                            if (swapButton != null)
+                            {
+                                swapButton.interactable = true;
+                                var buttonText = swapButton.GetComponentInChildren<TextMeshProUGUI>();
+                                if (buttonText != null)
+                                {
+                                    buttonText.text = "Claim Prize";
+                                }
+                            }
+                            
+                            // Refresh payout status since race is now settled
+                            LoadPayoutStatus();
+                        }
+                    else if (status.player1_result != null || status.player2_result != null)
+                    {
+                        // Race not settled yet but at least one player finished - show waiting message
+                        UpdateOpponentComparison(status, myWallet);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Update opponent comparison UI based on race status
+        /// </summary>
+        private void UpdateOpponentComparison(RaceStatusResponse status, string myWallet)
+        {
+            if (status == null)
+                return;
+
+            // Determine which player I am
+            bool isPlayer1 = status.player1_wallet == myWallet;
+            PlayerResult myResult = isPlayer1 ? status.player1_result : status.player2_result;
+            PlayerResult opponentResult = isPlayer1 ? status.player2_result : status.player1_result;
+
+            // Hide comparison if opponent hasn't finished yet
+            if (opponentResult == null || opponentResult.finish_time_ms == null)
+            {
+                if (opponentComparisonContainer != null)
+                {
+                    opponentComparisonContainer.SetActive(false);
+                }
+                return;
+            }
+
+            // Show comparison container
+            if (opponentComparisonContainer != null)
+            {
+                opponentComparisonContainer.SetActive(true);
+            }
+
+            // Update opponent time
+            if (opponentTimeText != null && opponentResult.finish_time_ms.HasValue)
+            {
+                float opponentTimeSeconds = opponentResult.finish_time_ms.Value / 1000f;
+                opponentTimeText.text = $"Opponent: {FormatTime(opponentTimeSeconds)}";
+            }
+
+            // Update opponent coins
+            if (opponentCoinsText != null && opponentResult.coins_collected.HasValue)
+            {
+                opponentCoinsText.text = $"Coins: {opponentResult.coins_collected.Value}";
+            }
+
+            // Update winner indicator
+            if (winnerIndicatorText != null && status.is_settled && !string.IsNullOrEmpty(status.winner_wallet))
+            {
+                bool iWon = status.winner_wallet == myWallet;
+                if (iWon)
+                {
+                    winnerIndicatorText.text = "🏆 You Won!";
+                    winnerIndicatorText.color = Color.green;
+                }
+                else
+                {
+                    winnerIndicatorText.text = "Opponent Won";
+                    winnerIndicatorText.color = Color.red;
+                }
+                winnerIndicatorText.gameObject.SetActive(true);
+            }
+            else if (winnerIndicatorText != null)
+            {
+                winnerIndicatorText.gameObject.SetActive(false);
+            }
+
+            // Highlight winner's time if race is settled
+            if (status.is_settled && !string.IsNullOrEmpty(status.winner_wallet))
+            {
+                bool iWon = status.winner_wallet == myWallet;
+                
+                // Highlight player's time if they won
+                if (finalTimeText != null)
+                {
+                    finalTimeText.color = iWon ? Color.green : Color.white;
+                }
+                
+                // Highlight opponent's time if they won
+                if (opponentTimeText != null)
+                {
+                    opponentTimeText.color = !iWon ? Color.green : Color.white;
+                }
+            }
+        }
+
         #endregion
 
         private TextMeshProUGUI FindTextByName(string name)
