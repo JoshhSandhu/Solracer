@@ -10,12 +10,34 @@ from typing import Optional
 import logging
 
 from app.database import get_db
-from app.models import Race, Payout, RaceStatus
+from app.models import Race, Payout, RaceStatus, RaceResult
 from app.schemas import PayoutResponse, ProcessPayoutResponse
 from app.services.payout_handler import get_payout_handler
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+def check_race_needs_onchain_settlement(db: Session, race: Race) -> bool:
+    """
+    Check if a race needs on-chain settlement.
+    
+    This checks if:
+    1. The race is marked as SETTLED in the database
+    2. Both results have been submitted
+    
+    In the future, this could also check the on-chain state to verify
+    if settle_race instruction has been called.
+    
+    Returns:
+        bool: True if race needs on-chain settlement transaction
+    """
+    if race.status != RaceStatus.SETTLED:
+        return False
+    
+    # Check if both results are in
+    results = db.query(RaceResult).filter(RaceResult.race_id == race.id).all()
+    return len(results) == 2
 
 
 @router.get("/payouts/{race_id}", response_model=PayoutResponse)
@@ -58,6 +80,59 @@ async def get_payout_status(
     )
 
 
+@router.get("/payouts/{race_id}/settle-transaction")
+async def get_settle_transaction(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Get the settle_race transaction for client to sign and submit.
+    
+    This endpoint returns the transaction bytes that settle the race on-chain.
+    The client should:
+    1. Call this endpoint to get the settle_race transaction
+    2. Sign and submit the transaction
+    3. Then call /payouts/{race_id}/process to claim the prize
+    
+    The settle_race instruction is permissionless - anyone can call it once
+    both players have submitted their results.
+    """
+    # Find race
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail=f"Race {race_id} not found")
+    
+    # Check if race is settled in database
+    if race.status != RaceStatus.SETTLED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Race {race_id} is not settled. Current status: {race.status}"
+        )
+    
+    # Check if we need on-chain settlement
+    if not check_race_needs_onchain_settlement(db, race):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Race {race_id} does not need on-chain settlement"
+        )
+    
+    try:
+        # Import here to avoid circular imports
+        from app.api.routes.races import build_settle_race_transaction
+        
+        result = build_settle_race_transaction(race)
+        return {
+            "message": "Settle race transaction ready for signing",
+            "transaction_bytes": result["transaction_bytes"],
+            "race_id": result["race_id"],
+            "race_pda": result["race_pda"],
+            "recent_blockhash": result["recent_blockhash"]
+        }
+    except Exception as e:
+        logger.error(f"Error building settle transaction for race {race_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error building settle transaction: {str(e)}")
+
+
 @router.post("/payouts/{race_id}/process", response_model=ProcessPayoutResponse)
 async def process_payout(
     race_id: str,
@@ -73,9 +148,12 @@ async def process_payout(
     - Prepares transaction for signing
     - Returns transaction bytes for winner to sign
     
-    Note: The actual swap execution and token transfer will be handled
-    by the winner signing the transaction. For automatic processing,
-    a backend worker would sign and submit transactions.
+    Note: Before calling this endpoint, the client should:
+    1. Call GET /payouts/{race_id}/settle-transaction to get settle_race transaction
+    2. Sign and submit the settle_race transaction
+    3. Then call this endpoint to process the payout
+    
+    For automatic processing, a backend worker would sign and submit transactions.
     """
     # Find race
     race = db.query(Race).filter(Race.race_id == race_id).first()

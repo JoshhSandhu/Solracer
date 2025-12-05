@@ -32,6 +32,11 @@ namespace Solracer.Config
                 if (!string.IsNullOrEmpty(prefUrl))
                 {
                     Debug.Log($"[APIConfig] Using API URL from PlayerPrefs: {prefUrl}");
+                    // Warn if PlayerPrefs URL is HTTP instead of HTTPS
+                    if (prefUrl.StartsWith("http://") && !prefUrl.StartsWith("https://"))
+                    {
+                        Debug.LogWarning($"[APIConfig] WARNING: PlayerPrefs URL is HTTP, not HTTPS: {prefUrl}");
+                    }
                     return prefUrl;
                 }
             }
@@ -97,8 +102,41 @@ namespace Solracer.Config
         {
             return GetApiBaseUrl();
         }
+
+        /// <summary>
+        /// Check if the API URL is a local development URL (requires certificate bypass)
+        /// </summary>
+        public static bool IsLocalUrl(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+                return false;
+
+            // Check if URL contains localhost or local network IP
+            return url.Contains("localhost") || 
+                   url.Contains("127.0.0.1") || 
+                   url.Contains("192.168.") || 
+                   url.Contains("10.0.") ||
+                   url.Contains("172.16.") ||
+                   url.Contains("172.17.") ||
+                   url.Contains("172.18.") ||
+                   url.Contains("172.19.") ||
+                   url.Contains("172.20.") ||
+                   url.Contains("172.21.") ||
+                   url.Contains("172.22.") ||
+                   url.Contains("172.23.") ||
+                   url.Contains("172.24.") ||
+                   url.Contains("172.25.") ||
+                   url.Contains("172.26.") ||
+                   url.Contains("172.27.") ||
+                   url.Contains("172.28.") ||
+                   url.Contains("172.29.") ||
+                   url.Contains("172.30.") ||
+                   url.Contains("172.31.");
+        }
     }
 }
+
+
 
 
 

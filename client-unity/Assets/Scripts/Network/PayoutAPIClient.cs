@@ -63,6 +63,12 @@ namespace Solracer.Network
 
                 using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
                 {
+                    // Bypass certificate validation for local development URLs
+                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    {
+                        webRequest.certificateHandler = new CertificateHandlerBypass();
+                    }
+
                     var operation = webRequest.SendWebRequest();
 
                     while (!operation.isDone)
@@ -79,11 +85,17 @@ namespace Solracer.Network
                     }
                     else
                     {
-                        Debug.LogError($"[PayoutAPIClient] Error fetching payout status: {webRequest.error}");
-                        if (webRequest.downloadHandler != null)
+                        // Special-case 404: payout not found is expected if no winner / payout yet
+                        if (webRequest.responseCode == 404)
                         {
-                            Debug.LogError($"[PayoutAPIClient] Response: {webRequest.downloadHandler.text}");
+                            Debug.Log($"[PayoutAPIClient] No payout exists yet for race {raceId} (404).");
+                            return null;
                         }
+
+                        Debug.LogError($"[PayoutAPIClient] Error fetching payout status: {webRequest.error} (HTTP {webRequest.responseCode})");
+                        if (webRequest.downloadHandler != null)
+                            Debug.LogError($"[PayoutAPIClient] Response: {webRequest.downloadHandler.text}");
+
                         return null;
                     }
                 }
@@ -107,6 +119,12 @@ namespace Solracer.Network
                 using (UnityWebRequest webRequest = UnityWebRequest.PostWwwForm(url, ""))
                 {
                     webRequest.SetRequestHeader("Content-Type", "application/json");
+
+                    // Bypass certificate validation for local development URLs
+                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    {
+                        webRequest.certificateHandler = new CertificateHandlerBypass();
+                    }
 
                     var operation = webRequest.SendWebRequest();
 
@@ -141,6 +159,63 @@ namespace Solracer.Network
         }
 
         /// <summary>
+        /// Get the settle_race transaction for a race.
+        /// This transaction settles the race on-chain before claiming prize.
+        /// </summary>
+        public async Task<SettleTransactionResponse> GetSettleTransaction(string raceId)
+        {
+            try
+            {
+                string url = $"{apiBaseUrl}{API_PREFIX}/payouts/{Uri.EscapeDataString(raceId)}/settle-transaction";
+
+                using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
+                {
+                    // Bypass certificate validation for local development URLs
+                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    {
+                        webRequest.certificateHandler = new CertificateHandlerBypass();
+                    }
+
+                    var operation = webRequest.SendWebRequest();
+
+                    while (!operation.isDone)
+                    {
+                        await Task.Yield();
+                    }
+
+                    if (webRequest.result == UnityWebRequest.Result.Success)
+                    {
+                        string responseText = webRequest.downloadHandler.text;
+                        SettleTransactionResponse response = JsonConvert.DeserializeObject<SettleTransactionResponse>(responseText);
+                        Debug.Log($"[PayoutAPIClient] Settle transaction retrieved for race {raceId}");
+                        return response;
+                    }
+                    else
+                    {
+                        // 400 is expected if settlement is not needed
+                        if (webRequest.responseCode == 400)
+                        {
+                            Debug.Log($"[PayoutAPIClient] Settlement not needed for race {raceId}");
+                            return null;
+                        }
+
+                        Debug.LogError($"[PayoutAPIClient] Error getting settle transaction: {webRequest.error}");
+                        if (webRequest.downloadHandler != null)
+                        {
+                            Debug.LogError($"[PayoutAPIClient] Response: {webRequest.downloadHandler.text}");
+                        }
+                        return null;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogError($"[PayoutAPIClient] Exception getting settle transaction: {e.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Retry a failed payout
         /// </summary>
         public async Task<ProcessPayoutResponse> RetryPayout(string raceId)
@@ -152,6 +227,12 @@ namespace Solracer.Network
                 using (UnityWebRequest webRequest = UnityWebRequest.PostWwwForm(url, ""))
                 {
                     webRequest.SetRequestHeader("Content-Type", "application/json");
+
+                    // Bypass certificate validation for local development URLs
+                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    {
+                        webRequest.certificateHandler = new CertificateHandlerBypass();
+                    }
 
                     var operation = webRequest.SendWebRequest();
 
@@ -223,6 +304,19 @@ namespace Solracer.Network
         public float? amount_sol;
         public float? amount_tokens;
         public string error;
+    }
+
+    /// <summary>
+    /// Response model for settle_race transaction
+    /// </summary>
+    [Serializable]
+    public class SettleTransactionResponse
+    {
+        public string message;
+        public string transaction_bytes; // Base64-encoded transaction for signing
+        public string race_id;
+        public string race_pda;
+        public string recent_blockhash;
     }
 }
 

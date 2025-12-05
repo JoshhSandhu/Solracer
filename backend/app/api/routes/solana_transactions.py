@@ -12,7 +12,7 @@ import base64
 import hashlib
 
 from app.database import get_db
-from app.models import Race
+from app.models import Race, RaceResult, RaceStatus, Payout
 from app.schemas import (
     BuildTransactionRequest,
     BuildTransactionResponse,
@@ -21,6 +21,9 @@ from app.schemas import (
     SettleRaceRequest,
     ClaimPrizeRequest
 )
+from sqlalchemy import and_
+from datetime import datetime, timezone
+import json
 from app.services.program_client import get_program_client
 from app.services.transaction_builder import get_transaction_builder
 from app.services.transaction_submitter import get_transaction_submitter
@@ -37,6 +40,95 @@ def generate_race_id(token_mint: str, entry_fee: float, player1: str) -> str:
     seed_string = f"{token_mint}_{entry_fee}_{player1}"
     race_id_hash = hashlib.sha256(seed_string.encode()).hexdigest()[:32]
     return f"race_{race_id_hash}"
+
+
+async def handle_submit_result(
+    db,
+    race: Race,
+    wallet_address: str,
+    finish_time_ms: int,
+    coins_collected: int,
+    input_hash: str,
+    tx_signature: str
+):
+    """
+    Handle submit_result instruction by storing result in database
+    and settling the race if both players have finished.
+    """
+    # Validate required fields
+    if not wallet_address:
+        logger.error(f"[handle_submit_result] Missing wallet_address for race {race.race_id}")
+        return
+    
+    if finish_time_ms is None:
+        logger.error(f"[handle_submit_result] Missing finish_time_ms for race {race.race_id}")
+        return
+    
+    # Check if result already exists (idempotent)
+    existing_result = db.query(RaceResult).filter(
+        and_(
+            RaceResult.race_id == race.id,
+            RaceResult.wallet_address == wallet_address
+        )
+    ).first()
+    
+    if existing_result:
+        logger.info(f"[handle_submit_result] Result already exists for race {race.race_id}, wallet {wallet_address}")
+        return
+    
+    # Determine player number
+    if wallet_address == race.player1_wallet:
+        player_number = 1
+    elif wallet_address == race.player2_wallet:
+        player_number = 2
+    else:
+        logger.error(f"[handle_submit_result] Wallet {wallet_address} not in race {race.race_id}")
+        return
+    
+    # Create race result
+    result = RaceResult(
+        race_id=race.id,
+        wallet_address=wallet_address,
+        player_number=player_number,
+        finish_time_ms=finish_time_ms,
+        coins_collected=coins_collected or 0,
+        input_hash=input_hash or "",
+        verified=False
+    )
+    
+    db.add(result)
+    db.commit()
+    db.refresh(result)
+    
+    logger.info(f"[handle_submit_result] Result stored for race {race.race_id}, player {player_number}, time: {finish_time_ms}ms")
+    
+    # Check if both results are submitted
+    results = db.query(RaceResult).filter(RaceResult.race_id == race.id).all()
+    logger.info(f"[handle_submit_result] Race {race.race_id} has {len(results)} result(s)")
+    
+    if len(results) == 2 and race.status != RaceStatus.SETTLED:
+        # Both players submitted, determine winner and settle race
+        winner_result = min(results, key=lambda r: r.finish_time_ms)
+        race.status = RaceStatus.SETTLED
+        race.settled_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(race)
+        
+        logger.info(f"[handle_submit_result] Race {race.race_id} SETTLED! Winner: {winner_result.wallet_address} (time: {winner_result.finish_time_ms}ms)")
+        
+        # Auto-create payout record
+        try:
+            from app.services.payout_handler import get_payout_handler
+            payout_handler = get_payout_handler()
+            payout_handler.create_payout_record(
+                db=db,
+                race=race,
+                winner_wallet=winner_result.wallet_address,
+                winner_result=winner_result
+            )
+            logger.info(f"[handle_submit_result] ✅ Payout created for race {race.race_id}, winner: {winner_result.wallet_address}")
+        except Exception as e:
+            logger.error(f"[handle_submit_result] Error creating payout for race {race.race_id}: {e}", exc_info=True)
 
 
 @router.post("/transactions/build", response_model=BuildTransactionResponse)
@@ -315,8 +407,37 @@ async def submit_transaction(
     transaction_submitter = get_transaction_submitter()
     
     try:
-        #decode transaction bytes
-        transaction_bytes = base64.b64decode(request.signed_transaction_bytes)
+        # Validate and decode transaction bytes
+        if not request.signed_transaction_bytes:
+            raise HTTPException(status_code=400, detail="signed_transaction_bytes is required")
+        
+        try:
+            transaction_bytes = base64.b64decode(request.signed_transaction_bytes)
+        except Exception as e:
+            logger.error(f"Error decoding base64 transaction bytes: {e}")
+            raise HTTPException(status_code=400, detail=f"Invalid base64 encoding: {str(e)}")
+        
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
         
         #submit transaction
         signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
@@ -330,7 +451,19 @@ async def submit_transaction(
             if race:
                 if request.instruction_type == "create_race":
                     race.solana_tx_signature = signature
-                db.commit()
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
         
         #confirm transaction (async, non-blocking)
         #in production, this could be done in a background task

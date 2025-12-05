@@ -71,6 +71,12 @@ namespace Solracer.Network
                     webRequest.downloadHandler = new DownloadHandlerBuffer();
                     webRequest.SetRequestHeader("Content-Type", "application/json");
 
+                    // Bypass certificate validation for local development URLs
+                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    {
+                        webRequest.certificateHandler = new CertificateHandlerBypass();
+                    }
+
                     var operation = webRequest.SendWebRequest();
 
                     while (!operation.isDone)
@@ -120,6 +126,12 @@ namespace Solracer.Network
                     webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
                     webRequest.downloadHandler = new DownloadHandlerBuffer();
                     webRequest.SetRequestHeader("Content-Type", "application/json");
+
+                    // Bypass certificate validation for local development URLs
+                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    {
+                        webRequest.certificateHandler = new CertificateHandlerBypass();
+                    }
 
                     var operation = webRequest.SendWebRequest();
 
@@ -205,6 +217,11 @@ namespace Solracer.Network
         public string signed_transaction_bytes;  // Base64-encoded signed transaction
         public string instruction_type;
         public string race_id;  // Optional
+        // Optional fields for submit_result instruction
+        public string wallet_address;  // Wallet address (for submit_result)
+        public int? finish_time_ms;  // Finish time in milliseconds (for submit_result)
+        public int? coins_collected;  // Coins collected (for submit_result)
+        public string input_hash;  // Input hash for replay verification (for submit_result)
     }
 
     /// <summary>

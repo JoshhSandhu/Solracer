@@ -28,8 +28,8 @@ namespace Solracer.UI
         [Tooltip("Scene to load for Practice mode")]
         [SerializeField] private string practiceSceneName = "Race";
 
-        [Tooltip("Scene to load for Competitive mode (both modes go to Race)")]
-        [SerializeField] private string competitiveSceneName = "Race";
+        [Tooltip("Scene to load for Competitive mode (goes to Lobby)")]
+        [SerializeField] private string competitiveSceneName = "Lobby";
 
         [Header("Settings")]
         [Tooltip("Enable debug logging")]
@@ -131,14 +131,14 @@ namespace Solracer.UI
 
             if (debugLogging)
             {
-                Debug.Log("ModeSelectionScreen: Competitive mode approved - Loading Race");
+                Debug.Log("ModeSelectionScreen: Competitive mode approved - Loading Lobby");
             }
 
             // Set mode to Competitive
             GameModeData.CurrentMode = GameMode.Competitive;
             
-            // Load Race scene directly (hardcoded to ensure correct flow)
-            LoadScene("Race");
+            // Load Lobby scene for race creation/joining
+            LoadScene(competitiveSceneName);
         }
 
 
