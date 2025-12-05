@@ -235,13 +235,16 @@ namespace Solracer.Game
             atvRigidbody.bodyType = RigidbodyType2D.Dynamic;
             atvRigidbody.simulated = true;
 
+            // Use Continuous collision detection to prevent tunneling through colliders at high speed
+            atvRigidbody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+
             //config of the physics properties
             atvRigidbody.linearDamping = 0.1f;  //slight air resistance
             atvRigidbody.angularDamping = 2f;   //prevent excessive rotation
 
             atvRigidbody.WakeUp();
 
-            Debug.Log("ATVController: Rigidbody2D configured");
+            Debug.Log("ATVController: Rigidbody2D configured with Continuous collision detection");
         }
 
         /// <summary>
