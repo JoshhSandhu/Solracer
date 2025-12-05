@@ -99,6 +99,17 @@ class TransactionSubmitter:
         Returns:
             Transaction signature as string, or None on error
         """
+        # Validate transaction bytes
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            logger.error("Transaction bytes are empty")
+            return None
+        
+        if len(transaction_bytes) < 64:  # Minimum size for a valid transaction
+            logger.error(f"Transaction bytes too short: {len(transaction_bytes)} bytes (minimum 64)")
+            return None
+        
+        logger.info(f"Submitting transaction: {len(transaction_bytes)} bytes")
+        
         for attempt in range(max_retries):
             try:
                 opts = TxOpts(
@@ -119,7 +130,15 @@ class TransactionSubmitter:
                         time.sleep(1)
                     
             except Exception as e:
-                logger.error(f"Error submitting transaction (attempt {attempt + 1}/{max_retries}): {e}")
+                error_msg = str(e)
+                logger.error(f"Error submitting transaction (attempt {attempt + 1}/{max_retries}): {error_msg}")
+                
+                # Check for deserialization errors - might indicate incomplete transaction bytes
+                if "deserialize" in error_msg.lower() or "failed to fill whole buffer" in error_msg.lower():
+                    logger.error(f"Transaction deserialization error - transaction bytes may be incomplete or corrupted. Size: {len(transaction_bytes)} bytes")
+                    # Don't retry on deserialization errors - the bytes are likely wrong
+                    break
+                
                 if attempt < max_retries - 1:
                     time.sleep(1)
         
@@ -143,12 +162,17 @@ class TransactionSubmitter:
             True if confirmed, False otherwise
         """
         try:
+            from solders.signature import Signature
+            
             commitment_level = Confirmed if commitment == "confirmed" else Finalized
+            
+            # Convert string signature to Signature object
+            sig = Signature.from_string(signature)
             
             #poll for confirmation
             start_time = time.time()
             while time.time() - start_time < timeout:
-                response = self.client.confirm_transaction(signature, commitment_level)
+                response = self.client.confirm_transaction(sig, commitment_level)
                 
                 if response.value and len(response.value) > 0:
                     confirmation_status = response.value[0].confirmation_status
