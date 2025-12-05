@@ -2,9 +2,12 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using System;
+using System.Linq;
 using Privy;
 using System.Threading.Tasks;
 using Solracer.UI;
+using Solana.Unity.Rpc.Models;
+using Solana.Unity.Wallet;
 
 namespace Solracer.Auth
 {
@@ -864,7 +867,14 @@ namespace Solracer.Auth
             return wallets.Length > 0 ? wallets[0].Address : "No Wallet";
         }
 
-        //test method ( for transaction signing )
+        /// <summary>
+        /// Sign a Solana transaction using Privy wallet and Solana Unity SDK.
+        /// Properly deserializes the transaction, signs it, and serializes it back.
+        /// </summary>
+        /// <summary>
+        /// Sign a Solana transaction using Privy wallet and Solana Unity SDK.
+        /// Properly deserializes the transaction, signs it, and serializes it back.
+        /// </summary>
         public async Task<string> SignTransaction(string transactionBase64)
         {
             try
@@ -896,10 +906,56 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                Debug.Log("Signing transaction with Privy wallet...");
+                Debug.Log($"[SignTransaction] Starting transaction signing. Base64 length: {transactionBase64.Length}");
 
-                //Sign the transaction bytes received from backend
-                var signTask = wallet.EmbeddedSolanaWalletProvider.SignMessage(transactionBase64);
+                // Step 1: Decode base64 to bytes
+                byte[] transactionBytes = System.Convert.FromBase64String(transactionBase64);
+                Debug.Log($"[SignTransaction] Decoded transaction: {transactionBytes.Length} bytes");
+
+                // Step 2: Deserialize transaction using Solana Unity SDK
+                Transaction transaction = null;
+                try
+                {
+                    transaction = Transaction.Deserialize(transactionBytes);
+                    Debug.Log($"[SignTransaction] Successfully deserialized transaction. Instructions: {transaction.Instructions?.Count ?? 0}");
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[SignTransaction] Error deserializing transaction: {ex.Message}");
+                    Debug.LogError($"Stack trace: {ex.StackTrace}");
+                    return null;
+                }
+
+                if (transaction == null)
+                {
+                    Debug.LogError("[SignTransaction] Transaction deserialization returned null");
+                    return null;
+                }
+
+                // Step 3: Get the transaction message to sign
+                byte[] messageBytes = null;
+                try
+                {
+                    messageBytes = transaction.CompileMessage();
+                    Debug.Log($"[SignTransaction] Compiled message: {messageBytes.Length} bytes");
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[SignTransaction] Error compiling message: {ex.Message}");
+                    return null;
+                }
+
+                if (messageBytes == null || messageBytes.Length == 0)
+                {
+                    Debug.LogError("[SignTransaction] Failed to extract message from transaction");
+                    return null;
+                }
+
+                // Step 4: Sign the message using Privy
+                string messageBase64 = System.Convert.ToBase64String(messageBytes);
+                Debug.Log($"[SignTransaction] Signing transaction message ({messageBytes.Length} bytes)...");
+
+                var signTask = wallet.EmbeddedSolanaWalletProvider.SignMessage(messageBase64);
                 var completed = await Task.WhenAny(signTask, Task.Delay(TimeSpan.FromSeconds(30)));
 
                 if (completed != signTask)
@@ -908,21 +964,121 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                string signatureString = await signTask;
-
-                if (string.IsNullOrEmpty(signatureString))
+                string signatureBase64 = await signTask;
+                if (string.IsNullOrEmpty(signatureBase64))
                 {
                     Debug.LogError("Privy signature failed - returned empty signature.");
                     return null;
                 }
 
-                Debug.Log($"Transaction signed successfully. Signature length: {signatureString.Length}");
-                return signatureString;
+                byte[] signatureBytes = System.Convert.FromBase64String(signatureBase64);
+                Debug.Log($"[SignTransaction] Received signature: {signatureBytes.Length} bytes");
+
+                // Step 5: Add signature to transaction
+                try
+                {
+                    // Get the signer's public key (first account in the transaction)
+                    PublicKey signerPubKey = new PublicKey(WalletAddress);
+                    
+                    // Find and update the signature in the transaction's Signatures list
+                    bool signatureAdded = false;
+                    if (transaction.Signatures != null && transaction.Signatures.Count > 0)
+                    {
+                        // Find the signature slot for our public key
+                        for (int i = 0; i < transaction.Signatures.Count; i++)
+                        {
+                            var sigPubKeyPair = transaction.Signatures[i];
+                            if (sigPubKeyPair.PublicKey.Equals(signerPubKey))
+                            {
+                                // Update the signature
+                                transaction.Signatures[i] = new SignaturePubKeyPair
+                                {
+                                    PublicKey = signerPubKey,
+                                    Signature = signatureBytes
+                                };
+                                signatureAdded = true;
+                                Debug.Log($"[SignTransaction] Updated signature at index {i}");
+                                break;
+                            }
+                        }
+                        
+                        // If our public key wasn't found, add it to the first slot
+                        if (!signatureAdded)
+                        {
+                            transaction.Signatures[0] = new SignaturePubKeyPair
+                            {
+                                PublicKey = signerPubKey,
+                                Signature = signatureBytes
+                            };
+                            signatureAdded = true;
+                            Debug.Log("[SignTransaction] Added signature to first slot");
+                        }
+                    }
+                    else
+                    {
+                        // No signatures list, create one
+                        transaction.Signatures = new System.Collections.Generic.List<SignaturePubKeyPair>
+                        {
+                            new SignaturePubKeyPair
+                            {
+                                PublicKey = signerPubKey,
+                                Signature = signatureBytes
+                            }
+                        };
+                        signatureAdded = true;
+                        Debug.Log("[SignTransaction] Created new signatures list with our signature");
+                    }
+
+                    if (!signatureAdded)
+                    {
+                        Debug.LogError("[SignTransaction] Failed to add signature to transaction");
+                        return null;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[SignTransaction] Error adding signature: {ex.Message}");
+                    Debug.LogError($"Stack trace: {ex.StackTrace}");
+                    return null;
+                }
+
+                // Step 6: Serialize the signed transaction
+                byte[] signedTransactionBytes = null;
+                try
+                {
+                    signedTransactionBytes = transaction.Serialize();
+                    Debug.Log($"[SignTransaction] Serialized signed transaction: {signedTransactionBytes.Length} bytes");
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[SignTransaction] Error serializing transaction: {ex.Message}");
+                    Debug.LogError($"Stack trace: {ex.StackTrace}");
+                    return null;
+                }
+
+                if (signedTransactionBytes == null || signedTransactionBytes.Length == 0)
+                {
+                    Debug.LogError("[SignTransaction] Failed to serialize signed transaction");
+                    return null;
+                }
+
+                // Verify we're not just returning a signature
+                if (signedTransactionBytes.Length == 64)
+                {
+                    Debug.LogError("[SignTransaction] ERROR: Serialized transaction is only 64 bytes - this is just a signature!");
+                    Debug.LogError("[SignTransaction] The backend will reject this. Transaction signing failed.");
+                    return null;
+                }
+
+                // Step 7: Return base64-encoded signed transaction
+                string signedTransactionBase64 = System.Convert.ToBase64String(signedTransactionBytes);
+                Debug.Log($"[SignTransaction] ✓ Transaction signed successfully! Signed transaction: {signedTransactionBytes.Length} bytes (base64: {signedTransactionBase64.Length} chars)");
+                return signedTransactionBase64;
             }
             catch (Exception ex)
             {
-                Debug.LogError($"Failed to sign transaction: {ex.Message}");
-                Debug.LogError($"Stack trace: {ex.StackTrace}");
+                Debug.LogError($"[SignTransaction] Failed to sign transaction: {ex.Message}");
+                Debug.LogError($"[SignTransaction] Stack trace: {ex.StackTrace}");
                 return null;
             }
         }

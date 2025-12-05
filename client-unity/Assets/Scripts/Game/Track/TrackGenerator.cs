@@ -6,6 +6,16 @@ using Solracer.Network;
 namespace Solracer.Game
 {
     /// <summary>
+    /// Color mode for track rendering
+    /// </summary>
+    public enum TrackColorMode
+    {
+        Solid,          // Single color
+        SlopeBased,     // Green going up, red going down (legacy)
+        PriceLevel      // Color based on height - green at top (resistance), red at bottom (support)
+    }
+
+    /// <summary>
     /// generates a 2D track from normalized data points.
     /// </summary>
     [RequireComponent(typeof(LineRenderer))]
@@ -29,19 +39,20 @@ namespace Solracer.Game
         [Tooltip("Width of the track line")]
         [SerializeField] private float lineWidth = 1f;
 
-        [Tooltip("Color of the track")]
+        [Tooltip("Color of the track (used when no color mode is enabled)")]
         [SerializeField] private Color trackColor = Color.white;
 
-        [Tooltip("Use slope-based colors (green for up, red for down)")]
-        [SerializeField] private bool useSlopeColors = false;
+        [Header("Color Mode")]
+        [Tooltip("Color mode for the track line")]
+        [SerializeField] private TrackColorMode colorMode = TrackColorMode.PriceLevel;
 
-        [Tooltip("Color when track is going up (positive slope)")]
-        [SerializeField] private Color upColor = Color.green;
+        [Tooltip("Color at HIGH price (near resistance) - GREEN/Bullish")]
+        [SerializeField] private Color highPriceColor = new Color(0.2f, 0.9f, 0.3f, 1f);
 
-        [Tooltip("Color when track is going down (negative slope)")]
-        [SerializeField] private Color downColor = Color.red;
+        [Tooltip("Color at LOW price (near support) - RED/Bearish")]
+        [SerializeField] private Color lowPriceColor = new Color(0.9f, 0.2f, 0.2f, 1f);
 
-        [Tooltip("Color when track is flat (zero slope)")]
+        [Tooltip("(Legacy) Color when track is flat (zero slope)")]
         [SerializeField] private Color flatColor = Color.yellow;
 
         [Header("Data Settings")]
@@ -277,19 +288,83 @@ namespace Solracer.Game
             lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
             lineRenderer.sortingOrder = 0;
 
-            //apply colors based on slope or use single color
-            if (useSlopeColors && smoothedPoints.Length > 1)
+            // Apply colors based on selected mode
+            switch (colorMode)
             {
-                SetupSlopeColors();
-            }
-            else
-            {
-                lineRenderer.startColor = trackColor;
-                lineRenderer.endColor = trackColor;
+                case TrackColorMode.PriceLevel:
+                    if (smoothedPoints.Length > 1)
+                        SetupPriceLevelColors();
+                    else
+                        SetSolidColor();
+                    break;
+                    
+                case TrackColorMode.SlopeBased:
+                    if (smoothedPoints.Length > 1)
+                        SetupSlopeColors();
+                    else
+                        SetSolidColor();
+                    break;
+                    
+                case TrackColorMode.Solid:
+                default:
+                    SetSolidColor();
+                    break;
             }
         }
 
-        //sets up per-vertex colors based on track slope
+        // Sets solid color for the track
+        private void SetSolidColor()
+        {
+            lineRenderer.startColor = trackColor;
+            lineRenderer.endColor = trackColor;
+        }
+
+        /// <summary>
+        /// Sets up per-vertex colors based on price level (Y position).
+        /// High price (near resistance) = Green/Bullish
+        /// Low price (near support) = Red/Bearish
+        /// This matches the ghost candle coloring logic.
+        /// </summary>
+        private void SetupPriceLevelColors()
+        {
+            if (smoothedPoints == null || smoothedPoints.Length < 2)
+                return;
+
+            // Find min/max Y to determine S/R levels
+            float minY = float.MaxValue;
+            float maxY = float.MinValue;
+            
+            foreach (var point in smoothedPoints)
+            {
+                minY = Mathf.Min(minY, point.y);
+                maxY = Mathf.Max(maxY, point.y);
+            }
+            
+            float range = maxY - minY;
+            if (range < 0.001f) range = 1f; // Avoid division by zero
+            
+            Color[] colors = new Color[smoothedPoints.Length];
+
+            // Calculate color for each point based on Y position (price level)
+            for (int i = 0; i < smoothedPoints.Length; i++)
+            {
+                float y = smoothedPoints[i].y;
+                
+                // Normalize Y position between 0 (support) and 1 (resistance)
+                float normalizedY = (y - minY) / range;
+                normalizedY = Mathf.Clamp01(normalizedY);
+                
+                // Lerp between low price color (red) and high price color (green)
+                colors[i] = Color.Lerp(lowPriceColor, highPriceColor, normalizedY);
+            }
+
+            // Apply colors to LineRenderer
+            lineRenderer.colorGradient = CreateGradientFromColors(colors);
+            
+            Debug.Log($"[TrackGenerator] Applied price-level coloring. Range: {minY:F2} to {maxY:F2}");
+        }
+
+        //sets up per-vertex colors based on track slope (legacy mode)
         private void SetupSlopeColors()
         {
             if (smoothedPoints == null || smoothedPoints.Length < 2)
@@ -324,16 +399,16 @@ namespace Solracer.Game
                     slope = (slope1 + slope2) / 2f;
                 }
 
-                //map slope to color: positive = green, negative = red, zero = yellow
+                //map slope to color: positive = green (going up), negative = red (going down)
                 if (slope > 0.01f)
                 {
-                    //going up: green
-                    colors[i] = upColor;
+                    //going up: use high price color (green)
+                    colors[i] = highPriceColor;
                 }
                 else if (slope < -0.01f)
                 {
-                    //going down: red
-                    colors[i] = downColor;
+                    //going down: use low price color (red)
+                    colors[i] = lowPriceColor;
                 }
                 else
                 {

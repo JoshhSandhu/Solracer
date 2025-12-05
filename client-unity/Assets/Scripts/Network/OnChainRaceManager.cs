@@ -327,13 +327,18 @@ namespace Solracer.Network
                     return false;
                 }
 
-                //submit transaction
+                //submit transaction with result data for database storage
                 onProgress?.Invoke("Submitting result...", 0.8f);
                 var submitRequest = new SubmitTransactionRequest
                 {
                     signed_transaction_bytes = signedTransaction,
                     instruction_type = "submit_result",
-                    race_id = raceId
+                    race_id = raceId,
+                    // Include result data for backend to store in database
+                    wallet_address = walletAddress,
+                    finish_time_ms = finishTimeMs,
+                    coins_collected = coinsCollected,
+                    input_hash = inputHash
                 };
 
                 var submitResponse = await apiClient.SubmitTransactionAsync(submitRequest);

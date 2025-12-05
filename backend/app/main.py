@@ -66,7 +66,8 @@ app = FastAPI(
 
 # Configure CORS
 # In production, restrict ALLOWED_ORIGINS to your Unity builds and web frontend
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080").split(",")
+# Note: For HTTPS, use https:// origins
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "https://localhost:3000,https://localhost:8080").split(",")
 
 app.add_middleware(
     CORSMiddleware,
@@ -118,7 +119,30 @@ if __name__ == "__main__":
     import uvicorn
     
     # Run with uvicorn (for development)
-    # In production, use: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    # For HTTPS, run from command line with SSL certificates:
+    # uvicorn app.main:app --host 0.0.0.0 --port 8000 --ssl-keyfile certs/key.pem --ssl-certfile certs/cert.pem
+    # 
+    # For HTTP (development only), use:
+    # uvicorn app.main:app --host 0.0.0.0 --port 8000
+    
+    # Check if SSL certificates are configured
+    ssl_keyfile = os.getenv("SSL_KEYFILE")
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
     uvicorn.run(
         "app.main:app",
         host="0.0.0.0",

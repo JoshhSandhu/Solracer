@@ -12,9 +12,17 @@ namespace Solracer.Network
         protected override bool ValidateCertificate(byte[] certificateData)
         {
             // Accept all certificates (for self-signed local development)
+            Debug.Log("[CertificateHandlerBypass] Accepting certificate (bypass enabled)");
             return true;
         }
+
+        //protected override void Dispose(bool disposing)
+        //{
+        //    base.Dispose(disposing);
+        //}
     }
 }
+
+
 
 
