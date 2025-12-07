@@ -173,6 +173,9 @@ class SubmitTransactionRequest(BaseModel):
     signed_transaction_bytes: str = Field(..., description="Base64-encoded signed transaction bytes")
     instruction_type: str = Field(..., description="Instruction type")
     race_id: Optional[str] = Field(None, description="Race ID (for tracking)")
+    # Optional fields for create_race instruction
+    token_mint: Optional[str] = Field(None, description="Token mint address (for create_race)")
+    entry_fee_sol: Optional[float] = Field(None, description="Entry fee in SOL (for create_race)")
     # Optional fields for submit_result instruction
     wallet_address: Optional[str] = Field(None, description="Wallet address (for submit_result)")
     finish_time_ms: Optional[int] = Field(None, description="Finish time in milliseconds (for submit_result)")

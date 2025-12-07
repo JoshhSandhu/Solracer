@@ -128,7 +128,10 @@ namespace Solracer.Network
                 {
                     signed_transaction_bytes = signedTransaction,
                     instruction_type = "create_race",
-                    race_id = buildResponse.race_id
+                    race_id = buildResponse.race_id,
+                    token_mint = tokenMint,
+                    entry_fee_sol = entryFeeSol,
+                    wallet_address = walletAddress
                 };
 
                 SubmitTransactionResponse submitResponse;
@@ -299,9 +302,22 @@ namespace Solracer.Network
                     input_hash = inputHash
                 };
 
-                var buildResponse = await apiClient.BuildTransactionAsync(buildRequest);
-                if (buildResponse == null)
+                BuildTransactionResponse buildResponse;
+                try
                 {
+                    buildResponse = await apiClient.BuildTransactionAsync(buildRequest);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[OnChainRaceManager] Failed to build submit_result transaction: {ex.Message}");
+                    onProgress?.Invoke("Failed to build transaction - race may not exist on-chain", 0f);
+                    return false;
+                }
+
+                if (buildResponse == null || string.IsNullOrEmpty(buildResponse.transaction_bytes))
+                {
+                    Debug.LogError("[OnChainRaceManager] Invalid transaction response for submit_result");
+                    onProgress?.Invoke("Race not found on-chain", 0f);
                     return false;
                 }
 
@@ -411,9 +427,22 @@ namespace Solracer.Network
                     race_id = raceId
                 };
 
-                var buildResponse = await apiClient.BuildTransactionAsync(buildRequest);
-                if (buildResponse == null)
+                BuildTransactionResponse buildResponse;
+                try
                 {
+                    buildResponse = await apiClient.BuildTransactionAsync(buildRequest);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[OnChainRaceManager] Failed to build claim_prize transaction: {ex.Message}");
+                    onProgress?.Invoke("Failed to build transaction - race may not exist on-chain", 0f);
+                    return false;
+                }
+
+                if (buildResponse == null || string.IsNullOrEmpty(buildResponse.transaction_bytes))
+                {
+                    Debug.LogError("[OnChainRaceManager] Invalid transaction response for claim_prize");
+                    onProgress?.Invoke("Race not found on-chain", 0f);
                     return false;
                 }
 
