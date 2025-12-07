@@ -6,7 +6,7 @@ providing automatic validation and serialization.
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 from datetime import datetime
 from enum import Enum
 
@@ -58,7 +58,7 @@ class RaceResponse(BaseModel):
     status: RaceStatus
     track_seed: int
     created_at: datetime
-    solana_tx_signature: Optional[str] = None  # Transaction signature for race creation
+    solana_tx_signature: Optional[str] = None
     is_private: bool = False
     join_code: Optional[str] = None
     expires_at: Optional[datetime] = None
@@ -67,7 +67,6 @@ class RaceResponse(BaseModel):
 
     class Config:
         from_attributes = True
-    
 
 
 class CreateRaceRequest(BaseModel):
@@ -139,15 +138,15 @@ class RaceStatusResponse(BaseModel):
     is_settled: bool
     player1_ready: bool = False
     player2_ready: bool = False
-    both_ready: bool = False  # True when both players are ready (race can start)
-    player1_result: Optional[PlayerResult] = None  # Player 1's result (if submitted)
-    player2_result: Optional[PlayerResult] = None  # Player 2's result (if submitted)
+    both_ready: bool = False
+    player1_result: Optional[PlayerResult] = None
+    player2_result: Optional[PlayerResult] = None
 
     class Config:
         from_attributes = True
 
 
-# Phase 6: Transaction-related schemas (Legacy: Phase 4.3)
+# Transaction-related schemas
 class BuildTransactionRequest(BaseModel):
     """Request schema for building a transaction."""
     instruction_type: str = Field(..., description="Instruction type: create_race, join_race, submit_result, claim_prize")
@@ -200,7 +199,7 @@ class ClaimPrizeRequest(BaseModel):
     wallet_address: str = Field(..., description="Winner wallet address")
 
 
-# Phase 7: Payout-related schemas
+# Payout-related schemas
 class PayoutStatusEnum(str, Enum):
     """Payout status enumeration."""
     PENDING = "pending"
@@ -233,12 +232,16 @@ class PayoutResponse(BaseModel):
 
 
 class ProcessPayoutResponse(BaseModel):
-    """Response schema for processing payout."""
+    """
+    Response schema for processing payout.
+    
+    Returns transaction bytes for the client to sign and submit.
+    """
     status: str = Field(..., description="Status: ready_for_signing, processing, completed, failed")
-    payout_id: str
-    transaction: Optional[str] = Field(None, description="Base64-encoded transaction (if ready_for_signing)")
-    swap_transaction: Optional[str] = Field(None, description="Jupiter swap transaction (if using swap)")
+    payout_id: str = Field(..., description="Payout ID")
+    transaction: Optional[str] = Field(None, description="Base64-encoded claim_prize transaction (for SOL)")
+    swap_transaction: Optional[str] = Field(None, description="Base64-encoded Jupiter swap transaction (for non-SOL tokens)")
     method: str = Field(..., description="Method: claim_prize, jupiter_swap, fallback_sol")
-    amount_sol: Optional[float] = None
-    amount_tokens: Optional[float] = None
-    error: Optional[str] = None
+    amount_sol: Optional[float] = Field(None, description="Prize amount in SOL")
+    amount_tokens: Optional[float] = Field(None, description="Expected token amount after swap")
+    error: Optional[str] = Field(None, description="Error message if any")

@@ -446,6 +446,8 @@ async def submit_transaction(
             raise HTTPException(status_code=500, detail="Failed to submit transaction")
         
         #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
         if request.race_id:
             race = db.query(Race).filter(Race.race_id == request.race_id).first()
             if race:
@@ -455,6 +457,8 @@ async def submit_transaction(
                 
                 # Handle submit_result: store result in database and check for race settlement
                 elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
                     await handle_submit_result(
                         db=db,
                         race=race,
@@ -464,6 +468,1984 @@ async def submit_transaction(
                         input_hash=request.input_hash,
                         tx_signature=signature
                     )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
+        
+        #confirm transaction (async, non-blocking)
+        #in production, this could be done in a background task
+        confirmed = transaction_submitter.confirm_transaction(signature, timeout=10)
+        
+        return SubmitTransactionResponse(
+            transaction_signature=signature,
+            instruction_type=request.instruction_type,
+            race_id=request.race_id,
+            confirmed=confirmed
+        )
+    
+    except Exception as e:
+        logger.error(f"Error submitting transaction: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error submitting transaction: {str(e)}")
+
+
+@router.post("/races/{race_id}/settle")
+async def settle_race(
+    race_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Settle a race on-chain (determine winner).
+    
+    This can be called by anyone once both results are submitted.
+    The Solana program will determine the winner based on finish times.
+    """
+    program_client = get_program_client()
+    transaction_builder = get_transaction_builder()
+    transaction_submitter = get_transaction_submitter()
+    
+    try:
+        #get race from database
+        race = db.query(Race).filter(Race.race_id == race_id).first()
+        if not race:
+            raise HTTPException(status_code=404, detail="Race not found")
+        
+        #derive race PDA
+        program_id = get_program_id()
+        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        
+        race_pda_str, bump = derive_race_pda_simple(
+            program_id,
+            race.race_id,
+            race.token_mint,
+            entry_fee_lamports
+        )
+        race_pda = Pubkey.from_string(race_pda_str)
+        
+        #build settle_race instruction
+        instruction = program_client.build_settle_race_instruction(race_pda=race_pda)
+        
+        #build transaction (no signer needed - anyone can call settle_race)
+        #but we need a payer for fees - use backend wallet if available
+        #in production, backend wallet would sign this
+        
+        #get recent blockhash
+        recent_blockhash = transaction_builder.get_recent_blockhash()
+        if not recent_blockhash:
+            raise HTTPException(status_code=500, detail="Failed to get recent blockhash")
+        
+        #return instruction for client to sign
+        #in production, backend wallet would sign this automatically
+        transaction = transaction_builder.build_transaction(
+            instructions=[instruction],
+            payer=race_pda,  #this won't work - need actual payer
+            recent_blockhash=recent_blockhash
+        )
+        
+        #serialize and return for signing
+        transaction_bytes = transaction_builder.serialize_transaction(transaction)
+        transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
+        
+        return {
+            "message": "Settle race transaction built. Sign and submit via /transactions/submit",
+            "transaction_bytes": transaction_b64,
+            "race_id": race_id,
+            "race_pda": race_pda_str
+        }
+    
+    except Exception as e:
+        logger.error(f"Error settling race: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error settling race: {str(e)}")
+
+
+        if not transaction_bytes or len(transaction_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Transaction bytes are empty")
+        
+        logger.info(f"[submit_transaction] Decoded transaction bytes: {len(transaction_bytes)} bytes, instruction_type: {request.instruction_type}, race_id: {request.race_id}")
+        
+        # Check if we received a signature (64 bytes) instead of a signed transaction
+        # A Solana transaction should be much larger (typically 200+ bytes)
+        # A signature is exactly 64 bytes
+        if len(transaction_bytes) == 64:
+            logger.error(f"[submit_transaction] Received 64 bytes - this appears to be a signature, not a signed transaction. " +
+                        f"The Unity client is using SignMessage() which returns a signature, but we need a full signed transaction. " +
+                        f"Please use proper transaction signing in Unity (deserialize -> sign -> serialize) instead of SignMessage().")
+            raise HTTPException(
+                status_code=400, 
+                detail="Received signature (64 bytes) instead of signed transaction. The client must sign the full transaction, not just return a signature. Use a Solana library to properly deserialize, sign, and serialize the transaction."
+            )
+        
+        # A signed transaction should be at least 100 bytes (typically 200-1000+ bytes)
+        if len(transaction_bytes) < 100:
+            logger.warning(f"[submit_transaction] Transaction bytes are unusually small ({len(transaction_bytes)} bytes). " +
+                          f"Expected a signed transaction (typically 200+ bytes). This may cause deserialization errors.")
+        
+        #submit transaction
+        signature = transaction_submitter.submit_transaction_bytes(transaction_bytes)
+        
+        if not signature:
+            raise HTTPException(status_code=500, detail="Failed to submit transaction")
+        
+        #update race record with transaction signature if race_id provided
+        logger.info(f"[submit_transaction] Processing instruction_type={request.instruction_type}, race_id={request.race_id}")
+        
+        if request.race_id:
+            race = db.query(Race).filter(Race.race_id == request.race_id).first()
+            if race:
+                if request.instruction_type == "create_race":
+                    race.solana_tx_signature = signature
+                    db.commit()
+                
+                # Handle submit_result: store result in database and check for race settlement
+                elif request.instruction_type == "submit_result":
+                    logger.info(f"[submit_transaction] Calling handle_submit_result for race {request.race_id}")
+                    logger.info(f"[submit_transaction] Result data: wallet={request.wallet_address}, time={request.finish_time_ms}ms, coins={request.coins_collected}")
+                    await handle_submit_result(
+                        db=db,
+                        race=race,
+                        wallet_address=request.wallet_address,
+                        finish_time_ms=request.finish_time_ms,
+                        coins_collected=request.coins_collected,
+                        input_hash=request.input_hash,
+                        tx_signature=signature
+                    )
+            else:
+                logger.warning(f"[submit_transaction] Race not found in database: {request.race_id}")
+        else:
+            logger.warning(f"[submit_transaction] No race_id provided for instruction_type={request.instruction_type}")
         
         #confirm transaction (async, non-blocking)
         #in production, this could be done in a background task

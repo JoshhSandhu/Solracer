@@ -812,13 +812,13 @@ MonoBehaviour:
   backgroundColor: {r: 0.035, g: 0.035, b: 0.043, a: 1}
   enableGrid: 1
   gridParallaxSpeed: 0.15
-  gridColor: {r: 0.165, g: 0.165, b: 0.21, a: 0.15}
+  gridColor: {r: 0.165, g: 0.165, b: 0.21, a: 0.47058824}
   gridCellSize: 5
   gridLineWidth: 0.02
   enableGhostCandles: 1
   ghostCandleCount: 15
-  ghostCandleGreen: {r: 0.16075982, g: 0.745283, b: 0.10194911, a: 0.078431375}
-  ghostCandleRed: {r: 0.7924528, g: 0.115877524, b: 0.115877524, a: 0.078431375}
+  ghostCandleGreen: {r: 0.16075982, g: 0.745283, b: 0.10194911, a: 0.39215687}
+  ghostCandleRed: {r: 0.7924528, g: 0.115877524, b: 0.115877524, a: 0.39215687}
   ghostCandleOpacity: 0.15
   enableSupportResistance: 1
   resistanceColor: {r: 0.2, g: 0.9, b: 0.4, a: 0.7}
@@ -2864,9 +2864,9 @@ MonoBehaviour:
   yOffset: -2
   lineWidth: 0.5
   trackColor: {r: 1, g: 1, b: 1, a: 1}
-  useSlopeColors: 1
-  upColor: {r: 0, g: 1, b: 0, a: 1}
-  downColor: {r: 1, g: 0, b: 0, a: 1}
+  colorMode: 2
+  highPriceColor: {r: 0.2, g: 0.9, b: 0.3, a: 1}
+  lowPriceColor: {r: 0.9, g: 0.2, b: 0.2, a: 1}
   flatColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   useSeed: 0
   seed: 42
