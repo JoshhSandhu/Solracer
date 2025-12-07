@@ -26,9 +26,6 @@ def check_race_needs_onchain_settlement(db: Session, race: Race) -> bool:
     1. The race is marked as SETTLED in the database
     2. Both results have been submitted
     
-    In the future, this could also check the on-chain state to verify
-    if settle_race instruction has been called.
-    
     Returns:
         bool: True if race needs on-chain settlement transaction
     """
@@ -63,7 +60,7 @@ async def get_payout_status(
     # Convert model to response format (UUIDs to strings)
     return PayoutResponse(
         payout_id=str(payout.id),
-        race_id=race.race_id,  # Use race.race_id (string) instead of race.id (UUID)
+        race_id=race.race_id,
         winner_wallet=payout.winner_wallet,
         prize_amount_sol=payout.prize_amount_sol,
         token_mint=payout.token_mint,
@@ -93,9 +90,6 @@ async def get_settle_transaction(
     1. Call this endpoint to get the settle_race transaction
     2. Sign and submit the transaction
     3. Then call /payouts/{race_id}/process to claim the prize
-    
-    The settle_race instruction is permissionless - anyone can call it once
-    both players have submitted their results.
     """
     # Find race
     race = db.query(Race).filter(Race.race_id == race_id).first()
@@ -148,24 +142,29 @@ async def process_payout(
     - Prepares transaction for signing
     - Returns transaction bytes for winner to sign
     
-    Note: Before calling this endpoint, the client should:
-    1. Call GET /payouts/{race_id}/settle-transaction to get settle_race transaction
-    2. Sign and submit the settle_race transaction
-    3. Then call this endpoint to process the payout
+    For SOL tokens: Returns claim_prize transaction
+    For other tokens: Returns Jupiter swap transaction
     
-    For automatic processing, a backend worker would sign and submit transactions.
+    IMPORTANT: The race must be settled on-chain before claiming prize.
+    If you get "InstructionFallbackNotFound" error, call /payouts/{race_id}/settle-transaction first.
     """
     # Find race
     race = db.query(Race).filter(Race.race_id == race_id).first()
     if not race:
         raise HTTPException(status_code=404, detail=f"Race {race_id} not found")
     
-    # Check if race is settled
+    # Check if race is settled in database
     if race.status != RaceStatus.SETTLED:
         raise HTTPException(
             status_code=400,
             detail=f"Race {race_id} is not settled. Current status: {race.status}"
         )
+    
+    # Check if race needs on-chain settlement
+    if check_race_needs_onchain_settlement(db, race):
+        logger.warning(f"Race {race_id} is settled in DB but may not be settled on-chain. "
+                      f"Client should call /payouts/{race_id}/settle-transaction first.")
+        # Don't fail - let the client try, but log a warning
     
     # Get or create payout
     payout = db.query(Payout).filter(Payout.race_id == race.id).first()
@@ -178,11 +177,23 @@ async def process_payout(
         return ProcessPayoutResponse(**result)
         
     except Exception as e:
+        error_msg = str(e)
+        # Check if it's the InstructionFallbackNotFound error
+        if "InstructionFallbackNotFound" in error_msg or "0x65" in error_msg:
+            logger.error(f"Race {race_id} may not be settled on-chain. "
+                        f"Error: {error_msg}. "
+                        f"Client should call /payouts/{race_id}/settle-transaction first.")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Race {race_id} needs to be settled on-chain before claiming prize. "
+                       f"Please call GET /payouts/{race_id}/settle-transaction first, "
+                       f"sign and submit that transaction, then retry claiming the prize."
+            )
         logger.error(f"Error processing payout for race {race_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing payout: {str(e)}")
 
 
-@router.post("/payouts/{race_id}/retry")
+@router.post("/payouts/{race_id}/retry", response_model=ProcessPayoutResponse)
 async def retry_payout(
     race_id: str,
     db: Session = Depends(get_db)
@@ -224,4 +235,3 @@ async def retry_payout(
     except Exception as e:
         logger.error(f"Error retrying payout for race {race_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Error retrying payout: {str(e)}")
-

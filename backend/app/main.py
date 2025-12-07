@@ -150,3 +150,339 @@ if __name__ == "__main__":
         reload=DEBUG
     )
 
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+
+
+    ssl_certfile = os.getenv("SSL_CERTFILE")
+    
+    if ssl_keyfile and ssl_certfile:
+        # Run with HTTPS
+        uvicorn.run(
+            "app.main:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=DEBUG,
+            ssl_keyfile=ssl_keyfile,
+            ssl_certfile=ssl_certfile
+        )
+    else:
+        # Run with HTTP (development only - not recommended for mobile testing)
+        print("⚠ WARNING: Running without SSL (HTTP). For mobile testing, use HTTPS with SSL certificates.")
+        print("⚠ Set SSL_KEYFILE and SSL_CERTFILE environment variables or run uvicorn from command line with --ssl-keyfile and --ssl-certfile")
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=DEBUG
+    )
+

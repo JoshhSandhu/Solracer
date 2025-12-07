@@ -136,8 +136,8 @@ class ProgramClient:
         Returns:
             Instruction for join_race
         """
-        #instruction discriminator: [108, 6, 61, 18, 1, 218, 235, 234]
-        discriminator = bytes([108, 6, 61, 18, 1, 218, 235, 234])
+        #instruction discriminator: [207, 91, 222, 84, 249, 246, 229, 54]
+        discriminator = bytes([207, 91, 222, 84, 249, 246, 229, 54])
         
         accounts = [
             AccountMeta(pubkey=race_pda, is_signer=False, is_writable=True),
@@ -172,8 +172,8 @@ class ProgramClient:
         Returns:
             Instruction for submit_result
         """
-        #instruction discriminator: [175, 175, 109, 31, 13, 152, 155, 237]
-        discriminator = bytes([175, 175, 109, 31, 13, 152, 155, 237])
+        #instruction discriminator: [240, 42, 89, 180, 10, 239, 9, 214]
+        discriminator = bytes([240, 42, 89, 180, 10, 239, 9, 214])
         
         #encode arguments: finish_time_ms (u64), coins_collected (u64), input_hash ([u8; 32])
         finish_time_bytes = finish_time_ms.to_bytes(8, byteorder='little')
@@ -208,12 +208,17 @@ class ProgramClient:
         Returns:
             Instruction for settle_race
         """
-        #instruction discriminator: [110, 39, 61, 90, 218, 81, 69, 42]
-        discriminator = bytes([110, 39, 61, 90, 218, 81, 69, 42])
+        #instruction discriminator: [172, 32, 72, 212, 155, 33, 161, 237]
+        discriminator = bytes([172, 32, 72, 212, 155, 33, 161, 237])
         
         accounts = [
             AccountMeta(pubkey=race_pda, is_signer=False, is_writable=True),
         ]
+        
+        logger.info(f"[build_settle_race_instruction] Program ID: {self.program_id}")
+        logger.info(f"[build_settle_race_instruction] Discriminator: {list(discriminator)}")
+        logger.info(f"[build_settle_race_instruction] Race PDA: {race_pda}")
+        logger.info(f"[build_settle_race_instruction] Accounts: {[str(acc.pubkey) for acc in accounts]}")
         
         return Instruction(
             program_id=self.program_id,
@@ -243,6 +248,12 @@ class ProgramClient:
             AccountMeta(pubkey=race_pda, is_signer=False, is_writable=True),
             AccountMeta(pubkey=winner, is_signer=True, is_writable=True),
         ]
+        
+        logger.info(f"[build_claim_prize_instruction] Program ID: {self.program_id}")
+        logger.info(f"[build_claim_prize_instruction] Discriminator: {list(discriminator)}")
+        logger.info(f"[build_claim_prize_instruction] Race PDA: {race_pda}")
+        logger.info(f"[build_claim_prize_instruction] Winner: {winner}")
+        logger.info(f"[build_claim_prize_instruction] Accounts: {[str(acc.pubkey) for acc in accounts]}")
         
         return Instruction(
             program_id=self.program_id,
