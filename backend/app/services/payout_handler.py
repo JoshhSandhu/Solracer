@@ -347,13 +347,3 @@ def get_payout_handler() -> PayoutHandler:
     
     return _payout_handler
 
-
-        _payout_handler = PayoutHandler()
-    
-    return _payout_handler
-
-
-        _payout_handler = PayoutHandler()
-    
-    return _payout_handler
-

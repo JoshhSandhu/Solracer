@@ -226,13 +226,14 @@ def generate_race_id(token_mint: str, entry_fee: float, player1: str) -> str:
     """
     Generate a deterministic race ID based on race parameters.
     
-    In production, this would be the Solana PDA address from the on-chain program.
-    For now, we use a hash-based approach for consistency.
+    NOTE: Race ID must be ≤ 32 bytes for Solana PDA seed compatibility.
+    We use a 32-character hex hash (32 bytes when encoded as UTF-8).
     """
     # Create a deterministic seed from race parameters
     seed_string = f"{token_mint}_{entry_fee}_{player1}"
     race_id_hash = hashlib.sha256(seed_string.encode()).hexdigest()[:32]
-    return f"race_{race_id_hash}"
+    # Use just the hash - no prefix to keep it ≤ 32 bytes for PDA seeds
+    return race_id_hash
 
 
 def find_or_create_race(
@@ -557,7 +558,11 @@ async def get_race_status(
     
     # Check and cancel expired races
     check_and_cancel_expired_races(db)
-    db.refresh(race)
+    
+    # Re-query race in case it was affected by the expiration check
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found or expired")
     
     # Get winner and player results if race is settled or has results
     winner_wallet = None

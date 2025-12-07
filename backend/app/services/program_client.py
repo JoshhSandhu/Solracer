@@ -280,14 +280,3 @@ def get_program_client() -> ProgramClient:
     
     return _program_client
 
-
-    Returns:
-        ProgramClient instance
-    """
-    global _program_client
-    
-    if _program_client is None:
-        _program_client = ProgramClient()
-    
-    return _program_client
-

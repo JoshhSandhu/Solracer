@@ -63,6 +63,9 @@ backend/scripts/remove_emojis.py
 backend/scripts/test_phase4_3.py
 backend/scripts/test_phase7.py
 backend/scripts/verify_program_instructions.py
+backend/scripts/test_pda.py
+backend/scripts/test_onchain_flow.py
+backend/scripts/test_birdeye_api.py
 client-unity/*.md
 client-unity/*.md.meta
 client-unity/LOBBY_UI_MOCKUP.html
