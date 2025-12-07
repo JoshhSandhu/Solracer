@@ -162,12 +162,13 @@ namespace Solracer.Game.Background
                 labelText = labelText
             };
             
+            
             // Create container
             line.container = new GameObject(isResistance ? $"Resistance_{resistanceLines.Count}" : $"Support_{supportLines.Count}");
             line.container.transform.SetParent(transform);
             line.container.transform.position = new Vector3(0, worldY, 0);
             
-            // Calculate line extent based on track length
+            // Calculate line extent based on track length and camera view
             float lineExtent = 500f; // Default fallback
             float startX = 0f;
             

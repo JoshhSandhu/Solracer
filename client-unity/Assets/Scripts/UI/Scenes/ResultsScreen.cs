@@ -7,222 +7,178 @@ using Solracer.Network;
 using Solracer.Auth;
 using System.Threading.Tasks;
 using System;
-using Newtonsoft.Json;
 
 namespace Solracer.UI
 {
     /// <summary>
-    /// Results screen UI
+    /// Results screen UI - Handles race completion, payout display, and prize claiming
     /// </summary>
     public class ResultsScreen : MonoBehaviour
     {
-        [Header("UI References")]
-        [Tooltip("Title text")]
+        [Header("Result Card")]
         [SerializeField] private TextMeshProUGUI titleText;
-
-        [Tooltip("Track name text")]
         [SerializeField] private TextMeshProUGUI trackNameText;
-
-        [Tooltip("Final time text")]
         [SerializeField] private TextMeshProUGUI finalTimeText;
-
-        [Tooltip("Score text")]
         [SerializeField] private TextMeshProUGUI scoreText;
+        [SerializeField] private TextMeshProUGUI coinsText;
 
-        [Tooltip("Coins collected text")]
-        [SerializeField] private TextMeshProUGUI coinsCollectedText;
-
-        [Space]
-        [Header("Payout UI References")]
-        [Tooltip("Payout Stutus text")]
-        [SerializeField] private TextMeshProUGUI payoutStatusText;
-
-        [Tooltip("Prize amount text (SOL)")]
-        [SerializeField] private TextMeshProUGUI prizeAmountText;
-
-        [Tooltip("Token amount text")]
-        [SerializeField] private GameObject tokenAmountTextContainer;
-        [SerializeField] private TextMeshProUGUI tokenAmountText;
-
-        [Tooltip("Token name text")]
-        [SerializeField] private TextMeshProUGUI tokenNameText;
-
-        [Tooltip("Payout Status container")]
-        [SerializeField] private GameObject payoutStatusContainer;
-
-        [Tooltip("Loading spinner for payout processing")]
-        [SerializeField] private GameObject payoutLoadingSpinner;
-
-        [Tooltip("Error message text for payout processing")]
-        [SerializeField] private GameObject payoutErrorContainer;
-        [SerializeField] private TextMeshProUGUI payoutErrorText;
-
-        [Tooltip("txn link btns (for viewing on explorer)")]
-        [SerializeField] private Button swapTxButton;
-        [SerializeField] private Button transferTxButton;
-        [SerializeField] private Button fallbackTxButton;
-
-        [Tooltip("Payout status panel background")]
-        [SerializeField] private GameObject payoutPanel;
-
-        [Space]
-        [Header("Buttons")]
-        [Tooltip("Play Again button")]
+        [Header("Navigation Buttons")]
         [SerializeField] private Button playAgainButton;
-
-        [Tooltip("Go to Mode Selection button")]
         [SerializeField] private Button modeSelectionButton;
 
-        [Tooltip("Swap on Uniswap button (only shown for completed races, not game over)")]
-        [SerializeField] private Button swapButton;
+        [Header("Payout Panel")]
+        [SerializeField] private GameObject payoutPanel;
+        [SerializeField] private TextMeshProUGUI payoutStatusText;
+        [SerializeField] private TextMeshProUGUI prizeAmountText;
+        [SerializeField] private TextMeshProUGUI tokenNameText;
+        [SerializeField] private GameObject payoutErrorContainer;
+        [SerializeField] private TextMeshProUGUI payoutErrorText;
+        [SerializeField] private GameObject loadingIndicator;
 
-        [Space]
-        [Header("Opponent Comparison UI")]
-        [Tooltip("Opponent comparison container")]
-        [SerializeField] private GameObject opponentComparisonContainer;
-        
-        [Tooltip("Opponent time text")]
+        [Header("Payout Transaction Buttons")]
+        [SerializeField] private Button transferTxnButton;  // Claim Prize (SOL) - for winner
+        [SerializeField] private Button swapTxnButton;      // Jupiter Swap (non-SOL tokens) - for winner
+        [SerializeField] private Button fallbackTxnButton;  // Fallback when others fail - for winner
+        [SerializeField] private Button loserModeSelectionButton;  // Mode Selection button for loser (in payout panel)
+
+        [Header("Opponent Panel")]
+        [SerializeField] private GameObject opponentPanel;
         [SerializeField] private TextMeshProUGUI opponentTimeText;
-        
-        [Tooltip("Opponent coins text")]
         [SerializeField] private TextMeshProUGUI opponentCoinsText;
-        
-        [Tooltip("Winner indicator text")]
         [SerializeField] private TextMeshProUGUI winnerIndicatorText;
 
-        [Space]
         [Header("Settings")]
-        [Tooltip("Title text for game over")]
         [SerializeField] private string gameOverTitle = "Game Over";
-
-        [Tooltip("Title text for race complete (can include player name)")]
         [SerializeField] private string raceCompleteTitle = "Race Complete!";
-
-        [Tooltip("Race status polling interval (seconds)")]
         [SerializeField] private float raceStatusPollInterval = 2.5f;
+        [SerializeField] private float redirectDelay = 2f;
 
-        // Private feilds
-        private PayoutStatusResponse currentPayoutStatus = null;
-        private bool isPayoutLoading = false;
-        private Coroutine payoutStatusPollingCoroutine = null;
-        private Coroutine raceStatusPollingCoroutine = null;
-        private RaceStatusResponse currentRaceStatus = null;
+        // Runtime state
+        private PayoutStatusResponse currentPayoutStatus;
+        private RaceStatusResponse currentRaceStatus;
+        private Coroutine raceStatusPollingCoroutine;
+        private Coroutine payoutPollingCoroutine;
+        private bool isProcessingTransaction;
+        private bool isWinner;
+        private bool isSolToken = true;
+        private string myWallet;
+
+        #region Unity Lifecycle
 
         private void Start()
         {
-            AutoFindUIElements();
-            LoadResultsData();
-            SetupButtons();
-            LoadPayoutStatus();
-            
-            // Start race status polling if in competitive mode
-            if (GameModeData.IsCompetitive && !string.IsNullOrEmpty(RaceData.CurrentRaceId))
-            {
-                StartRaceStatusPolling();
-            }
+            InitializeScreen();
         }
 
         private void OnDestroy()
         {
-            StopRaceStatusPolling();
+            StopAllPolling();
         }
 
-        private void AutoFindUIElements()
+        #endregion
+
+        #region Initialization
+
+        private void InitializeScreen()
         {
-            if (titleText == null)
-            {
-                titleText = FindTextByName("TitleText") ?? FindTextByName("Title");
-            }
+            // Get wallet address
+            var authManager = AuthenticationFlowManager.Instance;
+            myWallet = authManager?.WalletAddress ?? "";
 
-            if (trackNameText == null)
-            {
-                trackNameText = FindTextByName("TrackNameText") ?? FindTextByName("TrackName");
-            }
+            // Setup button listeners
+            SetupButtonListeners();
 
-            if (finalTimeText == null)
-            {
-                finalTimeText = FindTextByName("FinalTimeText") ?? FindTextByName("FinalTime");
-            }
+            // Load race results
+            LoadResultsData();
 
-            if (scoreText == null)
-            {
-                scoreText = FindTextByName("ScoreText") ?? FindTextByName("Score");
-            }
+            // Initialize UI state
+            SetInitialUIState();
 
-            if (coinsCollectedText == null)
+            // Start appropriate flows based on game mode
+            if (GameModeData.IsCompetitive && !string.IsNullOrEmpty(RaceData.CurrentRaceId))
             {
-                coinsCollectedText = FindTextByName("CoinsCollectedText") ?? FindTextByName("CoinsCollected");
+                StartRaceStatusPolling();
+                LoadPayoutStatus();
             }
-
-            if (playAgainButton == null)
+            else
             {
-                playAgainButton = FindButtonByName("PlayAgainButton") ?? FindButtonByName("PlayAgain");
-            }
-
-            if (modeSelectionButton == null)
-            {
-                modeSelectionButton = FindButtonByName("ModeSelectionButton") ?? FindButtonByName("ModeSelection");
-            }
-
-            if (swapButton == null)
-            {
-                swapButton = FindButtonByName("SwapButton") ?? FindButtonByName("Swap");
+                // Practice mode - hide competitive UI
+                SetPracticeModeUI();
             }
         }
+
+        private void SetupButtonListeners()
+        {
+            if (playAgainButton != null)
+                playAgainButton.onClick.AddListener(OnPlayAgainClicked);
+
+            if (modeSelectionButton != null)
+                modeSelectionButton.onClick.AddListener(OnModeSelectionClicked);
+
+            if (transferTxnButton != null)
+                transferTxnButton.onClick.AddListener(OnTransferTxnClicked);
+
+            if (swapTxnButton != null)
+                swapTxnButton.onClick.AddListener(OnSwapTxnClicked);
+
+            if (fallbackTxnButton != null)
+                fallbackTxnButton.onClick.AddListener(OnFallbackTxnClicked);
+
+            // Loser's mode selection button (in payout panel)
+            if (loserModeSelectionButton != null)
+                loserModeSelectionButton.onClick.AddListener(OnModeSelectionClicked);
+        }
+
+        private void SetInitialUIState()
+        {
+            // Hide all transaction buttons initially
+            SetButtonActive(transferTxnButton, false);
+            SetButtonActive(swapTxnButton, false);
+            SetButtonActive(fallbackTxnButton, false);
+            SetButtonActive(loserModeSelectionButton, false);
+
+            // Hide loading and error
+            if (loadingIndicator != null) loadingIndicator.SetActive(false);
+            if (payoutErrorContainer != null) payoutErrorContainer.SetActive(false);
+
+            // Hide opponent panel until we have data
+            if (opponentPanel != null) opponentPanel.SetActive(false);
+        }
+
+        private void SetPracticeModeUI()
+        {
+            // Practice mode - hide payout panel, show only navigation
+            if (payoutPanel != null) payoutPanel.SetActive(false);
+            if (opponentPanel != null) opponentPanel.SetActive(false);
+            
+            SetButtonActive(modeSelectionButton, true);
+            SetButtonActive(playAgainButton, true);
+        }
+
+        #endregion
+
+        #region Results Display
 
         private void LoadResultsData()
         {
             bool isGameOver = GameOverData.IsGameOver;
-            string trackName = GameOverData.TrackName;
-            float finalTime = GameOverData.FinalTime;
-            int score = GameOverData.Score;
-            int coinsCollected = GameOverData.CoinsCollected;
 
-            // Set title
             if (titleText != null)
-            {
-                if (isGameOver)
-                {
-                    titleText.text = gameOverTitle;
-                }
-                else
-                {
-                    titleText.text = raceCompleteTitle;
-                }
-            }
+                titleText.text = isGameOver ? gameOverTitle : raceCompleteTitle;
 
             if (trackNameText != null)
-            {
-                trackNameText.text = trackName;
-            }
+                trackNameText.text = GameOverData.TrackName;
 
             if (finalTimeText != null)
-            {
-                finalTimeText.text = FormatTime(finalTime);
-            }
+                finalTimeText.text = FormatTime(GameOverData.FinalTime);
 
             if (scoreText != null)
-            {
-                scoreText.text = score.ToString();
-            }
+                scoreText.text = GameOverData.Score.ToString();
 
-            if (coinsCollectedText != null)
-            {
-                coinsCollectedText.text = coinsCollected.ToString();
-            }
-
-            if (swapButton != null)
-            {
-                // Show swap button if not game over AND in competitive mode
-                bool shouldShow = !isGameOver && GameModeData.IsCompetitive;
-                swapButton.gameObject.SetActive(shouldShow);
-                Debug.Log($"[ResultsScreen] Swap button visibility: {shouldShow} (isGameOver: {isGameOver}, isCompetitive: {GameModeData.IsCompetitive})");
-            }
+            if (coinsText != null)
+                coinsText.text = GameOverData.CoinsCollected.ToString();
         }
 
-        /// <summary>
-        /// Formats time as MM:SS.mmm
-        /// </summary>
         private string FormatTime(float time)
         {
             int minutes = Mathf.FloorToInt(time / 60f);
@@ -231,105 +187,81 @@ namespace Solracer.UI
             return $"{minutes:00}:{seconds:00}.{milliseconds:000}";
         }
 
-        /// <summary>
-        /// Sets up button click listeners
-        /// </summary>
-        private void SetupButtons()
-        {
-            if (playAgainButton != null)
-            {
-                playAgainButton.onClick.AddListener(OnPlayAgainClicked);
-            }
+        #endregion
 
-            if (modeSelectionButton != null)
-            {
-                modeSelectionButton.onClick.AddListener(OnModeSelectionClicked);
-            }
-
-            if (swapButton != null)
-            {
-                swapButton.onClick.AddListener(OnSwapClicked);
-            }
-        }
+        #region Button Click Handlers
 
         public void OnPlayAgainClicked()
         {
+            StopAllPolling();
             SceneManager.LoadScene("Race");
         }
 
         public void OnModeSelectionClicked()
         {
+            StopAllPolling();
             SceneManager.LoadScene("ModeSelection");
         }
 
-        public async void OnSwapClicked()
+        /// <summary>
+        /// Transfer/Claim Prize button - Direct SOL transfer
+        /// </summary>
+        public async void OnTransferTxnClicked()
         {
+            if (isProcessingTransaction) return;
+            await ProcessClaimPrize("claim_prize");
+        }
+
+        /// <summary>
+        /// Swap Transaction button - Jupiter swap for non-SOL tokens
+        /// </summary>
+        public async void OnSwapTxnClicked()
+        {
+            if (isProcessingTransaction) return;
+            await ProcessClaimPrize("jupiter_swap");
+        }
+
+        /// <summary>
+        /// Fallback Transaction button - When other methods fail
+        /// </summary>
+        public async void OnFallbackTxnClicked()
+        {
+            if (isProcessingTransaction) return;
+            await ProcessClaimPrize("fallback_sol");
+        }
+
+        #endregion
+
+        #region Claim Prize Processing
+
+        private async Task ProcessClaimPrize(string method)
+        {
+            if (isProcessingTransaction) return;
+
+            string raceId = RaceData.CurrentRaceId;
+            if (string.IsNullOrEmpty(raceId))
+            {
+                ShowError("No race ID found");
+                return;
+            }
+
+            var authManager = AuthenticationFlowManager.Instance;
+            if (authManager == null || !authManager.IsAuthenticated)
+            {
+                ShowError("Please login to claim your prize");
+                return;
+            }
+
             try
             {
-                // Disable button during processing
-                if (swapButton != null)
-                {
-                    swapButton.interactable = false;
-                }
+                isProcessingTransaction = true;
+                DisableAllTxnButtons();
+                ShowLoading(true);
+                HideError();
 
-                // Only process payout in competitive mode
-                if (!GameModeData.IsCompetitive)
-                {
-                    Debug.LogWarning("[ResultsScreen] Practice mode - payouts are not available.");
-                    ShowError("Payouts are only available in competitive mode.");
-                    if (swapButton != null)
-                    {
-                        swapButton.interactable = true;
-                    }
-                    return;
-                }
+                Debug.Log($"[ResultsScreen] Processing claim with method: {method}");
 
-                // Get race ID
-                string raceId = RaceData.CurrentRaceId;
-                if (string.IsNullOrEmpty(raceId))
-                {
-                    Debug.LogWarning("[ResultsScreen] No race ID found. Race may not have been created on-chain.");
-                    ShowError("No race ID found. Cannot process payout.");
-                    if (swapButton != null)
-                    {
-                        swapButton.interactable = true;
-                    }
-                    return;
-                }
-
-                Debug.Log($"[ResultsScreen] Processing payout for race: {raceId}");
-
-                // Check authentication
-                var authManager = AuthenticationFlowManager.Instance;
-                if (authManager == null || !authManager.IsAuthenticated)
-                {
-                    Debug.LogError("[ResultsScreen] User not authenticated. Cannot process payout.");
-                    ShowError("Please login to claim your prize.");
-                    if (swapButton != null)
-                    {
-                        swapButton.interactable = true;
-                    }
-                    return;
-                }
-
-                // Check if race is settled before processing payout
-                var raceClient = RaceAPIClient.Instance;
-                if (raceClient != null)
-                {
-                    var raceStatus = await raceClient.GetRaceStatusAsync(raceId);
-                    if (raceStatus != null && !raceStatus.is_settled)
-                    {
-                        Debug.LogWarning($"[ResultsScreen] Race is not settled yet. Status: {raceStatus.status}");
-                        ShowError("Race is not finished yet. Please wait for the opponent to complete the race.");
-                        if (swapButton != null)
-                        {
-                            swapButton.interactable = true;
-                        }
-                        return;
-                    }
-                }
-
-                // Step 1: Settle race on-chain (if needed)
+                // Step 1: Check if race needs on-chain settlement
                 Debug.Log($"[ResultsScreen] Step 1: Checking if on-chain settlement is needed...");
                 var payoutClient = PayoutAPIClient.Instance;
                 
@@ -340,19 +272,18 @@ namespace Solracer.UI
                     if (settleResponse != null && !string.IsNullOrEmpty(settleResponse.transaction_bytes))
                     {
                         Debug.Log($"[ResultsScreen] On-chain settlement required. Signing and submitting settle_race transaction...");
-                        
-                        // Sign and submit the settle_race transaction
                         bool settleSuccess = await SignAndSubmitSettleTransaction(settleResponse);
                         
                         if (!settleSuccess)
                         {
                             Debug.LogWarning("[ResultsScreen] Failed to settle race on-chain, but continuing with payout...");
-                            // Don't fail - the on-chain settlement might not be strictly required
-                            // or the race might already be settled on-chain
+                            // Continue anyway - maybe it's already settled
                         }
                         else
                         {
                             Debug.Log("[ResultsScreen] ✅ Race settled on-chain successfully!");
+                            // Wait a moment for the settlement to propagate
+                            await Task.Delay(2000);
                         }
                     }
                     else
@@ -362,197 +293,154 @@ namespace Solracer.UI
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogWarning($"[ResultsScreen] Error checking settle transaction: {ex.Message}. Continuing...");
-                    // Continue - settlement might not be required
-                }
-
-                // Step 2: Process payout (get transaction from backend)
-                var payoutResponse = await payoutClient.ProcessPayout(raceId);
-
-                if (payoutResponse == null)
-                {
-                    Debug.LogError("[ResultsScreen] Failed to process payout. Backend returned null.");
-                    // Check if race is settled - if not, show a more helpful message
-                    if (raceClient != null)
+                    // If 400 error, race might already be settled - continue
+                    if (ex.Message.Contains("400") || ex.Message.Contains("does not need"))
                     {
-                        var raceStatus = await raceClient.GetRaceStatusAsync(raceId);
-                        if (raceStatus != null && !raceStatus.is_settled)
-                        {
-                            ShowError("Race is not finished yet. Please wait for the opponent to complete the race.");
-                        }
-                        else
-                        {
-                            ShowError("Failed to process payout. Please try again.");
-                        }
+                        Debug.Log($"[ResultsScreen] Race already settled on-chain or settlement not needed: {ex.Message}");
                     }
                     else
                     {
-                        ShowError("Failed to process payout. Please try again.");
+                        Debug.LogWarning($"[ResultsScreen] Error checking settle transaction: {ex.Message}. Continuing...");
                     }
-                    if (swapButton != null)
-                    {
-                        swapButton.interactable = true;
-                    }
-                    return;
                 }
 
-                Debug.Log($"[ResultsScreen] Payout processed. Method: {payoutResponse.method}, Status: {payoutResponse.status}");
-
-                // Handle based on payout method
+                // Step 2: Process the actual claim
                 bool success = false;
-                if (payoutResponse.method == "claim_prize" || payoutResponse.method == "fallback_sol")
+
+                if (method == "jupiter_swap")
                 {
-                    // Use existing claim_prize flow
-                    Debug.Log("[ResultsScreen] Using claim_prize method");
+                    success = await HandleJupiterSwap(raceId);
+                }
+                else if (method == "fallback_sol")
+                {
+                    success = await HandleFallbackClaim(raceId);
+                }
+                else // claim_prize (direct SOL transfer)
+                {
                     success = await OnChainRaceManager.ClaimPrizeOnChainAsync(
                         raceId,
-                        (message, progress) => {
-                            Debug.Log($"[ResultsScreen] {message} ({progress * 100:F0}%)");
-                        }
+                        (msg, progress) => Debug.Log($"[ResultsScreen] {msg} ({progress * 100:F0}%)")
                     );
                 }
-                else if (payoutResponse.method == "jupiter_swap")
-                {
-                    // Handle Jupiter swap transaction
-                    Debug.Log("[ResultsScreen] Using Jupiter swap method");
-                    success = await HandleJupiterSwap(payoutResponse, raceId);
-                }
-                else
-                {
-                    Debug.LogError($"[ResultsScreen] Unknown payout method: {payoutResponse.method}");
-                    ShowError($"Unknown payout method: {payoutResponse.method}");
-                }
+
+                ShowLoading(false);
 
                 if (success)
                 {
-                    Debug.Log("[ResultsScreen] Payout transaction submitted successfully!");
-                    ShowSuccess("Prize claimed successfully! Transaction submitted.");
-
-                    LoadPayoutStatus();
+                    Debug.Log("[ResultsScreen] ✅ Prize claimed successfully!");
+                    UpdatePayoutStatusText("Prize Claimed! ✓");
+                    
+                    // Auto-redirect to mode selection after delay
+                    await Task.Delay((int)(redirectDelay * 1000));
+                    OnModeSelectionClicked();
                 }
                 else
                 {
-                    Debug.LogError("[ResultsScreen] Failed to submit payout transaction.");
-                    ShowError("Failed to submit transaction. Please try again.");
+                    // Transaction failed - enable fallback button
+                    ShowError("Transaction failed. Try fallback option.");
+                    EnableFallbackButton();
                 }
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[ResultsScreen] Error in OnSwapClicked: {ex.Message}");
-                Debug.LogError($"Stack trace: {ex.StackTrace}");
+                Debug.LogError($"[ResultsScreen] Error claiming prize: {ex.Message}");
                 ShowError($"Error: {ex.Message}");
+                EnableFallbackButton();
             }
             finally
             {
-                // Re-enable button
-                if (swapButton != null)
-                {
-                    swapButton.interactable = true;
-                }
+                isProcessingTransaction = false;
+                ShowLoading(false);
             }
         }
 
-        /// <summary>
-        /// Handle Jupiter swap transaction signing and submission
-        /// </summary>
-        private async Task<bool> HandleJupiterSwap(ProcessPayoutResponse payoutResponse, string raceId)
+        private async Task<bool> HandleJupiterSwap(string raceId)
         {
             try
             {
-                if (string.IsNullOrEmpty(payoutResponse.swap_transaction))
+                var payoutClient = PayoutAPIClient.Instance;
+                var payoutResponse = await payoutClient.ProcessPayout(raceId);
+
+                if (payoutResponse == null || string.IsNullOrEmpty(payoutResponse.swap_transaction))
                 {
-                    Debug.LogError("[ResultsScreen] Jupiter swap transaction is empty");
+                    Debug.LogError("[ResultsScreen] No swap transaction received");
                     return false;
                 }
 
                 var authManager = AuthenticationFlowManager.Instance;
-                if (authManager == null || !authManager.IsAuthenticated)
+                string signedTx = await authManager.SignTransaction(payoutResponse.swap_transaction);
+                
+                if (string.IsNullOrEmpty(signedTx))
                 {
-                    Debug.LogError("[ResultsScreen] User not authenticated");
+                    Debug.LogError("[ResultsScreen] Failed to sign swap transaction");
                     return false;
                 }
 
-                // The swap_transaction field contains the base64-encoded transaction string
-                // Backend already extracts it from Jupiter's response
-                string transactionBase64 = payoutResponse.swap_transaction;
-
-                if (string.IsNullOrEmpty(transactionBase64))
-                {
-                    Debug.LogError("[ResultsScreen] Jupiter swap transaction is empty");
-                    return false;
-                }
-
-                Debug.Log("[ResultsScreen] Signing Jupiter swap transaction...");
-
-                // Show transaction signing modal
-                var modal = GetTransactionSigningModal();
-                if (modal != null)
-                {
-                    bool approved = await ShowTransactionSigningModalAsync(
-                        "Jupiter Swap Transaction",
-                        "Please approve the transaction to swap SOL for tokens.",
-                        modal
-                    );
-                    if (!approved)
-                    {
-                        Debug.LogWarning("[ResultsScreen] User rejected Jupiter swap transaction");
-                        return false;
-                    }
-                }
-
-                // Sign the transaction
-                string signedTransaction = await authManager.SignTransaction(transactionBase64);
-                if (string.IsNullOrEmpty(signedTransaction))
-                {
-                    Debug.LogError("[ResultsScreen] Failed to sign Jupiter swap transaction");
-                    if (modal != null)
-                    {
-                        modal.HideModal();
-                    }
-                    return false;
-                }
-
-                Debug.Log("[ResultsScreen] Submitting Jupiter swap transaction...");
-
-                // Submit transaction to Solana network
-                // Note: Jupiter swap transactions are standard Solana transactions
-                // We can submit them through our backend's transaction submission endpoint
                 var apiClient = TransactionAPIClient.Instance;
                 var submitRequest = new SubmitTransactionRequest
                 {
-                    signed_transaction_bytes = signedTransaction,
-                    instruction_type = "jupiter_swap", // Special instruction type for Jupiter swaps
+                    signed_transaction_bytes = signedTx,
+                    instruction_type = "jupiter_swap",
                     race_id = raceId
                 };
 
                 var submitResponse = await apiClient.SubmitTransactionAsync(submitRequest);
-                if (submitResponse != null && !string.IsNullOrEmpty(submitResponse.transaction_signature))
-                {
-                    if (modal != null)
-                    {
-                        modal.HideModal();
-                    }
-                    Debug.Log($"[ResultsScreen] Jupiter swap transaction submitted! TX: {submitResponse.transaction_signature}");
-                    return true;
-                }
-
-                if (modal != null)
-                {
-                    modal.HideModal();
-                }
-                Debug.LogError("[ResultsScreen] Failed to submit Jupiter swap transaction");
-                return false;
+                return submitResponse != null && !string.IsNullOrEmpty(submitResponse.transaction_signature);
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[ResultsScreen] Error handling Jupiter swap: {ex.Message}");
+                Debug.LogError($"[ResultsScreen] Jupiter swap error: {ex.Message}");
                 return false;
             }
         }
 
-        /// <summary>
-        /// Sign and submit the settle_race transaction
-        /// </summary>
+        private async Task<bool> HandleFallbackClaim(string raceId)
+        {
+            try
+            {
+                var payoutClient = PayoutAPIClient.Instance;
+                var retryResponse = await payoutClient.RetryPayout(raceId);
+
+                if (retryResponse == null)
+                {
+                    Debug.LogError("[ResultsScreen] Fallback retry failed");
+                    return false;
+                }
+
+                // If retry provides a transaction, sign and submit it
+                if (!string.IsNullOrEmpty(retryResponse.transaction))
+                {
+                    var authManager = AuthenticationFlowManager.Instance;
+                    string signedTx = await authManager.SignTransaction(retryResponse.transaction);
+                    
+                    if (string.IsNullOrEmpty(signedTx))
+                        return false;
+
+                    var apiClient = TransactionAPIClient.Instance;
+                    var submitRequest = new SubmitTransactionRequest
+                    {
+                        signed_transaction_bytes = signedTx,
+                        instruction_type = "fallback_sol",
+                        race_id = raceId
+                    };
+
+                    var submitResponse = await apiClient.SubmitTransactionAsync(submitRequest);
+                    return submitResponse != null && !string.IsNullOrEmpty(submitResponse.transaction_signature);
+                }
+
+                // Otherwise use the standard claim flow
+                return await OnChainRaceManager.ClaimPrizeOnChainAsync(
+                    raceId,
+                    (msg, progress) => Debug.Log($"[ResultsScreen] Fallback: {msg}")
+                );
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ResultsScreen] Fallback claim error: {ex.Message}");
+                return false;
+            }
+        }
+
         private async Task<bool> SignAndSubmitSettleTransaction(SettleTransactionResponse settleResponse)
         {
             try
@@ -560,580 +448,231 @@ namespace Solracer.UI
                 var authManager = AuthenticationFlowManager.Instance;
                 if (authManager == null || !authManager.IsAuthenticated)
                 {
-                    Debug.LogError("[ResultsScreen] User not authenticated. Cannot sign settle transaction.");
+                    Debug.LogError("[ResultsScreen] Not authenticated for settle transaction");
                     return false;
                 }
 
                 Debug.Log($"[ResultsScreen] Signing settle_race transaction...");
-
-                // Sign the transaction
-                string signedTransaction = await authManager.SignTransaction(settleResponse.transaction_bytes);
-                if (string.IsNullOrEmpty(signedTransaction))
+                string signedTx = await authManager.SignTransaction(settleResponse.transaction_bytes);
+                
+                if (string.IsNullOrEmpty(signedTx))
                 {
-                    Debug.LogError("[ResultsScreen] Failed to sign settle_race transaction");
+                    Debug.LogError("[ResultsScreen] Failed to sign settle transaction");
                     return false;
                 }
 
-                Debug.Log($"[ResultsScreen] Submitting settle_race transaction...");
-
-                // Submit transaction to Solana network
                 var apiClient = TransactionAPIClient.Instance;
                 var submitRequest = new SubmitTransactionRequest
                 {
-                    signed_transaction_bytes = signedTransaction,
+                    signed_transaction_bytes = signedTx,
                     instruction_type = "settle_race",
                     race_id = settleResponse.race_id
                 };
 
                 var submitResponse = await apiClient.SubmitTransactionAsync(submitRequest);
-                if (submitResponse != null && !string.IsNullOrEmpty(submitResponse.transaction_signature))
+                bool success = submitResponse != null && !string.IsNullOrEmpty(submitResponse.transaction_signature);
+                
+                if (success)
                 {
-                    Debug.Log($"[ResultsScreen] ✅ settle_race transaction submitted! TX: {submitResponse.transaction_signature}");
-                    return true;
+                    Debug.Log($"[ResultsScreen] ✅ Settle transaction submitted: {submitResponse.transaction_signature}");
                 }
-
-                Debug.LogError("[ResultsScreen] Failed to submit settle_race transaction");
-                return false;
+                else
+                {
+                    Debug.LogError("[ResultsScreen] Failed to submit settle transaction");
+                }
+                
+                return success;
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[ResultsScreen] Error signing/submitting settle transaction: {ex.Message}");
+                Debug.LogError($"[ResultsScreen] Error in SignAndSubmitSettleTransaction: {ex.Message}");
                 return false;
             }
         }
 
-        /// <summary>
-        /// Get transaction signing modal from scene
-        /// </summary>
-        private TransactionSigningModal GetTransactionSigningModal()
-        {
-            return UnityEngine.Object.FindAnyObjectByType<TransactionSigningModal>();
-        }
+        #endregion
 
-        /// <summary>
-        /// Show transaction signing modal and wait for user approval
-        /// </summary>
-        private async Task<bool> ShowTransactionSigningModalAsync(
-            string title,
-            string description,
-            TransactionSigningModal modal)
-        {
-            if (modal == null)
-            {
-                Debug.LogWarning("[ResultsScreen] TransactionSigningModal not found, proceeding without UI");
-                return true; // Proceed if no modal found
-            }
+        #region Payout Status
 
-            bool userApproved = false;
-            System.Action<bool> callback = (approved) => { userApproved = approved; };
-
-            modal.ShowModal(title, description, callback);
-
-            // Wait for user decision (with timeout)
-            float timeout = 60f; // 60 seconds timeout
-            float elapsed = 0f;
-            while (!userApproved && elapsed < timeout)
-            {
-                await Task.Yield();
-                elapsed += Time.deltaTime;
-            }
-
-            if (elapsed >= timeout)
-            {
-                Debug.LogWarning("[ResultsScreen] Transaction signing modal timed out");
-                modal.HideModal();
-                return false;
-            }
-
-            return userApproved;
-        }
-
-        /// <summary>
-        /// Show error message to user
-        /// </summary>
-        private void ShowError(string message)
-        {
-            Debug.LogError($"[ResultsScreen] Error: {message}");
-            ShowPayoutError(message);
-        }
-
-        /// <summary>
-        /// Show success message to user
-        /// </summary>
-        private void ShowSuccess(string message)
-        {
-            Debug.Log($"[ResultsScreen] Success: {message}");
-            // Hide any error messages and refresh payout status to show updated state
-            HidePayoutError();
-            // The payout status will be refreshed automatically after transaction submission
-            // which will update the UI with the new status (e.g., "paid", "swapping", etc.)
-        }
-
-        /// <summary>
-        /// Fetch and display payout status for the current race
-        /// </summary>
         private async void LoadPayoutStatus()
         {
-            // Only show payout UI in competitive mode
-            if (!GameModeData.IsCompetitive)
-            {
-                // Practice mode - hide payout section
-                Debug.Log("[ResultsScreen] Practice mode - hiding payout UI");
-                if (payoutStatusContainer != null)
-                {
-                    payoutStatusContainer.SetActive(false);
-                }
-                if (swapButton != null)
-                {
-                    swapButton.gameObject.SetActive(false);
-                }
-                return;
-            }
-
             string raceId = RaceData.CurrentRaceId;
-            if(string.IsNullOrEmpty(raceId))
-            {
-                // No race ID in competitive mode - this shouldn't happen, but handle gracefully
-                Debug.LogWarning("[ResultsScreen] Competitive mode but no race ID found. Race may not have been created on-chain.");
-                if(payoutStatusContainer != null)
-                {
-                    payoutStatusContainer.SetActive(false);
-                }
-                if (swapButton != null)
-                {
-                    swapButton.gameObject.SetActive(false);
-                }
-                return;
-            }
-
-            // Competitive mode with race ID - show swap button and fetch payout status
-            Debug.Log($"[ResultsScreen] Competitive mode with race ID: {raceId} - showing swap button");
-
-            // Ensure swap button is visible (it might have been hidden by LoadResultsData if game over)
-            if (swapButton != null && !GameOverData.IsGameOver)
-            {
-                swapButton.gameObject.SetActive(true);
-            }
+            if (string.IsNullOrEmpty(raceId)) return;
 
             try
             {
-                isPayoutLoading = true;
-                ShowPayoutLoading(true);
+                ShowLoading(true);
 
                 var payoutClient = PayoutAPIClient.Instance;
                 var payoutStatus = await payoutClient.GetPayoutStatus(raceId);
 
-                if(payoutStatus == null)
+                if (payoutStatus == null)
                 {
-                    // No payout exists yet (race not settled) - show button but hide status container
-                    Debug.Log("[ResultsScreen] No payout status found - race may not be settled yet. Checking race status.");
-                    if(payoutStatusContainer != null)
-                    {
-                        payoutStatusContainer.SetActive(false);
-                    }
-                    // Check race status to determine if button should be enabled
-                    var raceClient = RaceAPIClient.Instance;
-                    if (raceClient != null && swapButton != null)
-                    {
-                        var raceStatus = await raceClient.GetRaceStatusAsync(raceId);
-                        if (raceStatus != null && !raceStatus.is_settled)
-                        {
-                            // Race not settled - disable button and show waiting message
-                            swapButton.interactable = false;
-                            var buttonText = swapButton.GetComponentInChildren<TextMeshProUGUI>();
-                            if (buttonText != null)
-                            {
-                                buttonText.text = "Waiting for Opponent...";
-                            }
-                        }
-                        else
-                        {
-                            // Race is settled or status unknown - enable button
-                            swapButton.interactable = true;
-                            var buttonText = swapButton.GetComponentInChildren<TextMeshProUGUI>();
-                            if (buttonText != null)
-                            {
-                                buttonText.text = "Claim Prize";
-                            }
-                        }
-                    }
-                    else if (swapButton != null)
-                    {
-                        swapButton.interactable = true;
-                        var buttonText = swapButton.GetComponentInChildren<TextMeshProUGUI>();
-                        if (buttonText != null)
-                        {
-                            buttonText.text = "Claim Prize";
-                        }
-                    }
-                    // Race status polling will check for settlement
+                    // No payout yet - race might not be settled
+                    Debug.Log("[ResultsScreen] No payout status yet - waiting for settlement");
+                    UpdatePayoutStatusText("Waiting for opponent...");
                     return;
                 }
 
                 currentPayoutStatus = payoutStatus;
                 UpdatePayoutUI(payoutStatus);
 
-                // If the status is still processing, start polling
-                if(payoutStatus.swap_status == "pending" || payoutStatus.swap_status == "swapping")
+                // Start polling if still pending
+                if (payoutStatus.swap_status == "pending" || payoutStatus.swap_status == "swapping")
                 {
-                    StartPayoutStatusPolling();
+                    StartPayoutPolling();
                 }
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[ResultsScreen] Error loading payout status: {ex.Message}");
-                Debug.LogError($"Stack trace: {ex.StackTrace}");
-                ShowPayoutError("Failed to load payout status");
-                // Still show button even if there's an error
-                if (swapButton != null && !GameOverData.IsGameOver)
-                {
-                    swapButton.gameObject.SetActive(true);
-                    swapButton.interactable = true;
-                }
+                Debug.LogError($"[ResultsScreen] Error loading payout: {ex.Message}");
             }
             finally
             {
-                isPayoutLoading = false;
-                ShowPayoutLoading(false);
+                ShowLoading(false);
             }
         }
 
-
-        /// <summary>
-        /// Upadte UI elements based on payout status
-        /// </summary>
         private void UpdatePayoutUI(PayoutStatusResponse payout)
         {
-            if(payout == null) return;
+            if (payout == null) return;
 
-            // Show payout status container
-            if (payoutStatusContainer != null)
-            {
-                payoutStatusContainer.SetActive(true);
-            }
+            // Show payout panel
+            if (payoutPanel != null) payoutPanel.SetActive(true);
 
-            // Update payout status text
-            if (payoutStatusText != null)
-            {
-                string statusText = GetPayoutStatusText(payout.swap_status);
-                payoutStatusText.text = statusText;
-            }
+            // Update status text
+            UpdatePayoutStatusText(GetStatusText(payout.swap_status));
 
             // Update prize amount
             if (prizeAmountText != null)
-            {
                 prizeAmountText.text = $"{payout.prize_amount_sol:F4} SOL";
-            }
 
-            // Update token amount (if not SOL)
-            bool isSol = IsSolMint(payout.token_mint);
-            if (tokenAmountText != null)
-            {
-                if (isSol || payout.token_amount == null)
-                {
-                    tokenAmountTextContainer.gameObject.SetActive(false);
-                    tokenAmountText.gameObject.SetActive(false);
-                }
-                else
-                {
-                    tokenAmountTextContainer.gameObject.SetActive(true);
-                    tokenAmountText.gameObject.SetActive(true);
-                    tokenAmountText.text = $"{payout.token_amount:F2} tokens";
-                }
-            }
+            // Determine if SOL token
+            isSolToken = IsSolMint(payout.token_mint);
 
             // Update token name
             if (tokenNameText != null)
             {
-                if (isSol)
-                {
-                    tokenNameText.text = "SOL";
-                }
-                else
-                {
-                    // You might want to fetch token name/symbol from an API
-                    // For now, show shortened mint address
-                    string shortMint = payout.token_mint?.Length > 8
-                        ? $"{payout.token_mint.Substring(0, 4)}...{payout.token_mint.Substring(payout.token_mint.Length - 4)}"
-                        : payout.token_mint ?? "Unknown";
-                    tokenNameText.text = shortMint;
-                }
+                tokenNameText.text = isSolToken ? "SOL" : GetShortMint(payout.token_mint);
             }
 
-            // Update button state and text
-            UpdatePayoutButton(payout);
+            // Check if current player is winner
+            isWinner = !string.IsNullOrEmpty(payout.winner_wallet) && payout.winner_wallet == myWallet;
 
-            // Show/hide transaction links
-            UpdateTransactionLinks(payout);
+            Debug.Log($"[ResultsScreen] Payout UI: isWinner={isWinner}, isSolToken={isSolToken}, status={payout.swap_status}");
 
-            // Show error if any
-            if (!string.IsNullOrEmpty(payout.error_message))
+            // Update button states based on winner/loser and status
+            UpdateButtonsForPayoutStatus(payout);
+        }
+
+        private void UpdateButtonsForPayoutStatus(PayoutStatusResponse payout)
+        {
+            // Hide loser button initially
+            SetButtonActive(loserModeSelectionButton, false);
+
+            if (isWinner)
             {
-                ShowPayoutError(payout.error_message);
+                // WINNER flow
+                switch (payout.swap_status?.ToLower())
+                {
+                    case "pending":
+                        if (isSolToken)
+                        {
+                            // SOL token - show Transfer (Claim Prize)
+                            SetButtonActive(transferTxnButton, true);
+                            SetButtonActive(swapTxnButton, false);
+                            SetButtonActive(fallbackTxnButton, false);
+                        }
+                        else
+                        {
+                            // Non-SOL token - show Swap button
+                            SetButtonActive(transferTxnButton, false);
+                            SetButtonActive(swapTxnButton, true);
+                            SetButtonActive(fallbackTxnButton, false);
+                        }
+                        break;
+
+                    case "swapping":
+                        // In progress - disable all
+                        DisableAllTxnButtons();
+                        UpdatePayoutStatusText("Swapping in progress...");
+                        break;
+
+                    case "paid":
+                    case "fallback_sol":
+                        // Already claimed - auto redirect will happen
+                        DisableAllTxnButtons();
+                        UpdatePayoutStatusText("Prize Claimed! ✓");
+                        break;
+
+                    case "failed":
+                        // Failed - show fallback
+                        EnableFallbackButton();
+                        break;
+
+                    default:
+                        // Unknown - show transfer as default
+                        SetButtonActive(transferTxnButton, true);
+                        break;
+                }
+
+                // Update winner indicator
+                if (winnerIndicatorText != null)
+                {
+                    winnerIndicatorText.text = "🏆 You Won!";
+                    winnerIndicatorText.color = Color.green;
+                    winnerIndicatorText.gameObject.SetActive(true);
+                }
             }
             else
             {
-                HidePayoutError();
+                // LOSER flow - show loser mode selection button in payout panel
+                DisableAllTxnButtons();
+                SetButtonActive(loserModeSelectionButton, true);
+                
+                if (winnerIndicatorText != null)
+                {
+                    winnerIndicatorText.text = "Better Luck Next Time!";
+                    winnerIndicatorText.color = Color.red;
+                    winnerIndicatorText.gameObject.SetActive(true);
+                }
             }
         }
 
-        /// <summary>
-        /// Get human-readable payout status text
-        /// </summary>
-        private string GetPayoutStatusText(string status)
+        private string GetStatusText(string status)
         {
-            switch (status?.ToLower())
+            return status?.ToLower() switch
             {
-                case "pending":
-                    return "Prize Pending";
-                case "swapping":
-                    return "Swapping Prize...";
-                case "paid":
-                    return "Prize Paid ✓";
-                case "fallback_sol":
-                    return "Paid in SOL (Swap Failed)";
-                case "failed":
-                    return "Payout Failed";
-                default:
-                    return "Unknown Status";
-            }
+                "pending" => "Prize Ready to Claim",
+                "swapping" => "Swapping...",
+                "paid" => "Prize Claimed! ✓",
+                "fallback_sol" => "Paid in SOL ✓",
+                "failed" => "Claim Failed",
+                _ => "Processing..."
+            };
         }
 
-        /// <summary>
-        /// Check if mint address is SOL
-        /// </summary>
         private bool IsSolMint(string mint)
         {
-            return mint == "So11111111111111111111111111111111111111112" || string.IsNullOrEmpty(mint);
+            return string.IsNullOrEmpty(mint) || mint == "So11111111111111111111111111111111111111112";
         }
 
-        /// <summary>
-        /// Update payout button based on status
-        /// </summary>
-        private void UpdatePayoutButton(PayoutStatusResponse payout)
+        private string GetShortMint(string mint)
         {
-            if (swapButton == null) return;
-
-            switch (payout.swap_status?.ToLower())
-            {
-                case "pending":
-                    swapButton.interactable = true;
-                    // Update button text component if you have one
-                    var buttonText = swapButton.GetComponentInChildren<TextMeshProUGUI>();
-                    if (buttonText != null)
-                    {
-                        buttonText.text = "Claim Prize";
-                    }
-                    break;
-
-                case "swapping":
-                    swapButton.interactable = false;
-                    var buttonTextSwapping = swapButton.GetComponentInChildren<TextMeshProUGUI>();
-                    if (buttonTextSwapping != null)
-                    {
-                        buttonTextSwapping.text = "Swapping...";
-                    }
-                    break;
-
-                case "paid":
-                    swapButton.interactable = false;
-                    var buttonTextPaid = swapButton.GetComponentInChildren<TextMeshProUGUI>();
-                    if (buttonTextPaid != null)
-                    {
-                        buttonTextPaid.text = "Prize Claimed ✓";
-                    }
-                    break;
-
-                case "fallback_sol":
-                    swapButton.interactable = false;
-                    var buttonTextFallback = swapButton.GetComponentInChildren<TextMeshProUGUI>();
-                    if (buttonTextFallback != null)
-                    {
-                        buttonTextFallback.text = "Paid in SOL";
-                    }
-                    break;
-
-                case "failed":
-                    swapButton.interactable = true;
-                    var buttonTextFailed = swapButton.GetComponentInChildren<TextMeshProUGUI>();
-                    if (buttonTextFailed != null)
-                    {
-                        buttonTextFailed.text = "Retry Payout";
-                    }
-                    break;
-
-                default:
-                    swapButton.interactable = true;
-                    break;
-            }
+            if (string.IsNullOrEmpty(mint) || mint.Length < 8) return mint ?? "Unknown";
+            return $"{mint[..4]}...{mint[^4..]}";
         }
 
-        /// <summary>
-        /// Update transaction link buttons
-        /// </summary>
-        private void UpdateTransactionLinks(PayoutStatusResponse payout)
-        {
-            // Swap transaction link
-            if (swapTxButton != null)
-            {
-                bool hasSwapTx = !string.IsNullOrEmpty(payout.swap_tx_signature);
-                swapTxButton.gameObject.SetActive(hasSwapTx);
-                if (hasSwapTx)
-                {
-                    swapTxButton.onClick.RemoveAllListeners();
-                    swapTxButton.onClick.AddListener(() => OpenSolscanLink(payout.swap_tx_signature));
-                }
-            }
-
-            // Transfer transaction link
-            if (transferTxButton != null)
-            {
-                bool hasTransferTx = !string.IsNullOrEmpty(payout.transfer_tx_signature);
-                transferTxButton.gameObject.SetActive(hasTransferTx);
-                if (hasTransferTx)
-                {
-                    transferTxButton.onClick.RemoveAllListeners();
-                    transferTxButton.onClick.AddListener(() => OpenSolscanLink(payout.transfer_tx_signature));
-                }
-            }
-
-            // Fallback transaction link
-            if (fallbackTxButton != null)
-            {
-                bool hasFallbackTx = !string.IsNullOrEmpty(payout.fallback_tx_signature);
-                fallbackTxButton.gameObject.SetActive(hasFallbackTx);
-                if (hasFallbackTx)
-                {
-                    fallbackTxButton.onClick.RemoveAllListeners();
-                    fallbackTxButton.onClick.AddListener(() => OpenSolscanLink(payout.fallback_tx_signature));
-                }
-            }
-        }
-
-        /// <summary>
-        /// Open Solscan link for transaction
-        /// </summary>
-        private void OpenSolscanLink(string txSignature)
-        {
-            // Determine network (devnet/mainnet) - you might want to make this configurable
-            string network = "devnet"; // or "mainnet"
-            string url = $"https://solscan.io/tx/{txSignature}?cluster={network}";
-            Application.OpenURL(url);
-        }
-
-        /// <summary>
-        /// Start polling payout status (for pending/swapping states)
-        /// </summary>
-        private void StartPayoutStatusPolling()
-        {
-            if (payoutStatusPollingCoroutine != null)
-            {
-                StopCoroutine(payoutStatusPollingCoroutine);
-            }
-            payoutStatusPollingCoroutine = StartCoroutine(PollPayoutStatus());
-        }
-
-        /// <summary>
-        /// Poll payout status every few seconds
-        /// </summary>
-        private System.Collections.IEnumerator PollPayoutStatus()
-        {
-            while (true)
-            {
-                yield return new WaitForSeconds(3f); // Poll every 3 seconds
-
-                string raceId = RaceData.CurrentRaceId;
-                if (string.IsNullOrEmpty(raceId)) break;
-
-                var payoutClient = PayoutAPIClient.Instance;
-                var task = payoutClient.GetPayoutStatus(raceId);
-
-                // Wait for async task
-                while (!task.IsCompleted)
-                {
-                    yield return null;
-                }
-
-                if (task.Result != null)
-                {
-                    var newStatus = task.Result;
-
-                    // Update UI if status changed
-                    if (currentPayoutStatus == null ||
-                        currentPayoutStatus.swap_status != newStatus.swap_status)
-                    {
-                        currentPayoutStatus = newStatus;
-                        UpdatePayoutUI(newStatus);
-                    }
-
-                    // Stop polling if status is final
-                    if (newStatus.swap_status == "paid" ||
-                        newStatus.swap_status == "fallback_sol" ||
-                        newStatus.swap_status == "failed")
-                    {
-                        break;
-                    }
-                }
-            }
-
-            payoutStatusPollingCoroutine = null;
-        }
-
-        #region Helper methods for UI State
-        /// <summary>
-        /// Show/hide loading indicator
-        /// </summary>
-        private void ShowPayoutLoading(bool show)
-        {
-            if (payoutLoadingSpinner != null)
-            {
-                payoutLoadingSpinner.SetActive(show);
-            }
-        }
-
-        /// <summary>
-        /// Show error message
-        /// </summary>
-        private void ShowPayoutError(string message)
-        {
-            if (payoutErrorText != null)
-            {
-                payoutErrorText.text = message;
-                payoutErrorContainer.gameObject.SetActive(true);
-                payoutErrorText.gameObject.SetActive(true);
-            }
-        }
-
-        /// <summary>
-        /// Hide error message
-        /// </summary>
-        private void HidePayoutError()
-        {
-            if (payoutErrorText != null)
-            {
-                payoutErrorContainer.gameObject.SetActive(false);
-                payoutErrorText.gameObject.SetActive(false);
-            }
-        }
         #endregion
 
-        #region Race Status Polling & Opponent Comparison
+        #region Race Status Polling
 
-        /// <summary>
-        /// Start polling race status to check when opponent finishes and race is settled
-        /// </summary>
         private void StartRaceStatusPolling()
         {
-            if (raceStatusPollingCoroutine != null)
-            {
-                StopCoroutine(raceStatusPollingCoroutine);
-            }
+            StopRaceStatusPolling();
             raceStatusPollingCoroutine = StartCoroutine(PollRaceStatus());
         }
 
-        /// <summary>
-        /// Stop race status polling
-        /// </summary>
         private void StopRaceStatusPolling()
         {
             if (raceStatusPollingCoroutine != null)
@@ -1143,30 +682,13 @@ namespace Solracer.UI
             }
         }
 
-        /// <summary>
-        /// Poll race status every few seconds to check for settlement and opponent results
-        /// </summary>
         private System.Collections.IEnumerator PollRaceStatus()
         {
             string raceId = RaceData.CurrentRaceId;
-            if (string.IsNullOrEmpty(raceId))
-            {
-                yield break;
-            }
-
             var raceClient = RaceAPIClient.Instance;
-            if (raceClient == null)
-            {
-                yield break;
-            }
 
-            var authManager = AuthenticationFlowManager.Instance;
-            if (authManager == null)
-            {
+            if (string.IsNullOrEmpty(raceId) || raceClient == null)
                 yield break;
-            }
-
-            string myWallet = authManager.WalletAddress;
 
             while (true)
             {
@@ -1174,93 +696,109 @@ namespace Solracer.UI
 
                 var task = raceClient.GetRaceStatusAsync(raceId);
                 
-                // Wait for async task to complete
                 while (!task.IsCompleted)
-                {
                     yield return null;
-                }
-                
-                // Handle result outside try-catch to avoid yield issues
+
                 RaceStatusResponse status = null;
-                bool hasError = false;
-                
-                try
-                {
-                    status = task.Result;
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[ResultsScreen] Error polling race status: {ex.Message}");
-                    hasError = true;
-                }
-                
-                if (!hasError && status != null)
+                try { status = task.Result; }
+                catch (Exception ex) { Debug.LogWarning($"[ResultsScreen] Poll error: {ex.Message}"); }
+
+                if (status != null)
                 {
                     currentRaceStatus = status;
-                    
-                        // Update opponent comparison if race is settled
-                        if (status.is_settled)
-                        {
-                            UpdateOpponentComparison(status, myWallet);
-                            StopRaceStatusPolling(); // Stop polling once settled
-                            
-                            // Enable claim button and update text
-                            if (swapButton != null)
-                            {
-                                swapButton.interactable = true;
-                                var buttonText = swapButton.GetComponentInChildren<TextMeshProUGUI>();
-                                if (buttonText != null)
-                                {
-                                    buttonText.text = "Claim Prize";
-                                }
-                            }
-                            
-                            // Refresh payout status since race is now settled
-                            LoadPayoutStatus();
-                        }
-                    else if (status.player1_result != null || status.player2_result != null)
+                    UpdateOpponentComparison(status);
+
+                    if (status.is_settled)
                     {
-                        // Race not settled yet but at least one player finished - show waiting message
-                        UpdateOpponentComparison(status, myWallet);
+                        // Race settled - stop polling and refresh payout
+                        StopRaceStatusPolling();
+                        LoadPayoutStatus();
+                        yield break;
                     }
                 }
             }
         }
 
-        /// <summary>
-        /// Update opponent comparison UI based on race status
-        /// </summary>
-        private void UpdateOpponentComparison(RaceStatusResponse status, string myWallet)
+        private void StartPayoutPolling()
         {
-            if (status == null)
-                return;
+            if (payoutPollingCoroutine != null)
+                StopCoroutine(payoutPollingCoroutine);
+            payoutPollingCoroutine = StartCoroutine(PollPayoutStatus());
+        }
 
-            // Determine which player I am
+        private System.Collections.IEnumerator PollPayoutStatus()
+        {
+            string raceId = RaceData.CurrentRaceId;
+            var payoutClient = PayoutAPIClient.Instance;
+
+            while (true)
+            {
+                yield return new WaitForSeconds(3f);
+
+                if (string.IsNullOrEmpty(raceId)) break;
+
+                var task = payoutClient.GetPayoutStatus(raceId);
+                while (!task.IsCompleted) yield return null;
+
+                if (task.Result != null)
+                {
+                    var newStatus = task.Result;
+                    
+                    if (currentPayoutStatus == null || currentPayoutStatus.swap_status != newStatus.swap_status)
+                    {
+                        currentPayoutStatus = newStatus;
+                        UpdatePayoutUI(newStatus);
+                    }
+
+                    // Stop polling if final state
+                    if (newStatus.swap_status == "paid" || 
+                        newStatus.swap_status == "fallback_sol" || 
+                        newStatus.swap_status == "failed")
+                    {
+                        break;
+                    }
+                }
+            }
+
+            payoutPollingCoroutine = null;
+        }
+
+        private void StopAllPolling()
+        {
+            StopRaceStatusPolling();
+            if (payoutPollingCoroutine != null)
+            {
+                StopCoroutine(payoutPollingCoroutine);
+                payoutPollingCoroutine = null;
+            }
+        }
+
+        #endregion
+
+        #region Opponent Comparison
+
+        private void UpdateOpponentComparison(RaceStatusResponse status)
+        {
+            if (status == null) return;
+
             bool isPlayer1 = status.player1_wallet == myWallet;
-            PlayerResult myResult = isPlayer1 ? status.player1_result : status.player2_result;
-            PlayerResult opponentResult = isPlayer1 ? status.player2_result : status.player1_result;
+            var opponentResult = isPlayer1 ? status.player2_result : status.player1_result;
 
-            // Hide comparison if opponent hasn't finished yet
+            // Hide if opponent hasn't finished
             if (opponentResult == null || opponentResult.finish_time_ms == null)
             {
-                if (opponentComparisonContainer != null)
-                {
-                    opponentComparisonContainer.SetActive(false);
-                }
+                if (opponentPanel != null) opponentPanel.SetActive(false);
                 return;
             }
 
-            // Show comparison container
-            if (opponentComparisonContainer != null)
-            {
-                opponentComparisonContainer.SetActive(true);
-            }
+            // Show opponent panel
+            if (opponentPanel != null) opponentPanel.SetActive(true);
 
             // Update opponent time
             if (opponentTimeText != null && opponentResult.finish_time_ms.HasValue)
             {
-                float opponentTimeSeconds = opponentResult.finish_time_ms.Value / 1000f;
-                opponentTimeText.text = $"Opponent: {FormatTime(opponentTimeSeconds)}";
+                float opponentTime = opponentResult.finish_time_ms.Value / 1000f;
+                opponentTimeText.text = $"Opponent: {FormatTime(opponentTime)}";
             }
 
             // Update opponent coins
@@ -1270,75 +808,82 @@ namespace Solracer.UI
             }
 
             // Update winner indicator
-            if (winnerIndicatorText != null && status.is_settled && !string.IsNullOrEmpty(status.winner_wallet))
-            {
-                bool iWon = status.winner_wallet == myWallet;
-                if (iWon)
-                {
-                    winnerIndicatorText.text = "🏆 You Won!";
-                    winnerIndicatorText.color = Color.green;
-                }
-                else
-                {
-                    winnerIndicatorText.text = "Opponent Won";
-                    winnerIndicatorText.color = Color.red;
-                }
-                winnerIndicatorText.gameObject.SetActive(true);
-            }
-            else if (winnerIndicatorText != null)
-            {
-                winnerIndicatorText.gameObject.SetActive(false);
-            }
-
-            // Highlight winner's time if race is settled
             if (status.is_settled && !string.IsNullOrEmpty(status.winner_wallet))
             {
                 bool iWon = status.winner_wallet == myWallet;
-                
-                // Highlight player's time if they won
+                isWinner = iWon;
+
+                if (winnerIndicatorText != null)
+                {
+                    winnerIndicatorText.text = iWon ? "🏆 You Won!" : "Opponent Won";
+                    winnerIndicatorText.color = iWon ? Color.green : Color.red;
+                    winnerIndicatorText.gameObject.SetActive(true);
+                }
+
+                // Highlight times
                 if (finalTimeText != null)
-                {
                     finalTimeText.color = iWon ? Color.green : Color.white;
-                }
-                
-                // Highlight opponent's time if they won
                 if (opponentTimeText != null)
-                {
                     opponentTimeText.color = !iWon ? Color.green : Color.white;
-                }
             }
         }
 
         #endregion
 
-        private TextMeshProUGUI FindTextByName(string name)
+        #region UI Helpers
+
+        private void SetButtonActive(Button button, bool active)
         {
-            GameObject obj = GameObject.Find(name);
-            if (obj != null)
+            if (button != null)
             {
-                return obj.GetComponent<TextMeshProUGUI>();
+                button.gameObject.SetActive(active);
+                button.interactable = active;
             }
-            return null;
         }
 
-        private Button FindButtonByName(string name)
+        private void DisableAllTxnButtons()
         {
-            GameObject obj = GameObject.Find(name);
-            if (obj != null)
-            {
-                return obj.GetComponent<Button>();
-            }
-            return null;
+            SetButtonActive(transferTxnButton, false);
+            SetButtonActive(swapTxnButton, false);
+            SetButtonActive(fallbackTxnButton, false);
         }
-    }
 
-    /// <summary>
-    /// Jupiter swap transaction response model
-    /// </summary>
-    [Serializable]
-    public class JupiterSwapTransaction
-    {
-        public string swapTransaction;
+        private void EnableFallbackButton()
+        {
+            SetButtonActive(transferTxnButton, false);
+            SetButtonActive(swapTxnButton, false);
+            SetButtonActive(fallbackTxnButton, true);
+        }
+
+        private void ShowLoading(bool show)
+        {
+            if (loadingIndicator != null)
+                loadingIndicator.SetActive(show);
+        }
+
+        private void ShowError(string message)
+        {
+            Debug.LogError($"[ResultsScreen] {message}");
+            if (payoutErrorText != null)
+            {
+                payoutErrorText.text = message;
+                if (payoutErrorContainer != null)
+                    payoutErrorContainer.SetActive(true);
+            }
+        }
+
+        private void HideError()
+        {
+            if (payoutErrorContainer != null)
+                payoutErrorContainer.SetActive(false);
+        }
+
+        private void UpdatePayoutStatusText(string text)
+        {
+            if (payoutStatusText != null)
+                payoutStatusText.text = text;
+        }
+
+        #endregion
     }
 }
-

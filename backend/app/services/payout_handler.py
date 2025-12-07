@@ -199,10 +199,9 @@ class PayoutHandler:
             # Return transaction for signing (winner signs it)
             transaction_b64 = base64.b64encode(transaction_bytes).decode('utf-8')
             
-            # Update payout status
-            payout.swap_status = PayoutStatus.PAID
+            # Note: Don't set PAID status yet - wait for transaction confirmation
+            # Status remains SWAPPING until the signed transaction is submitted
             payout.fallback_sol_amount = payout.prize_amount_sol
-            payout.completed_at = datetime.now()
             db.commit()
             
             logger.info(f"SOL transfer transaction prepared for race {race.race_id}")
@@ -210,9 +209,12 @@ class PayoutHandler:
             return {
                 "status": "ready_for_signing",
                 "transaction": transaction_b64,
+                "swap_transaction": None,  # No swap needed for SOL
                 "payout_id": str(payout.id),
                 "amount_sol": payout.prize_amount_sol,
-                "method": "claim_prize"
+                "amount_tokens": None,
+                "method": "claim_prize",
+                "error": None
             }
             
         except Exception as e:
@@ -276,11 +278,13 @@ class PayoutHandler:
             
             return {
                 "status": "ready_for_signing",
+                "transaction": None,  # claim_prize transaction not used for swap
                 "swap_transaction": swap_transaction_bytes,
                 "payout_id": str(payout.id),
-                "input_amount_sol": payout.prize_amount_sol,
-                "output_amount_tokens": token_amount,
-                "method": "jupiter_swap"
+                "amount_sol": payout.prize_amount_sol,
+                "amount_tokens": token_amount,
+                "method": "jupiter_swap",
+                "error": None
             }
             
         except Exception as e:
@@ -305,12 +309,13 @@ class PayoutHandler:
             # Use claim_prize instruction (same as _transfer_sol_directly)
             result = await self._transfer_sol_directly(db, race, payout)
             
-            # Update payout status
+            # Update payout status to fallback
             payout.swap_status = PayoutStatus.FALLBACK_SOL
             payout.error_message = error_message
             payout.fallback_sol_amount = payout.prize_amount_sol
             db.commit()
             
+            # Update result fields for fallback
             result["method"] = "fallback_sol"
             result["error"] = error_message
             
@@ -338,6 +343,16 @@ def get_payout_handler() -> PayoutHandler:
     global _payout_handler
     
     if _payout_handler is None:
+        _payout_handler = PayoutHandler()
+    
+    return _payout_handler
+
+
+        _payout_handler = PayoutHandler()
+    
+    return _payout_handler
+
+
         _payout_handler = PayoutHandler()
     
     return _payout_handler

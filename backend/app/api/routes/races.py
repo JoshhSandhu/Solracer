@@ -984,3 +984,3181 @@ async def cancel_race(
         "race_id": race_id
     }
 
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
+
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/{race_id}/join", response_model=RaceResponse)
+async def join_race_by_id(
+    race_id: str,
+    request: JoinRaceByIdRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a public race by race_id.
+    """
+    check_and_cancel_expired_races(db)
+    
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.is_private:
+        raise HTTPException(status_code=400, detail="Cannot join private race by ID. Use join-by-code endpoint.")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.post("/races/join-by-code", response_model=RaceResponse)
+async def join_race_by_code(
+    request: JoinRaceByCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Join a private race by join code.
+    """
+    check_and_cancel_expired_races(db)
+    
+    # Normalize join code (uppercase, case-insensitive)
+    join_code = request.join_code.upper().strip()
+    
+    race = db.query(Race).filter(Race.join_code == join_code).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Invalid join code")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Race is not waiting for players. Status: {race.status}")
+    
+    if race.player1_wallet == request.wallet_address:
+        raise HTTPException(status_code=400, detail="Cannot join your own race")
+    
+    if race.player2_wallet is not None:
+        raise HTTPException(status_code=400, detail="Race is already full")
+    
+    # Check if code expired (private codes expire after 5 minutes)
+    if race.expires_at:
+        expires_at_aware = ensure_timezone_aware(race.expires_at)
+        if expires_at_aware and expires_at_aware < datetime.now(timezone.utc):
+            race.status = RaceStatus.CANCELLED
+            db.commit()
+            raise HTTPException(status_code=400, detail="Join code has expired")
+    
+    # Join the race
+    race.player2_wallet = request.wallet_address
+    race.status = RaceStatus.ACTIVE
+    race.started_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(race)
+    
+    race_dict = {
+        "id": str(race.id),
+        "race_id": race.race_id,
+        "token_mint": race.token_mint,
+        "token_symbol": race.token_symbol,
+        "entry_fee_sol": race.entry_fee_sol,
+        "player1_wallet": race.player1_wallet,
+        "player2_wallet": race.player2_wallet,
+        "status": race.status.value,
+        "track_seed": race.track_seed,
+        "created_at": race.created_at,
+        "solana_tx_signature": race.solana_tx_signature,
+        "is_private": race.is_private,
+        "join_code": race.join_code,
+        "expires_at": race.expires_at,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready
+    }
+    
+    return RaceResponse(**race_dict)
+
+
+@router.get("/races/public", response_model=List[PublicRaceListItem])
+async def list_public_races(
+    token_mint: Optional[str] = Query(None, description="Filter by token mint"),
+    entry_fee: Optional[float] = Query(None, description="Filter by entry fee"),
+    db: Session = Depends(get_db)
+):
+    """
+    List available public races waiting for players.
+    """
+    check_and_cancel_expired_races(db)
+    
+    query = db.query(Race).filter(
+        and_(
+            Race.is_private == False,
+            Race.status == RaceStatus.WAITING,
+            Race.player2_wallet.is_(None)
+        )
+    )
+    
+    if token_mint:
+        query = query.filter(Race.token_mint == token_mint)
+    
+    if entry_fee is not None:
+        query = query.filter(Race.entry_fee_sol == entry_fee)
+    
+    races = query.order_by(Race.created_at.desc()).limit(50).all()
+    
+    return [
+        PublicRaceListItem(
+            race_id=race.race_id,
+            token_mint=race.token_mint,
+            token_symbol=race.token_symbol,
+            entry_fee_sol=race.entry_fee_sol,
+            player1_wallet=race.player1_wallet,
+            created_at=race.created_at,
+            expires_at=race.expires_at
+        )
+        for race in races
+    ]
+
+
+@router.post("/races/{race_id}/ready")
+async def mark_player_ready(
+    race_id: str,
+    request: MarkReadyRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Mark a player as ready. Race can start when both players are ready.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.status != RaceStatus.ACTIVE:
+        raise HTTPException(status_code=400, detail=f"Race is not active. Status: {race.status}")
+    
+    if request.wallet_address == race.player1_wallet:
+        race.player1_ready = True
+    elif request.wallet_address == race.player2_wallet:
+        race.player2_ready = True
+    else:
+        raise HTTPException(status_code=403, detail="Wallet address does not match any player in this race")
+    
+    db.commit()
+    db.refresh(race)
+    
+    return {
+        "message": "Player marked as ready",
+        "race_id": race_id,
+        "player1_ready": race.player1_ready,
+        "player2_ready": race.player2_ready,
+        "both_ready": race.player1_ready and race.player2_ready
+    }
+
+
+@router.delete("/races/{race_id}")
+async def cancel_race(
+    race_id: str,
+    wallet_address: str = Query(..., description="Wallet address of player cancelling"),
+    db: Session = Depends(get_db)
+):
+    """
+    Cancel a waiting race. Only player1 can cancel.
+    """
+    race = db.query(Race).filter(Race.race_id == race_id).first()
+    if not race:
+        raise HTTPException(status_code=404, detail="Race not found")
+    
+    if race.player1_wallet != wallet_address:
+        raise HTTPException(status_code=403, detail="Only the race creator can cancel the race")
+    
+    if race.status != RaceStatus.WAITING:
+        raise HTTPException(status_code=400, detail=f"Cannot cancel race with status {race.status}")
+    
+    race.status = RaceStatus.CANCELLED
+    db.commit()
+    
+    return {
+        "message": "Race cancelled successfully",
+        "race_id": race_id
+    }
+
