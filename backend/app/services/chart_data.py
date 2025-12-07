@@ -7,7 +7,8 @@ for Solana tokens, normalizes the data to 0-1 range, and caches it in the databa
 
 import httpx
 import os
-from typing import List, Optional, Dict, Any
+import asyncio
+from typing import List, Optional, Dict, Any, Set
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.models import Token
@@ -32,7 +33,10 @@ class ChartDataService:
     def __init__(self):
         self.api_base = BIRDEYE_API_BASE
         self.api_key = BIRDEYE_API_KEY
-        self.cache_duration_hours = 1  # Cache chart data for 1 hour
+        self.cache_duration_hours = 24  # Cache chart data for 24 hours (previous day data)
+        self._pending_requests: Set[str] = set()  # Track in-flight requests
+        self._last_request_time: Dict[str, datetime] = {}  # Rate limit tracking
+        self._min_request_interval = timedelta(seconds=5)  # Minimum 5 seconds between requests per token
     
     async def fetch_candlestick_data(
         self,
@@ -89,8 +93,20 @@ class ChartDataService:
                     logger.warning(f"Unexpected Birdeye API response format for {mint_address}")
                     return None
                     
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code
+            # Handle specific status codes
+            if status_code == 401:
+                logger.warning(f"Birdeye API: 401 Unauthorized for {mint_address}. API key may be missing or invalid.")
+            elif status_code == 429:
+                logger.warning(f"Birdeye API: 429 Rate limited for {mint_address}. Using cached data if available.")
+            elif status_code == 400:
+                logger.warning(f"Birdeye API: 400 Bad Request for {mint_address}. Token may not have chart data available.")
+            else:
+                logger.error(f"Birdeye API: {status_code} error for {mint_address}")
+            return None
         except httpx.HTTPError as e:
-            logger.error(f"HTTP error fetching chart data for {mint_address}: {e}")
+            logger.warning(f"Network error fetching chart data for {mint_address}: {e}")
             return None
         except Exception as e:
             logger.error(f"Error fetching chart data for {mint_address}: {e}")
@@ -197,48 +213,81 @@ class ChartDataService:
         Returns:
             List of normalized samples or None if fetch fails
         """
+        mint_address = token.mint_address
+        
         # Check cache validity
         cache_valid = False
+        cached_data = None
         if token.last_chart_update and not force_refresh:
-            cache_age = datetime.now(token.last_chart_update.tzinfo) - token.last_chart_update
-            cache_valid = cache_age < timedelta(hours=self.cache_duration_hours)
+            try:
+                cache_age = datetime.now(token.last_chart_update.tzinfo) - token.last_chart_update
+                cache_valid = cache_age < timedelta(hours=self.cache_duration_hours)
+            except TypeError:
+                # Handle timezone-naive datetime
+                from datetime import timezone
+                cache_age = datetime.now(timezone.utc) - token.last_chart_update.replace(tzinfo=timezone.utc)
+                cache_valid = cache_age < timedelta(hours=self.cache_duration_hours)
         
-        # Try to use cached data if available and valid
-        if cache_valid and token.cached_chart_data:
+        # Try to use cached data if available
+        if token.cached_chart_data:
             try:
                 cached_data = json.loads(token.cached_chart_data)
-                if cached_data:
-                    logger.info(f"Using cached chart data for {token.symbol}")
-                    return cached_data
             except (json.JSONDecodeError, AttributeError):
                 logger.warning(f"Failed to parse cached chart data for {token.symbol}")
+                cached_data = None
         
-        # Fetch fresh data
-        logger.info(f"Fetching fresh chart data for {token.symbol} ({token.mint_address})")
-        candles = await self.fetch_candlestick_data(token.mint_address)
+        # Return cached data if valid
+        if cache_valid and cached_data:
+            logger.debug(f"Using cached chart data for {token.symbol}")
+            return cached_data
         
-        if not candles:
-            logger.error(f"Failed to fetch chart data for {token.symbol}")
-            return None
+        # Check if a request is already in progress for this token
+        if mint_address in self._pending_requests:
+            logger.info(f"Request already in progress for {token.symbol}, returning cached data if available")
+            return cached_data  # Return cached data (may be stale or None)
         
-        # Normalize the data
+        # Rate limit check
+        last_request = self._last_request_time.get(mint_address)
+        if last_request:
+            time_since_last = datetime.now() - last_request
+            if time_since_last < self._min_request_interval:
+                logger.info(f"Rate limiting request for {token.symbol}, returning cached data")
+                return cached_data
+        
+        # Mark request as pending
+        self._pending_requests.add(mint_address)
+        self._last_request_time[mint_address] = datetime.now()
+        
         try:
-            normalized_samples = self.normalize_chart_data(candles)
-        except Exception as e:
-            logger.error(f"Failed to normalize chart data for {token.symbol}: {e}")
-            return None
-        
-        # Cache the normalized data
-        try:
-            token.cached_chart_data = json.dumps(normalized_samples)
-            token.last_chart_update = datetime.now()
-            db.commit()
-            logger.info(f"Cached chart data for {token.symbol}")
-        except Exception as e:
-            logger.error(f"Failed to cache chart data for {token.symbol}: {e}")
-            db.rollback()
-        
-        return normalized_samples
+            # Fetch fresh data
+            logger.info(f"Fetching fresh chart data for {token.symbol} ({mint_address})")
+            candles = await self.fetch_candlestick_data(mint_address)
+            
+            if not candles:
+                logger.error(f"Failed to fetch chart data for {token.symbol}")
+                return cached_data  # Return stale cache if available
+            
+            # Normalize the data
+            try:
+                normalized_samples = self.normalize_chart_data(candles)
+            except Exception as e:
+                logger.error(f"Failed to normalize chart data for {token.symbol}: {e}")
+                return cached_data
+            
+            # Cache the normalized data
+            try:
+                token.cached_chart_data = json.dumps(normalized_samples)
+                token.last_chart_update = datetime.now()
+                db.commit()
+                logger.info(f"Cached chart data for {token.symbol}")
+            except Exception as e:
+                logger.error(f"Failed to cache chart data for {token.symbol}: {e}")
+                db.rollback()
+            
+            return normalized_samples
+        finally:
+            # Remove from pending requests
+            self._pending_requests.discard(mint_address)
 
 
 # Global service instance

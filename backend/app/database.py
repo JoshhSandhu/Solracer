@@ -13,6 +13,7 @@ import os
 from typing import Generator
 from dotenv import load_dotenv
 from pathlib import Path
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 # Load environment variables from .env file
 # Get the backend directory (parent of app/)
@@ -21,6 +22,25 @@ load_dotenv(dotenv_path=backend_dir / ".env")
 
 # Get database URL from environment variable
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Clean DATABASE_URL to remove deprecated parameters that cause PostgreSQL warnings
+# PostgreSQL now reserves "supautils" prefix, so remove any supautils.* parameters
+if DATABASE_URL:
+    try:
+        parsed = urlparse(DATABASE_URL)
+        query_params = parse_qs(parsed.query, keep_blank_values=True)
+        # Remove any parameters starting with "supautils."
+        original_count = len(query_params)
+        cleaned_params = {k: v for k, v in query_params.items() if not k.startswith("supautils.")}
+        if len(cleaned_params) != original_count:
+            # Rebuild URL without the problematic parameters
+            new_query = urlencode(cleaned_params, doseq=True)
+            DATABASE_URL = urlunparse(parsed._replace(query=new_query))
+            print(f"Removed {original_count - len(cleaned_params)} deprecated parameter(s) from DATABASE_URL")
+    except Exception as e:
+        # If URL parsing fails, use original URL
+        print(f"Warning: Could not parse DATABASE_URL for cleaning: {e}")
+        pass
 
 # Create SQLAlchemy engine
 # For production: Use connection pooling

@@ -217,6 +217,9 @@ namespace Solracer.Network
         public string signed_transaction_bytes;  // Base64-encoded signed transaction
         public string instruction_type;
         public string race_id;  // Optional
+        // Optional fields for create_race instruction
+        public string token_mint;  // Token mint address (for create_race)
+        public float entry_fee_sol;  // Entry fee in SOL (for create_race)
         // Optional fields for submit_result instruction
         public string wallet_address;  // Wallet address (for submit_result)
         public int? finish_time_ms;  // Finish time in milliseconds (for submit_result)
