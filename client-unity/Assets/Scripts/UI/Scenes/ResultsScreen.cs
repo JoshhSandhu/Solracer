@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
@@ -97,6 +97,10 @@ namespace Solracer.UI
             // Start appropriate flows based on game mode
             if (GameModeData.IsCompetitive && !string.IsNullOrEmpty(RaceData.CurrentRaceId))
             {
+                // Competitive mode - set up UI first
+                SetCompetitiveModeUI();
+                
+                // Start polling and load payout
                 StartRaceStatusPolling();
                 LoadPayoutStatus();
             }
@@ -153,6 +157,20 @@ namespace Solracer.UI
             
             SetButtonActive(modeSelectionButton, true);
             SetButtonActive(playAgainButton, true);
+        }
+
+        private void SetCompetitiveModeUI()
+        {
+            // Competitive mode - hide play again (can't replay competitive races)
+            // Show mode selection but disable until payout is complete
+            SetButtonActive(playAgainButton, false);  // No replay in competitive
+            SetButtonActive(modeSelectionButton, false);  // Will be enabled after payout
+            
+            // Show payout panel
+            if (payoutPanel != null) payoutPanel.SetActive(true);
+            
+            // Update status text
+            UpdatePayoutStatusText("Waiting for results...");
         }
 
         #endregion
@@ -629,6 +647,7 @@ namespace Solracer.UI
                 // LOSER flow - show loser mode selection button in payout panel
                 DisableAllTxnButtons();
                 SetButtonActive(loserModeSelectionButton, true);
+                SetButtonActive(modeSelectionButton, true);  // Also enable main mode selection for loser
                 
                 if (winnerIndicatorText != null)
                 {

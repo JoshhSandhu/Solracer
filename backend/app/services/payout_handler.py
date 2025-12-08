@@ -165,7 +165,7 @@ class PayoutHandler:
         try:
             # Build claim_prize instruction
             program_id = get_program_id()
-            entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+            entry_fee_lamports = round(race.entry_fee_sol * 1_000_000_000)
             
             race_pda_str, bump = derive_race_pda_simple(
                 program_id,
