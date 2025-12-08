@@ -241,8 +241,8 @@ namespace Solracer.UI
                         entry_fee_sol = entryFee,
                         player1_wallet = authManager.WalletAddress,
                         status = raceStatus.status,
-                        is_private = isPrivate,
-                        join_code = raceStatus.join_code
+                        is_private = isPrivate
+                        // Note: join_code not available from status endpoint - will be shown if private race
                     };
                     ShowWaitingUI(raceResponse);
                     StartStatusPolling();

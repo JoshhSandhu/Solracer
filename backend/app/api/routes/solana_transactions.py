@@ -189,7 +189,7 @@ async def build_transaction(
             # Derive race PDA
             program_id = get_program_id()
             token_mint_pubkey = Pubkey.from_string(request.token_mint)
-            entry_fee_lamports = int(request.entry_fee_sol * 1_000_000_000)
+            entry_fee_lamports = round(request.entry_fee_sol * 1_000_000_000)
             
             race_pda_str, bump = derive_race_pda_simple(
                 program_id,
@@ -243,7 +243,7 @@ async def build_transaction(
             
             # Derive race PDA
             program_id = get_program_id()
-            entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+            entry_fee_lamports = round(race.entry_fee_sol * 1_000_000_000)
             
             race_pda_str, bump = derive_race_pda_simple(
                 program_id,
@@ -297,7 +297,8 @@ async def build_transaction(
             
             # Derive race PDA
             program_id = get_program_id()
-            entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+            # Use round() to avoid float precision issues (e.g., 0.015 -> 14999999 vs 15000000)
+            entry_fee_lamports = round(race.entry_fee_sol * 1_000_000_000)
             
             race_pda_str, bump = derive_race_pda_simple(
                 program_id,
@@ -367,7 +368,7 @@ async def build_transaction(
             
             # Derive race PDA
             program_id = get_program_id()
-            entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+            entry_fee_lamports = round(race.entry_fee_sol * 1_000_000_000)
             
             race_pda_str, bump = derive_race_pda_simple(
                 program_id,
@@ -569,7 +570,7 @@ async def settle_race(
         
         # Derive race PDA
         program_id = get_program_id()
-        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        entry_fee_lamports = round(race.entry_fee_sol * 1_000_000_000)
         
         race_pda_str, bump = derive_race_pda_simple(
             program_id,
