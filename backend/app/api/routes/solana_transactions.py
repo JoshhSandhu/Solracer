@@ -39,14 +39,18 @@ router = APIRouter()
 
 def generate_race_id(token_mint: str, entry_fee: float, player1: str) -> str:
     """
-    Generate deterministic race ID (same as in races.py).
+    Generate unique race ID with timestamp to prevent PDA collisions.
     
     NOTE: Race ID must be ≤ 32 bytes for Solana PDA seed compatibility.
     We use a 32-character hex hash (32 bytes when encoded as UTF-8).
+    
+    The timestamp ensures each race gets a unique ID even if the same
+    player creates multiple races with the same token and entry fee.
     """
-    seed_string = f"{token_mint}_{entry_fee}_{player1}"
+    import time
+    timestamp = time.time_ns()  # Nanosecond precision for uniqueness
+    seed_string = f"{token_mint}_{entry_fee}_{player1}_{timestamp}"
     race_id_hash = hashlib.sha256(seed_string.encode()).hexdigest()[:32]
-    # Use just the hash - no prefix to keep it ≤ 32 bytes for PDA seeds
     return race_id_hash
 
 
@@ -189,7 +193,7 @@ async def build_transaction(
             # Derive race PDA
             program_id = get_program_id()
             token_mint_pubkey = Pubkey.from_string(request.token_mint)
-            entry_fee_lamports = int(request.entry_fee_sol * 1_000_000_000)
+            entry_fee_lamports = round(request.entry_fee_sol * 1_000_000_000)
             
             race_pda_str, bump = derive_race_pda_simple(
                 program_id,
@@ -243,7 +247,7 @@ async def build_transaction(
             
             # Derive race PDA
             program_id = get_program_id()
-            entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+            entry_fee_lamports = round(race.entry_fee_sol * 1_000_000_000)
             
             race_pda_str, bump = derive_race_pda_simple(
                 program_id,
@@ -297,7 +301,8 @@ async def build_transaction(
             
             # Derive race PDA
             program_id = get_program_id()
-            entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+            # Use round() to avoid float precision issues (e.g., 0.015 -> 14999999 vs 15000000)
+            entry_fee_lamports = round(race.entry_fee_sol * 1_000_000_000)
             
             race_pda_str, bump = derive_race_pda_simple(
                 program_id,
@@ -308,10 +313,22 @@ async def build_transaction(
             race_pda = Pubkey.from_string(race_pda_str)
             
             # Verify race account exists on-chain before building submit_result
+            # Retry up to 3 times to handle RPC inconsistency
             solana_client = get_solana_client()
-            account_info = solana_client.get_account_info(race_pda)
+            account_info = None
+            max_retries = 3
+            
+            for attempt in range(max_retries):
+                account_info = solana_client.get_account_info(race_pda)
+                if account_info is not None:
+                    break
+                if attempt < max_retries - 1:
+                    logger.warning(f"[build_transaction] Race {race.race_id} not found on-chain (attempt {attempt + 1}/{max_retries}), retrying...")
+                    import asyncio
+                    await asyncio.sleep(1)  # Wait 1 second before retry
+            
             if account_info is None:
-                logger.error(f"[build_transaction] Race {race.race_id} not found on-chain at PDA {race_pda_str}")
+                logger.error(f"[build_transaction] Race {race.race_id} not found on-chain at PDA {race_pda_str} after {max_retries} attempts")
                 raise HTTPException(
                     status_code=400,
                     detail=f"Race account not found on-chain. The race must be created on-chain first. PDA: {race_pda_str}"
@@ -367,7 +384,7 @@ async def build_transaction(
             
             # Derive race PDA
             program_id = get_program_id()
-            entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+            entry_fee_lamports = round(race.entry_fee_sol * 1_000_000_000)
             
             race_pda_str, bump = derive_race_pda_simple(
                 program_id,
@@ -378,10 +395,22 @@ async def build_transaction(
             race_pda = Pubkey.from_string(race_pda_str)
             
             # Verify race account exists on-chain before building claim_prize
+            # Retry up to 3 times to handle RPC inconsistency
             solana_client = get_solana_client()
-            account_info = solana_client.get_account_info(race_pda)
+            account_info = None
+            max_retries = 3
+            
+            for attempt in range(max_retries):
+                account_info = solana_client.get_account_info(race_pda)
+                if account_info is not None:
+                    break
+                if attempt < max_retries - 1:
+                    logger.warning(f"[build_transaction] Race {race.race_id} not found on-chain (attempt {attempt + 1}/{max_retries}), retrying...")
+                    import asyncio
+                    await asyncio.sleep(1)  # Wait 1 second before retry
+            
             if account_info is None:
-                logger.error(f"[build_transaction] Race {race.race_id} not found on-chain at PDA {race_pda_str}")
+                logger.error(f"[build_transaction] Race {race.race_id} not found on-chain at PDA {race_pda_str} after {max_retries} attempts")
                 raise HTTPException(
                     status_code=400,
                     detail=f"Race account not found on-chain. Cannot claim prize for off-chain race. PDA: {race_pda_str}"
@@ -569,7 +598,7 @@ async def settle_race(
         
         # Derive race PDA
         program_id = get_program_id()
-        entry_fee_lamports = int(race.entry_fee_sol * 1_000_000_000)
+        entry_fee_lamports = round(race.entry_fee_sol * 1_000_000_000)
         
         race_pda_str, bump = derive_race_pda_simple(
             program_id,

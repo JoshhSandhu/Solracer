@@ -162,11 +162,19 @@ namespace Solracer.Network
         /// Get the settle_race transaction for a race.
         /// This transaction settles the race on-chain before claiming prize.
         /// </summary>
-        public async Task<SettleTransactionResponse> GetSettleTransaction(string raceId)
+        /// <param name="raceId">The race ID to settle</param>
+        /// <param name="walletAddress">The wallet address that will sign and pay for the transaction</param>
+        public async Task<SettleTransactionResponse> GetSettleTransaction(string raceId, string walletAddress = null)
         {
             try
             {
                 string url = $"{apiBaseUrl}{API_PREFIX}/payouts/{Uri.EscapeDataString(raceId)}/settle-transaction";
+                
+                // Add wallet_address as query parameter if provided
+                if (!string.IsNullOrEmpty(walletAddress))
+                {
+                    url += $"?wallet_address={Uri.EscapeDataString(walletAddress)}";
+                }
 
                 using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
                 {

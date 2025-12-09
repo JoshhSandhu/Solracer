@@ -819,8 +819,8 @@ MonoBehaviour:
   ghostCandleCount: 15
   ghostCandleGreen: {r: 0.16075982, g: 0.745283, b: 0.10194911, a: 0.78431374}
   ghostCandleRed: {r: 0.7924528, g: 0.115877524, b: 0.115877524, a: 0.78431374}
-  ghostCandleOpacity: 0.15
-  enableSupportResistance: 0
+  ghostCandleOpacity: 1
+  enableSupportResistance: 1
   resistanceColor: {r: 0.2, g: 0.9, b: 0.4, a: 0.7058824}
   supportColor: {r: 0.9, g: 0.2, b: 0.2, a: 0.7058824}
   resistanceLevelCount: 3

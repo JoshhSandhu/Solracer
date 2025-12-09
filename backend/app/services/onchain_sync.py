@@ -103,7 +103,7 @@ class OnChainSync:
                 db,
                 race.race_id,
                 race.token_mint,
-                int(race.entry_fee_sol * 1_000_000_000)  # Convert SOL to lamports
+                round(race.entry_fee_sol * 1_000_000_000)  # Convert SOL to lamports (use round to avoid float precision issues)
             )
             
             if account_data is None:
