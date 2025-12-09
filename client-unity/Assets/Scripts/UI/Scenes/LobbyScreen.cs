@@ -448,35 +448,15 @@ namespace Solracer.UI
             }
             else
             {
-                Debug.LogWarning("[LobbyScreen] On-chain race creation failed, falling back to database-only mode");
+                // On-chain race creation failed - don't fall back to database-only mode
+                // because that creates races that can't work with on-chain operations
+                Debug.LogError("[LobbyScreen] Failed to create race on-chain. Please try again.");
                 
-                // Fallback: Create race in database only (practice mode behavior)
-                var request = new CreateRaceRequest
-                {
-                    token_mint = tokenMint,
-                    wallet_address = authManager.WalletAddress,
-                    entry_fee_sol = entryFee,
-                    is_private = isPrivate
-                };
-
-                var response = await raceClient.CreateRaceAsync(request);
-
-                if (response != null && !string.IsNullOrEmpty(response.race_id))
-                {
-                    currentRaceId = response.race_id;
-                    isPlayer1 = true;
-                    RaceData.CurrentRaceId = response.race_id;
-                    RaceData.EntryFeeSol = entryFee;
-
-                    ShowWaitingUI(response);
-                    StartStatusPolling();
-                }
-                else
-                {
-                    Debug.LogError("[LobbyScreen] Failed to create race");
-                    if (createGameButton != null)
-                        createGameButton.interactable = true;
-                }
+                // Re-enable the create button so user can try again
+                if (createGameButton != null)
+                    createGameButton.interactable = true;
+                    
+                // TODO: Show user-friendly error message UI
             }
         }
 

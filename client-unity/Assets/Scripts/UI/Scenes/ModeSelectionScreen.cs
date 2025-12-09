@@ -290,22 +290,6 @@ namespace Solracer.UI
                 subtitleText.color = new Color32(148, 163, 184, 255); // #94A3B8
                 subtitleText.alignment = TextAlignmentOptions.Center;
             }
-
-            // Style continue button
-            if (continueButton != null)
-            {
-                UIStyleHelper.StyleButton(continueButton, isPrimary: true);
-                
-                var btnText = continueButton.GetComponentInChildren<TextMeshProUGUI>();
-                if (btnText != null)
-                {
-                    UIStyleHelper.SetFont(btnText, UIStyleHelper.FontType.Exo2);
-                    btnText.text = "CONTINUE";
-                    btnText.color = new Color32(248, 250, 252, 255); // #f8fafc - white
-                    btnText.fontStyle = FontStyles.Bold;
-                    btnText.characterSpacing = 4;
-                }
-            }
         }
 
         /// <summary>
