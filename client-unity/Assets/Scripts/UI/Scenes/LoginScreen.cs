@@ -121,6 +121,9 @@ namespace Solracer.UI
             SetupButtons();
             UpdateUI();
             
+            // Apply initial login screen styles (ss1)
+            ApplyInitialLoginStyles();
+            
             //pass auth panel references to AuthenticationFlowManager
             PassAuthPanelReferencesToManager();
            
@@ -197,6 +200,46 @@ namespace Solracer.UI
             if (titleText != null)
             {
                 titleText.text = "Solracer";
+            }
+        }
+
+        /// <summary>
+        /// Applies the Solana Cyberpunk design styles to the initial login screen (ss1)
+        /// </summary>
+        private void ApplyInitialLoginStyles()
+        {
+            // Load color scheme if not assigned
+            if (colorScheme == null)
+            {
+                colorScheme = Resources.Load<SolracerColors>("SolracerColors");
+                if (colorScheme == null)
+                {
+                    Debug.LogWarning("LoginScreen: SolracerColors not found in Resources! Create it first.");
+                    return;
+                }
+            }
+
+            // Set color scheme in helper
+            UIStyleHelper.Colors = colorScheme;
+
+            // Style title: "Solracer"
+            if (titleText != null)
+            {
+                UIStyleHelper.SetFont(titleText, UIStyleHelper.FontType.Orbitron);
+                titleText.text = "SOLRACER";
+                titleText.color = new Color32(255, 255, 255, 255); // #ffffff - white
+                titleText.fontStyle = FontStyles.Bold;
+                titleText.characterSpacing = 8; // letter-spacing
+                titleText.alignment = TextAlignmentOptions.Center;
+                
+                // Add glow effect
+                var outline = titleText.GetComponent<Outline>();
+                if (outline == null)
+                {
+                    outline = titleText.gameObject.AddComponent<Outline>();
+                }
+                outline.effectColor = new Color32(255, 255, 255, 77); // White glow at 30% opacity
+                outline.effectDistance = new Vector2(2, 2);
             }
         }
 
