@@ -39,6 +39,9 @@ namespace Solracer.UI
         [Tooltip("Continue button")]
         [SerializeField] private Button continueButton;
 
+        [Tooltip("Back button (top left) - goes back to Token Picker")]
+        [SerializeField] private Button backButton;
+
         [Header("Authentication Modal")]
         [Tooltip("Transaction signing modal for competitive mode authentication")]
         [SerializeField] private TransactionSigningModal authModal;
@@ -49,6 +52,9 @@ namespace Solracer.UI
 
         [Tooltip("Scene to load for Competitive mode (goes to Lobby)")]
         [SerializeField] private string competitiveSceneName = "Lobby";
+
+        [Tooltip("Scene to load when going back (Token Picker)")]
+        [SerializeField] private string tokenPickerSceneName = "TokenPicker";
 
         [Header("Settings")]
         [Tooltip("Enable debug logging")]
@@ -67,6 +73,9 @@ namespace Solracer.UI
             
             // Apply new design system styles
             ApplyModeSelectionStyles();
+
+            // Setup back button
+            SetupBackButton();
 
             // Setup UI based on which system is available
             if (modeCardButtons != null && modeCardButtons.Length >= 2 && modeCardButtons[0] != null)
@@ -490,6 +499,26 @@ namespace Solracer.UI
                 // Competitive mode
                 OnCompetitiveClicked();
             }
+        }
+
+        /// <summary>
+        /// Sets up the back button to navigate to Token Picker
+        /// </summary>
+        private void SetupBackButton()
+        {
+            if (backButton != null)
+            {
+                backButton.onClick.AddListener(OnBackButtonClicked);
+            }
+        }
+
+
+        /// <summary>
+        /// Called when back button is clicked - navigates to Token Picker
+        /// </summary>
+        private void OnBackButtonClicked()
+        {
+            SceneManager.LoadScene(tokenPickerSceneName);
         }
     }
 }

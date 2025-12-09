@@ -482,11 +482,45 @@ namespace Solracer.Game
                 inputHash = inputTraceRecorder.CalculateInputHash();
             }
 
-            //submit result onchain if race was created onchain
-            if (RaceData.HasActiveRace())
+            // *** IMPORTANT: Mark race as finished and store results ***
+            RaceData.SetRaceFinished(finalTime, coinsCollected, inputHash);
+
+            //submit result onchain if competitive mode
+            if (GameModeData.IsCompetitive)
             {
-                Debug.Log("[RaceManager] Submitting result on-chain (game over)...");
-                await SubmitResultOnChain(finalTime, coinsCollected, inputHash);
+                if (RaceData.HasActiveRace())
+                {
+                    Debug.Log($"[RaceManager] Submitting result on-chain (game over) for race: {RaceData.CurrentRaceId}");
+                    bool submitted = false;
+                    try
+                    {
+                        submitted = await SubmitResultOnChainWithResult(finalTime, coinsCollected, inputHash);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Debug.LogError($"[RaceManager] ❌ Exception submitting result (game over): {ex.Message}");
+                    }
+                    
+                    // *** Store submission result ***
+                    RaceData.SetResultSubmitted(submitted);
+                    
+                    if (!submitted)
+                    {
+                        Debug.LogWarning("[RaceManager] ⚠ Result submission failed or was cancelled (game over)");
+                    }
+                    else
+                    {
+                        Debug.Log("[RaceManager] ✅ Result submitted successfully (game over)!");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"[RaceManager] ⚠ Competitive mode but no active race (game over)! RaceId: '{RaceData.CurrentRaceId}'");
+                }
+            }
+            else
+            {
+                Debug.Log("[RaceManager] Practice mode - skipping on-chain result submission (game over)");
             }
 
             //storing game over data
@@ -548,10 +582,45 @@ namespace Solracer.Game
                 Debug.Log($"[RaceManager] Input hash calculated: {inputHash.Substring(0, Mathf.Min(16, inputHash.Length))}...");
             }
 
-            if (RaceData.HasActiveRace())
+            // *** IMPORTANT: Mark race as finished and store results ***
+            RaceData.SetRaceFinished(finalTime, coinsCollected, inputHash);
+
+            // Always attempt to submit in competitive mode
+            if (GameModeData.IsCompetitive)
             {
-                Debug.Log("[RaceManager] Submitting result on-chain...");
-                await SubmitResultOnChain(finalTime, coinsCollected, inputHash);
+                if (RaceData.HasActiveRace())
+                {
+                    Debug.Log($"[RaceManager] Submitting result on-chain for race: {RaceData.CurrentRaceId}");
+                    bool submitted = false;
+                    try
+                    {
+                        submitted = await SubmitResultOnChainWithResult(finalTime, coinsCollected, inputHash);
+                    }
+                    catch (System.Exception ex)
+                    {
+                        Debug.LogError($"[RaceManager] ❌ Exception submitting result: {ex.Message}");
+                    }
+                    
+                    // *** Store submission result ***
+                    RaceData.SetResultSubmitted(submitted);
+                    
+                    if (!submitted)
+                    {
+                        Debug.LogWarning("[RaceManager] ⚠ Result submission failed or was cancelled");
+                    }
+                    else
+                    {
+                        Debug.Log("[RaceManager] ✅ Result submitted successfully!");
+                    }
+                }
+                else
+                {
+                    Debug.LogWarning($"[RaceManager] ⚠ Competitive mode but no active race! RaceId: '{RaceData.CurrentRaceId}'");
+                }
+            }
+            else
+            {
+                Debug.Log("[RaceManager] Practice mode - skipping on-chain result submission");
             }
 
             string trackName = GetTrackName();
@@ -624,24 +693,25 @@ namespace Solracer.Game
         }
 
         /// <summary>
-        /// submit race result onchain.
+        /// submit race result onchain (legacy method for game over).
         /// </summary>
         private async Task SubmitResultOnChain(float finalTime, int coinsCollected, string inputHash)
         {
-            // Only submit on-chain in competitive mode
-            if (!GameModeData.IsCompetitive)
-            {
-                Debug.Log("[RaceManager] Practice mode - skipping on-chain result submission");
-                return;
-            }
+            await SubmitResultOnChainWithResult(finalTime, coinsCollected, inputHash);
+        }
 
+        /// <summary>
+        /// submit race result onchain and return success status.
+        /// </summary>
+        private async Task<bool> SubmitResultOnChainWithResult(float finalTime, int coinsCollected, string inputHash)
+        {
             try
             {
                 string raceId = RaceData.CurrentRaceId;
                 if (string.IsNullOrEmpty(raceId))
                 {
                     Debug.LogWarning("[RaceManager] No active race ID, skipping on-chain submission");
-                    return;
+                    return false;
                 }
 
                 int finishTimeMs = Mathf.RoundToInt(finalTime * 1000f);
@@ -651,6 +721,8 @@ namespace Solracer.Game
                     Debug.LogWarning($"[RaceManager] Invalid input hash length: {inputHash?.Length ?? 0}. Using placeholder.");
                     inputHash = new string('0', 64); //placeholder
                 }
+
+                Debug.Log($"[RaceManager] Calling SubmitResultOnChainAsync with raceId={raceId}, time={finishTimeMs}ms, coins={coinsCollected}");
 
                 bool success = await OnChainRaceManager.SubmitResultOnChainAsync(
                     raceId,
@@ -663,18 +735,12 @@ namespace Solracer.Game
                     }
                 );
 
-                if (success)
-                {
-                    Debug.Log("[RaceManager] Result submitted successfully on-chain!");
-                }
-                else
-                {
-                    Debug.LogWarning("[RaceManager] Failed to submit result on-chain");
-                }
+                return success;
             }
             catch (System.Exception ex)
             {
                 Debug.LogError($"[RaceManager] Error submitting result on-chain: {ex.Message}");
+                return false;
             }
         }
 

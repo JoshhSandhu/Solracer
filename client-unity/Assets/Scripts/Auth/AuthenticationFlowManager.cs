@@ -286,6 +286,17 @@ namespace Solracer.Auth
             UpdateWelcomePanel();
         }
 
+        /// <summary>
+        /// Public method to show welcome panel (called from LoginScreen when returning authenticated)
+        /// </summary>
+        public void ShowWelcomePanelIfAuthenticated()
+        {
+            if (isAuthenticated && !AuthenticationData.IsGuestMode)
+            {
+                ShowWelcomePanel();
+            }
+        }
+
         private void HideAllPanels()
         {
             if (authPanel != null) authPanel.SetActive(false);

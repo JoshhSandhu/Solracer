@@ -80,6 +80,9 @@ namespace Solracer.UI
         [Tooltip("Token banner background image")]
         [SerializeField] private Image tokenBannerImage;
 
+        [Tooltip("Back button (top left) - goes back to Mode Selection")]
+        [SerializeField] private Button backButton;
+
         private RaceAPIClient raceClient;
         private AuthenticationFlowManager authManager;
         private string currentRaceId;
@@ -94,6 +97,7 @@ namespace Solracer.UI
             Initialize();
             ApplyLobbyStyles(); // Apply design system first
             SetupUI();
+            SetupBackButton();
             LoadTokenInfo();
         }
 
@@ -949,6 +953,26 @@ namespace Solracer.UI
         {
             GameObject obj = GameObject.Find(name);
             return obj != null ? obj.GetComponent<Button>() : null;
+        }
+
+        /// <summary>
+        /// Sets up the back button to navigate to Mode Selection
+        /// </summary>
+        private void SetupBackButton()
+        {
+            if (backButton != null)
+            {
+                backButton.onClick.AddListener(OnBackButtonClicked);
+                
+            }
+        }
+
+        /// <summary>
+        /// Called when back button is clicked - navigates to Mode Selection
+        /// </summary>
+        private void OnBackButtonClicked()
+        {
+            SceneManager.LoadScene("ModeSelection");
         }
 
         #endregion

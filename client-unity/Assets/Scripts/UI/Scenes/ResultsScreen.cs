@@ -161,6 +161,17 @@ namespace Solracer.UI
                 // Competitive mode - set up UI first
                 SetCompetitiveModeUI();
                 
+                // Check if we need to submit result (player finished but submit failed)
+                if (RaceData.NeedsResultSubmission())
+                {
+                    Debug.Log("[ResultsScreen] Player finished but result not submitted - attempting retry...");
+                    RetryResultSubmission();
+                }
+                else
+                {
+                    Debug.Log($"[ResultsScreen] Race state: Finished={RaceData.HasFinishedRace}, Submitted={RaceData.ResultSubmittedOnChain}");
+                }
+                
                 // Start polling and load payout
                 StartRaceStatusPolling();
                 LoadPayoutStatus();
@@ -169,6 +180,72 @@ namespace Solracer.UI
             {
                 // Practice mode - hide competitive UI
                 SetPracticeModeUI();
+            }
+        }
+
+        /// <summary>
+        /// Retry submitting the result if the player finished but submission failed
+        /// </summary>
+        private async void RetryResultSubmission()
+        {
+            if (!RaceData.NeedsResultSubmission())
+                return;
+
+            ShowWaitingState("Submitting result...");
+
+            try
+            {
+                string raceId = RaceData.CurrentRaceId;
+                float finishTime = RaceData.PlayerFinishTime;
+                int coinsCollected = RaceData.PlayerCoinsCollected;
+                string inputHash = RaceData.PlayerInputHash;
+
+                if (string.IsNullOrEmpty(raceId))
+                {
+                    Debug.LogError("[ResultsScreen] No race ID for retry submission");
+                    return;
+                }
+
+                int finishTimeMs = Mathf.RoundToInt(finishTime * 1000f);
+                
+                // Ensure valid input hash
+                if (string.IsNullOrEmpty(inputHash) || inputHash.Length != 64)
+                {
+                    inputHash = new string('0', 64);
+                }
+
+                Debug.Log($"[ResultsScreen] Retrying submit: race={raceId}, time={finishTimeMs}ms, coins={coinsCollected}");
+
+                bool success = await OnChainRaceManager.SubmitResultOnChainAsync(
+                    raceId,
+                    finishTimeMs,
+                    coinsCollected,
+                    inputHash,
+                    (message, progress) =>
+                    {
+                        Debug.Log($"[ResultsScreen] {message} ({progress * 100:F0}%)");
+                        ShowWaitingState(message);
+                    }
+                );
+
+                RaceData.SetResultSubmitted(success);
+
+                if (success)
+                {
+                    Debug.Log("[ResultsScreen] ✅ Retry submission successful!");
+                    ShowWaitingState("Waiting for opponent...");
+                }
+                else
+                {
+                    Debug.LogWarning("[ResultsScreen] ⚠ Retry submission failed");
+                    ShowErrorState("Failed to submit result. Please try again.");
+                    SetButtonActive(fallbackTxnButton, true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ResultsScreen] Retry submission error: {ex.Message}");
+                ShowErrorState($"Error: {ex.Message}");
             }
         }
 
@@ -613,12 +690,96 @@ namespace Solracer.UI
         }
 
         /// <summary>
-        /// Fallback Transaction button - When other methods fail
+        /// Fallback Transaction button - Retry result submission or claim prize
         /// </summary>
         public async void OnFallbackTxnClicked()
         {
             if (isProcessingTransaction) return;
+            
+            // First check if we need to submit result
+            if (RaceData.NeedsResultSubmission())
+            {
+                Debug.Log("[ResultsScreen] Fallback button: Retrying result submission...");
+                isProcessingTransaction = true;
+                SetButtonActive(fallbackTxnButton, false);
+                await RetryResultSubmissionAsync();
+                isProcessingTransaction = false;
+                return;
+            }
+            
+            // Otherwise, process as claim prize fallback
             await ProcessClaimPrize("fallback_sol");
+        }
+        
+        /// <summary>
+        /// Async version of retry submission for button click handling
+        /// </summary>
+        private async Task RetryResultSubmissionAsync()
+        {
+            if (!RaceData.NeedsResultSubmission())
+            {
+                SetButtonActive(fallbackTxnButton, false);
+                return;
+            }
+
+            ShowWaitingState("Retrying result submission...");
+
+            try
+            {
+                string raceId = RaceData.CurrentRaceId;
+                float finishTime = RaceData.PlayerFinishTime;
+                int coinsCollected = RaceData.PlayerCoinsCollected;
+                string inputHash = RaceData.PlayerInputHash;
+
+                if (string.IsNullOrEmpty(raceId))
+                {
+                    Debug.LogError("[ResultsScreen] No race ID for retry submission");
+                    ShowErrorState("No race ID found");
+                    SetButtonActive(fallbackTxnButton, true);
+                    return;
+                }
+
+                int finishTimeMs = Mathf.RoundToInt(finishTime * 1000f);
+                
+                if (string.IsNullOrEmpty(inputHash) || inputHash.Length != 64)
+                {
+                    inputHash = new string('0', 64);
+                }
+
+                Debug.Log($"[ResultsScreen] Retry submit (button): race={raceId}, time={finishTimeMs}ms");
+
+                bool success = await OnChainRaceManager.SubmitResultOnChainAsync(
+                    raceId,
+                    finishTimeMs,
+                    coinsCollected,
+                    inputHash,
+                    (message, progress) =>
+                    {
+                        ShowWaitingState(message);
+                    }
+                );
+
+                RaceData.SetResultSubmitted(success);
+
+                if (success)
+                {
+                    Debug.Log("[ResultsScreen] ✅ Retry submission successful!");
+                    ShowWaitingState("Waiting for opponent...");
+                    SetButtonActive(fallbackTxnButton, false);
+                }
+                else
+                {
+                    Debug.LogWarning("[ResultsScreen] ⚠ Retry submission failed again");
+                    ShowErrorState("Failed to submit result. Please try again.");
+                    SetButtonActive(fallbackTxnButton, true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ResultsScreen] Retry submission error: {ex.Message}");
+                ShowErrorState($"Error: {ex.Message}");
+                SetButtonActive(fallbackTxnButton, true);
+            }
         }
 
         #endregion
@@ -908,19 +1069,28 @@ namespace Solracer.UI
 
                 if (payoutStatus == null)
                 {
-                    // No payout yet - race might not be settled
-                    Debug.Log("[ResultsScreen] No payout status yet - waiting for settlement");
-                    ShowWaitingState("Waiting for opponent...");
+                    // No payout yet - check race status to see if we're the loser
+                    Debug.Log("[ResultsScreen] No payout status - checking race status for winner info");
+                    await CheckRaceStatusForWinner();
                     return;
                 }
+
+                // IMPORTANT: Stop race status polling since we have payout info now
+                StopRaceStatusPolling();
+                Debug.Log("[ResultsScreen] Payout status received - stopped race status polling");
 
                 currentPayoutStatus = payoutStatus;
                 UpdatePayoutUI(payoutStatus);
 
-                // Start polling if still pending
+                // Start payout polling if still pending (for winner waiting for swap)
                 if (payoutStatus.swap_status == "pending" || payoutStatus.swap_status == "swapping")
                 {
-                    StartPayoutPolling();
+                    // Only start payout polling for winner
+                    bool imWinner = !string.IsNullOrEmpty(payoutStatus.winner_wallet) && payoutStatus.winner_wallet == myWallet;
+                    if (imWinner)
+                    {
+                        StartPayoutPolling();
+                    }
                 }
             }
             catch (Exception ex)
@@ -930,6 +1100,99 @@ namespace Solracer.UI
             finally
             {
                 ShowLoading(false);
+            }
+        }
+        
+        /// <summary>
+        /// Check race status to determine winner when no payout exists
+        /// (Losers don't have payout records)
+        /// </summary>
+        private async Task CheckRaceStatusForWinner()
+        {
+            string raceId = RaceData.CurrentRaceId;
+            if (string.IsNullOrEmpty(raceId)) return;
+            
+            try
+            {
+                var raceClient = RaceAPIClient.Instance;
+                var status = await raceClient.GetRaceStatusAsync(raceId);
+                
+                if (status == null)
+                {
+                    Debug.LogWarning("[ResultsScreen] Could not get race status");
+                    ShowWaitingState("Waiting for opponent...");
+                    return;
+                }
+                
+                if (status.is_settled && !string.IsNullOrEmpty(status.winner_wallet))
+                {
+                    // IMPORTANT: Stop race status polling since race is settled
+                    StopRaceStatusPolling();
+                    
+                    // Race is settled - check if we're the winner or loser
+                    bool imWinner = status.winner_wallet == myWallet;
+                    
+                    Debug.Log($"[ResultsScreen] Race settled. Winner: {status.winner_wallet}, Me: {myWallet}, Am I winner: {imWinner}");
+                    
+                    if (!imWinner)
+                    {
+                        // We're the LOSER - show mode selection and loser UI
+                        isWinner = false;
+                        
+                        // Hide waiting, show result
+                        if (waitingSection != null) waitingSection.SetActive(false);
+                        
+                        // Update winner indicator text
+                        if (winnerIndicatorText != null)
+                        {
+                            winnerIndicatorText.text = "You Lost";
+                            winnerIndicatorText.color = new Color32(239, 68, 68, 255); // Red
+                        }
+                        
+                        // Show competitive result section
+                        if (competitiveResultSection != null)
+                            competitiveResultSection.SetActive(true);
+                        
+                        // Update prize section to show "Prize Wagered"
+                        if (prizeClaimSection != null)
+                            prizeClaimSection.SetActive(true);
+                        if (prizeStatusText != null)
+                            prizeStatusText.text = "Prize Wagered";
+                        if (prizeAmountText != null)
+                            prizeAmountText.text = $"{RaceData.EntryFeeSol * 2:F4} SOL";
+                        
+                        // Show ONLY mode selection button for loser
+                        SetButtonActive(claimPrizeButton, false);
+                        SetButtonActive(fallbackTxnButton, false);
+                        SetButtonActive(modeSelectionButton, true);
+                        
+                        Debug.Log("[ResultsScreen] ✅ Loser UI activated - mode selection button shown");
+                        
+                        // Verify button state
+                        if (modeSelectionButton != null)
+                        {
+                            Debug.Log($"[ResultsScreen] Mode selection button: active={modeSelectionButton.gameObject.activeSelf}, interactable={modeSelectionButton.interactable}");
+                        }
+                    }
+                    else
+                    {
+                        // We're the winner but no payout record exists yet - wait
+                        Debug.Log("[ResultsScreen] Winner but no payout yet - waiting for payout creation");
+                        ShowWaitingState("Processing your prize...");
+                        StartPayoutPolling();
+                    }
+                }
+                else
+                {
+                    // Race not settled yet
+                    Debug.Log("[ResultsScreen] Race not settled yet");
+                    ShowWaitingState("Waiting for opponent...");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ResultsScreen] Error checking race status: {ex.Message}");
+                ShowWaitingState("Waiting for opponent...");
             }
         }
 
@@ -943,7 +1206,11 @@ namespace Solracer.UI
             // Check if current player is winner
             isWinner = !string.IsNullOrEmpty(payout.winner_wallet) && payout.winner_wallet == myWallet;
 
-            Debug.Log($"[ResultsScreen] Payout UI: isWinner={isWinner}, isSolToken={isSolToken}, status={payout.swap_status}");
+            Debug.Log($"[ResultsScreen] ====== UpdatePayoutUI ======");
+            Debug.Log($"[ResultsScreen] payout.winner_wallet = '{payout.winner_wallet}'");
+            Debug.Log($"[ResultsScreen] myWallet = '{myWallet}'");
+            Debug.Log($"[ResultsScreen] Comparison: {payout.winner_wallet} == {myWallet} => {payout.winner_wallet == myWallet}");
+            Debug.Log($"[ResultsScreen] isWinner = {isWinner}, isSolToken = {isSolToken}, status = {payout.swap_status}");
 
             // Update prize section
             if (prizeClaimSection != null)
@@ -992,8 +1259,11 @@ namespace Solracer.UI
 
         private void UpdateButtonsForPayoutStatus(PayoutStatusResponse payout)
         {
+            Debug.Log($"[ResultsScreen] UpdateButtonsForPayoutStatus - isWinner={isWinner}, status={payout?.swap_status}, winnerWallet={payout?.winner_wallet}, myWallet={myWallet}");
+            
             if (isWinner)
             {
+                Debug.Log("[ResultsScreen] 🏆 Setting up WINNER buttons");
                 // WINNER flow
                 switch (payout.swap_status?.ToLower())
                 {
@@ -1002,6 +1272,7 @@ namespace Solracer.UI
                         SetButtonActive(claimPrizeButton, true);
                         SetButtonActive(fallbackTxnButton, false);
                         SetButtonActive(modeSelectionButton, false);
+                        Debug.Log("[ResultsScreen] Winner pending - showing Claim Prize button");
                         break;
 
                     case "swapping":
@@ -1041,9 +1312,20 @@ namespace Solracer.UI
             else
             {
                 // LOSER flow - show mode selection button only
+                Debug.Log("[ResultsScreen] 😢 Setting up LOSER buttons - enabling mode selection");
                 SetButtonActive(claimPrizeButton, false);
                 SetButtonActive(fallbackTxnButton, false);
                 SetButtonActive(modeSelectionButton, true);
+                
+                // Extra verification
+                if (modeSelectionButton != null)
+                {
+                    Debug.Log($"[ResultsScreen] Mode selection button active: {modeSelectionButton.gameObject.activeSelf}, interactable: {modeSelectionButton.interactable}");
+                }
+                else
+                {
+                    Debug.LogError("[ResultsScreen] ❌ modeSelectionButton is NULL!");
+                }
             }
         }
 
@@ -1125,14 +1407,40 @@ namespace Solracer.UI
                     }
                     else
                     {
-                        // Still waiting for opponent
-                        ShowWaitingState("Waiting for opponent...");
+                        // Check if we need to submit our result
+                        if (RaceData.NeedsResultSubmission())
+                        {
+                            ShowWaitingState("Your result not submitted - tap retry below");
+                            SetButtonActive(fallbackTxnButton, true);
+                        }
+                        else if (RaceData.ResultSubmittedOnChain)
+                        {
+                            // Our result is submitted, waiting for opponent
+                            ShowWaitingState("Waiting for opponent...");
+                        }
+                        else if (!RaceData.HasFinishedRace)
+                        {
+                            // We haven't finished yet (shouldn't happen on results screen)
+                            ShowWaitingState("Race in progress...");
+                        }
+                        else
+                        {
+                            ShowWaitingState("Waiting for opponent...");
+                        }
                     }
                 }
                 else
                 {
-                    // No status yet - still waiting
-                    ShowWaitingState("Waiting for opponent...");
+                    // No status yet - check our local state
+                    if (RaceData.NeedsResultSubmission())
+                    {
+                        ShowWaitingState("Your result not submitted - tap retry below");
+                        SetButtonActive(fallbackTxnButton, true);
+                    }
+                    else
+                    {
+                        ShowWaitingState("Connecting...");
+                    }
                 }
             }
         }
@@ -1213,7 +1521,7 @@ namespace Solracer.UI
             if (opponentTimeText != null && opponentResult.finish_time_ms.HasValue)
             {
                 float opponentTime = opponentResult.finish_time_ms.Value / 1000f;
-                opponentTimeText.text = $"Opponent Time: {FormatTime(opponentTime)}";
+                opponentTimeText.text = $"{FormatTime(opponentTime)}";
             }
 
             // Update winner/loser indicator when race is settled
