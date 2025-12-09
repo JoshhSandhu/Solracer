@@ -789,21 +789,27 @@ namespace Solracer.Auth
                 string solanaAddress = await GetSolanaWalletAddress();
                 if (!string.IsNullOrEmpty(solanaAddress) && solanaAddress != "No Wallet")
                 {
-                    string shortAddress = solanaAddress.Length > 12 ?
-                        $"{solanaAddress.Substring(0, 6)}...{solanaAddress.Substring(solanaAddress.Length - 6)}" :
-                        solanaAddress;
-                    walletAddressText.text = $"Solana Wallet: {shortAddress}";
+                    // Use UIStyleHelper for consistent truncation (BDVvR5...hK6ckt format)
+                    walletAddressText.text = UIStyleHelper.TruncateWallet(solanaAddress, 6, 6);
                 }
                 else
                 {
-                    walletAddressText.text = "Solana Wallet: Wallet Not Created";
+                    walletAddressText.text = "Wallet Not Created";
                 }
             }
 
             if (userInfoText != null)
             {
                 var user = await privyInstance.GetUser();
-                userInfoText.text = $"User ID: {user?.Id ?? "Unknown"}";
+                if (user != null && !string.IsNullOrEmpty(user.Id))
+                {
+                    // Use UIStyleHelper for consistent truncation (cmhk...zwl0 format)
+                    userInfoText.text = UIStyleHelper.TruncateUserId(user.Id, 4, 4);
+                }
+                else
+                {
+                    userInfoText.text = "Unknown";
+                }
             }
         }
 

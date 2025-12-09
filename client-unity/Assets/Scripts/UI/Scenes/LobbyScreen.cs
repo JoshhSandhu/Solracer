@@ -60,6 +60,26 @@ namespace Solracer.UI
         [SerializeField] private float statusPollInterval = 2f;
         [SerializeField] private bool debugLogging = true;
 
+        [Header("Design System")]
+        [Tooltip("Reference to SolracerColors asset (optional - will load from Resources if null)")]
+        [SerializeField] private SolracerColors colorScheme;
+
+        [Header("UI Elements - New Design")]
+        [Tooltip("Title text: 'Solracer Lobby'")]
+        [SerializeField] private TextMeshProUGUI titleText;
+
+        [Tooltip("Private badge text")]
+        [SerializeField] private TextMeshProUGUI privateBadgeText;
+
+        [Tooltip("Subtitle text")]
+        [SerializeField] private TextMeshProUGUI subtitleText;
+
+        [Tooltip("Token banner text (displays selected token)")]
+        [SerializeField] private TextMeshProUGUI tokenBannerText;
+
+        [Tooltip("Token banner background image")]
+        [SerializeField] private Image tokenBannerImage;
+
         private RaceAPIClient raceClient;
         private AuthenticationFlowManager authManager;
         private string currentRaceId;
@@ -72,6 +92,7 @@ namespace Solracer.UI
         private void Start()
         {
             Initialize();
+            ApplyLobbyStyles(); // Apply design system first
             SetupUI();
             LoadTokenInfo();
         }
@@ -146,11 +167,19 @@ namespace Solracer.UI
         private void LoadTokenInfo()
         {
             // Get selected token from previous screen
-            // This would come from TokenPickerScreen - for now, use a default
+            CoinType selectedCoin = CoinSelectionData.SelectedCoin;
+            string coinName = CoinSelectionData.GetCoinName(selectedCoin);
+
+            // Update token display text (legacy)
             if (tokenDisplayText != null)
             {
-                // TODO: Get actual token from CoinSelectionData or similar
-                tokenDisplayText.text = "Token: SOL"; // Placeholder
+                tokenDisplayText.text = $"Token: {coinName}";
+            }
+
+            // Update token banner text (new design)
+            if (tokenBannerText != null)
+            {
+                tokenBannerText.text = $"Token: {coinName}";
             }
         }
 
@@ -160,6 +189,9 @@ namespace Solracer.UI
                 createTabPanel.SetActive(showCreate);
             if (joinTabPanel != null)
                 joinTabPanel.SetActive(!showCreate);
+
+            // Update tab styles
+            UpdateTabStyles(showCreate);
 
             if (showCreate)
             {
@@ -178,6 +210,156 @@ namespace Solracer.UI
                 {
                     publicRacesRefreshCoroutine = StartCoroutine(RefreshPublicRacesCoroutine());
                 }
+            }
+        }
+
+        /// <summary>
+        /// Applies the new Solana Cyberpunk design styles to the lobby screen
+        /// </summary>
+        private void ApplyLobbyStyles()
+        {
+            // Load color scheme if not assigned
+            if (colorScheme == null)
+            {
+                colorScheme = Resources.Load<SolracerColors>("SolracerColors");
+                if (colorScheme == null)
+                {
+                    Debug.LogWarning("LobbyScreen: SolracerColors not found in Resources! Create it first.");
+                    return;
+                }
+            }
+
+            // Set color scheme in helper
+            UIStyleHelper.Colors = colorScheme;
+
+            // Style title
+            if (titleText != null)
+            {
+                UIStyleHelper.SetFont(titleText, UIStyleHelper.FontType.Orbitron);
+                titleText.text = "Solracer Lobby";
+                titleText.color = new Color32(153, 69, 255, 255); // #9945FF
+                titleText.fontStyle = FontStyles.Bold;
+                titleText.characterSpacing = 4;
+                titleText.alignment = TextAlignmentOptions.Center;
+            }
+
+            // Style private badge
+            if (privateBadgeText != null)
+            {
+                UIStyleHelper.SetFont(privateBadgeText, UIStyleHelper.FontType.Exo2);
+                privateBadgeText.text = "Private";
+                privateBadgeText.color = new Color32(248, 250, 252, 255); // #f8fafc - white
+                privateBadgeText.alignment = TextAlignmentOptions.Center;
+
+                // Style badge background if image exists
+                if (privateBadgeText.transform.parent != null)
+                {
+                    var badgeImage = privateBadgeText.transform.parent.GetComponent<Image>();
+                    if (badgeImage != null)
+                    {
+                        badgeImage.color = new Color32(153, 69, 255, 255); // #9945FF
+                    }
+                }
+            }
+
+            // Style subtitle
+            if (subtitleText != null)
+            {
+                UIStyleHelper.SetFont(subtitleText, UIStyleHelper.FontType.Exo2);
+                subtitleText.text = "Create or join competitive races";
+                subtitleText.color = new Color32(148, 163, 184, 255); // #94A3B8
+                subtitleText.alignment = TextAlignmentOptions.Center;
+            }
+
+            // Style token banner
+            if (tokenBannerText != null)
+            {
+                UIStyleHelper.SetFont(tokenBannerText, UIStyleHelper.FontType.Exo2);
+                tokenBannerText.color = new Color32(248, 250, 252, 255); // #f8fafc - white
+                tokenBannerText.alignment = TextAlignmentOptions.Center;
+            }
+
+            if (tokenBannerImage != null)
+            {
+                tokenBannerImage.color = new Color32(153, 69, 255, 255); // #9945FF
+            }
+
+            // Style tabs
+            UpdateTabStyles(true); // Default to create tab active
+
+            // Style form cards
+            if (createTabPanel != null)
+            {
+                var formCard = createTabPanel.GetComponentInChildren<Image>();
+                if (formCard != null && formCard.gameObject.name.Contains("Form") || formCard.gameObject.name.Contains("Card"))
+                {
+                    UIStyleHelper.StyleFormCard(formCard.gameObject);
+                }
+            }
+
+            if (joinTabPanel != null)
+            {
+                var formCard = joinTabPanel.GetComponentInChildren<Image>();
+                if (formCard != null && (formCard.gameObject.name.Contains("Form") || formCard.gameObject.name.Contains("Card")))
+                {
+                    UIStyleHelper.StyleFormCard(formCard.gameObject);
+                }
+            }
+
+            // Style input fields
+            if (joinCodeInput != null)
+            {
+                UIStyleHelper.StyleInputField(joinCodeInput, isCodeInput: true);
+            }
+
+            // Style dropdowns
+            if (entryFeeDropdown != null)
+            {
+                UIStyleHelper.StyleDropdown(entryFeeDropdown);
+            }
+
+            // Style buttons
+            if (createGameButton != null)
+            {
+                UIStyleHelper.StyleButton(createGameButton, isPrimary: true);
+                var btnText = createGameButton.GetComponentInChildren<TextMeshProUGUI>();
+                if (btnText != null)
+                {
+                    UIStyleHelper.SetFont(btnText, UIStyleHelper.FontType.Exo2);
+                    btnText.text = "CREATE GAME";
+                    btnText.fontStyle = FontStyles.Bold;
+                    btnText.characterSpacing = 4;
+                }
+            }
+
+            if (joinByCodeButton != null)
+            {
+                UIStyleHelper.StyleButton(joinByCodeButton, isPrimary: false); // Green button
+                var btnText = joinByCodeButton.GetComponentInChildren<TextMeshProUGUI>();
+                if (btnText != null)
+                {
+                    UIStyleHelper.SetFont(btnText, UIStyleHelper.FontType.Exo2);
+                    btnText.text = "JOIN GAME";
+                    btnText.color = new Color32(11, 14, 17, 255); // #0b0e11 - dark text on green button
+                    btnText.fontStyle = FontStyles.Bold;
+                    btnText.characterSpacing = 4;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Updates tab visual styles based on active state
+        /// </summary>
+        private void UpdateTabStyles(bool createTabActive)
+        {
+            if (createTabButton != null)
+            {
+                UIStyleHelper.StyleTab(createTabButton, isActive: createTabActive);
+            }
+
+            if (joinTabButton != null)
+            {
+                UIStyleHelper.StyleTab(joinTabButton, isActive: !createTabActive);
             }
         }
 
