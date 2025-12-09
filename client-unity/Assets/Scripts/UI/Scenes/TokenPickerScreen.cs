@@ -44,6 +44,9 @@ namespace Solracer.UI
         [Tooltip("Button to go back to Mode Selection (legacy)")]
         [SerializeField] private Button backToModeSelectionButton;
 
+        [Tooltip("Back button (top left) - goes back to Welcome Panel/Login")]
+        [SerializeField] private Button backButton;
+
         [Header("Coin Settings")]
         [Tooltip("Coin sprites (BONK, Solana, Zcash)")]
         [SerializeField] private Sprite[] coinSpritesArray = new Sprite[3];
@@ -64,6 +67,9 @@ namespace Solracer.UI
 
         [Tooltip("Scene name for Race")]
         [SerializeField] private string raceSceneName = "Race";
+
+        [Tooltip("Scene name for Login/Welcome Panel")]
+        [SerializeField] private string loginSceneName = "Login";
 
         [Tooltip("Enable debug logging")]
         [SerializeField] private bool debugLogging = true;
@@ -97,6 +103,9 @@ namespace Solracer.UI
 
             // Apply new design system styles
             ApplyTokenPickerStyles();
+
+            // Setup back button
+            SetupBackButton();
 
             // Setup UI based on which system is available
             if (coinCardButtons != null && coinCardButtons.Length >= 3 && coinCardButtons[0] != null)
@@ -716,6 +725,44 @@ namespace Solracer.UI
                 return obj.GetComponent<Button>();
             }
             return null;
+        }
+
+        /// <summary>
+        /// Sets up the back button to navigate to Login/Welcome Panel
+        /// </summary>
+        private void SetupBackButton()
+        {
+            if (backButton != null)
+            {
+                backButton.onClick.AddListener(OnBackButtonClicked);
+         
+            }
+        }
+
+        /// <summary>
+        /// Called when back button is clicked - navigates to Login/Welcome Panel
+        /// </summary>
+        private void OnBackButtonClicked()
+        {
+            // Check if user is authenticated (not guest)
+            var authManager = AuthenticationFlowManager.Instance;
+            bool isAuthenticated = authManager != null && authManager.IsAuthenticated;
+            bool isGuest = AuthenticationData.IsGuestMode;
+
+            if (isAuthenticated && !isGuest)
+            {
+                // User is authenticated - set flag to show welcome panel after scene load
+                // We'll use a static flag that LoginScreen can check
+                AuthenticationData.ShouldShowWelcomePanel = true;
+            }
+            else
+            {
+                // User is guest or not authenticated - clear flag
+                AuthenticationData.ShouldShowWelcomePanel = false;
+            }
+
+            // Navigate to login scene
+            SceneManager.LoadScene(loginSceneName);
         }
     }
 }

@@ -129,11 +129,62 @@ namespace Solracer.UI
            
             AuthenticationFlowManager.OnAuthenticationStateChanged += OnAuthenticationStateChanged;
             
-            ShowLoginCanvas();
-            EnsureAuthPanelsHidden();
+            // Check if we should show welcome panel (user returning from token picker while authenticated)
+            if (AuthenticationData.ShouldShowWelcomePanel && AuthenticationData.IsAuthenticated && !AuthenticationData.IsGuestMode)
+            {
+                // User is authenticated and returning - show welcome panel, hide login canvas
+                HideLoginScreenUI();
+                AuthenticationData.ShouldShowWelcomePanel = false; // Reset flag
+                
+                // Trigger welcome panel display via AuthenticationFlowManager
+                if (AuthenticationFlowManager.Instance != null)
+                {
+                    // Wait a frame for AuthenticationFlowManager to be ready, then show welcome panel
+                    StartCoroutine(ShowWelcomePanelDelayed());
+                }
+            }
+            else
+            {
+                // Normal flow - show login canvas
+                ShowLoginCanvas();
+                EnsureAuthPanelsHidden();
+            }
             
             // Apply new design styles
             ApplyWelcomePanelStyles();
+        }
+
+        /// <summary>
+        /// Coroutine to show welcome panel after a short delay to ensure AuthenticationFlowManager is ready
+        /// </summary>
+        private System.Collections.IEnumerator ShowWelcomePanelDelayed()
+        {
+            yield return new WaitForEndOfFrame();
+            
+            var authManager = AuthenticationFlowManager.Instance;
+            if (authManager != null)
+            {
+                // Check auth state and show welcome panel if authenticated
+                StartCoroutine(CheckAuthAndShowWelcome());
+            }
+        }
+
+        /// <summary>
+        /// Coroutine to check authentication state and show welcome panel
+        /// </summary>
+        private System.Collections.IEnumerator CheckAuthAndShowWelcome()
+        {
+            var authManager = AuthenticationFlowManager.Instance;
+            if (authManager == null) yield break;
+
+            // Wait for Privy to initialize
+            yield return new WaitForSeconds(0.2f);
+
+            // Check if user is authenticated and show welcome panel
+            if (authManager.IsAuthenticated && !AuthenticationData.IsGuestMode)
+            {
+                authManager.ShowWelcomePanelIfAuthenticated();
+            }
         }
 
         /// <summary>
