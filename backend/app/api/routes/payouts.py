@@ -80,6 +80,7 @@ async def get_payout_status(
 @router.get("/payouts/{race_id}/settle-transaction")
 async def get_settle_transaction(
     race_id: str,
+    wallet_address: str = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -87,9 +88,13 @@ async def get_settle_transaction(
     
     This endpoint returns the transaction bytes that settle the race on-chain.
     The client should:
-    1. Call this endpoint to get the settle_race transaction
+    1. Call this endpoint to get the settle_race transaction (pass wallet_address as query param)
     2. Sign and submit the transaction
     3. Then call /payouts/{race_id}/process to claim the prize
+    
+    Args:
+        wallet_address: The wallet address that will sign and pay for the transaction.
+                       If not provided, defaults to winner's wallet.
     """
     # Find race
     race = db.query(Race).filter(Race.race_id == race_id).first()
@@ -110,11 +115,19 @@ async def get_settle_transaction(
             detail=f"Race {race_id} does not need on-chain settlement"
         )
     
+    # If no wallet_address provided, use the winner's wallet
+    if not wallet_address:
+        if race.winner_wallet:
+            wallet_address = race.winner_wallet
+        else:
+            # Fallback to player1 if no winner set yet
+            wallet_address = race.player1_wallet
+    
     try:
         # Import here to avoid circular imports
         from app.api.routes.races import build_settle_race_transaction
         
-        result = build_settle_race_transaction(race)
+        result = build_settle_race_transaction(race, payer_wallet=wallet_address)
         return {
             "message": "Settle race transaction ready for signing",
             "transaction_bytes": result["transaction_bytes"],

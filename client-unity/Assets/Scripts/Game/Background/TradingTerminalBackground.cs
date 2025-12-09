@@ -61,7 +61,7 @@ namespace Solracer.Game.Background
         [SerializeField] private Color ghostCandleRed = new Color(0.6f, 0.15f, 0.15f, 1f);
         
         [Tooltip("Ghost candle opacity - subtle background effect")]
-        [SerializeField, Range(0.02f, 0.15f)] private float ghostCandleOpacity = 0.06f;
+        [SerializeField, Range(0.02f, 1f)] private float ghostCandleOpacity = 0.06f;
 
         [Header("Support/Resistance Lines (Layer 3)")]
         [Tooltip("Enable support/resistance lines")]

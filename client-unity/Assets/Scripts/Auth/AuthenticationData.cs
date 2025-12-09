@@ -9,6 +9,7 @@ namespace Solracer.Auth
         private static bool isGuestMode = false;
         private static string walletAddress = "";
         private static string userEmail = "";
+        private static bool shouldShowWelcomePanel = false;
 
         //check if the user is auth with Privy or not
         public static bool IsAuthenticated
@@ -22,6 +23,13 @@ namespace Solracer.Auth
         {
             get => isGuestMode;
             set => isGuestMode = value;
+        }
+
+        // Flag to indicate welcome panel should be shown when returning to login scene
+        public static bool ShouldShowWelcomePanel
+        {
+            get => shouldShowWelcomePanel;
+            set => shouldShowWelcomePanel = value;
         }
 
         //the solana wallet address
@@ -48,6 +56,7 @@ namespace Solracer.Auth
             isGuestMode = false;
             walletAddress = "";
             userEmail = "";
+            shouldShowWelcomePanel = false;
         }
     }
 }

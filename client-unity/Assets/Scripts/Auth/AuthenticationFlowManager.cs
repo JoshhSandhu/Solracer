@@ -136,6 +136,9 @@ namespace Solracer.Auth
 
         private void SetupUI()
         {
+            // Apply styling to auth panels
+            ApplyAuthPanelStyles();
+            
             //Auth panel buttons
             if (connectWalletButton != null)
             {
@@ -283,6 +286,17 @@ namespace Solracer.Auth
             UpdateWelcomePanel();
         }
 
+        /// <summary>
+        /// Public method to show welcome panel (called from LoginScreen when returning authenticated)
+        /// </summary>
+        public void ShowWelcomePanelIfAuthenticated()
+        {
+            if (isAuthenticated && !AuthenticationData.IsGuestMode)
+            {
+                ShowWelcomePanel();
+            }
+        }
+
         private void HideAllPanels()
         {
             if (authPanel != null) authPanel.SetActive(false);
@@ -353,6 +367,9 @@ namespace Solracer.Auth
 
             // Setup UI again with new references
             SetupUI();
+            
+            // Apply styling after references are set
+            ApplyAuthPanelStyles();
             
             // Ensure panels are hidden initially
             HideAllPanels();
@@ -789,21 +806,27 @@ namespace Solracer.Auth
                 string solanaAddress = await GetSolanaWalletAddress();
                 if (!string.IsNullOrEmpty(solanaAddress) && solanaAddress != "No Wallet")
                 {
-                    string shortAddress = solanaAddress.Length > 12 ?
-                        $"{solanaAddress.Substring(0, 6)}...{solanaAddress.Substring(solanaAddress.Length - 6)}" :
-                        solanaAddress;
-                    walletAddressText.text = $"Solana Wallet: {shortAddress}";
+                    // Use UIStyleHelper for consistent truncation (BDVvR5...hK6ckt format)
+                    walletAddressText.text = UIStyleHelper.TruncateWallet(solanaAddress, 6, 6);
                 }
                 else
                 {
-                    walletAddressText.text = "Solana Wallet: Wallet Not Created";
+                    walletAddressText.text = "Wallet Not Created";
                 }
             }
 
             if (userInfoText != null)
             {
                 var user = await privyInstance.GetUser();
-                userInfoText.text = $"User ID: {user?.Id ?? "Unknown"}";
+                if (user != null && !string.IsNullOrEmpty(user.Id))
+                {
+                    // Use UIStyleHelper for consistent truncation (cmhk...zwl0 format)
+                    userInfoText.text = UIStyleHelper.TruncateUserId(user.Id, 4, 4);
+                }
+                else
+                {
+                    userInfoText.text = "Unknown";
+                }
             }
         }
 
@@ -1145,6 +1168,67 @@ namespace Solracer.Auth
             {
                 Debug.LogError($"Failed to sign message: {ex.Message}");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Applies the Solana Cyberpunk design styles to auth panels (ss2-ss4)
+        /// </summary>
+        private void ApplyAuthPanelStyles()
+        {
+            // Load color scheme
+            var colorScheme = Resources.Load<SolracerColors>("SolracerColors");
+            if (colorScheme == null)
+            {
+                Debug.LogWarning("AuthenticationFlowManager: SolracerColors not found in Resources!");
+                return;
+            }
+
+            // Set color scheme in helper
+            UIStyleHelper.Colors = colorScheme;
+
+            // Style Auth Panel (ss2) - Welcome to Solracer!
+            if (authTitleText != null)
+            {
+                UIStyleHelper.SetFont(authTitleText, UIStyleHelper.FontType.Orbitron);
+                authTitleText.text = "Welcome to Solracer!";
+                authTitleText.color = new Color32(255, 255, 255, 255); // #ffffff - white
+                authTitleText.fontStyle = FontStyles.Bold;
+                authTitleText.characterSpacing = 6;
+                authTitleText.alignment = TextAlignmentOptions.Center;
+            }
+
+            if (authDescriptionText != null)
+            {
+                UIStyleHelper.SetFont(authDescriptionText, UIStyleHelper.FontType.Exo2);
+                authDescriptionText.text = "Connect your wallet to start racing!";
+                authDescriptionText.color = new Color32(255, 255, 255, 230); // White with slight opacity
+                authDescriptionText.fontStyle = FontStyles.Normal;
+                authDescriptionText.alignment = TextAlignmentOptions.Center;
+            }
+
+            // Style Email Login Panel (ss3)
+            if (emailInputField != null)
+            {
+                UIStyleHelper.StyleInputField(emailInputField, isCodeInput: false);
+                var placeholder = emailInputField.placeholder as TextMeshProUGUI;
+                if (placeholder != null)
+                {
+                    placeholder.text = "Enter Email";
+                    placeholder.color = new Color32(255, 255, 255, 128); // Semi-transparent white
+                }
+            }
+
+            // Style OTP Verification Panel (ss4)
+            if (otpCodeInputField != null)
+            {
+                UIStyleHelper.StyleInputField(otpCodeInputField, isCodeInput: true);
+                var placeholder = otpCodeInputField.placeholder as TextMeshProUGUI;
+                if (placeholder != null)
+                {
+                    placeholder.text = "Verify OTP";
+                    placeholder.color = new Color32(255, 255, 255, 128); // Semi-transparent white
+                }
             }
         }
     }
