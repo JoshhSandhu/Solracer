@@ -15,11 +15,33 @@ namespace Solracer.UI
     /// </summary>
     public class TokenPickerScreen : MonoBehaviour
     {
-        [Header("UI References")]
-        [Tooltip("Coin selection dropdown")]
+        [Header("UI References - Legacy (Dropdown)")]
+        [Tooltip("Coin selection dropdown (legacy - will be hidden if coin cards are used)")]
         [SerializeField] private TMP_Dropdown coinDropdown;
 
-        [Tooltip("Button to go back to Mode Selection")]
+        [Header("UI References - New Design (Card Carousel)")]
+        [Tooltip("Title text: 'Select Your Coin'")]
+        [SerializeField] private TextMeshProUGUI titleText;
+
+        [Tooltip("Coin card buttons (BONK, SOL, ZEC)")]
+        [SerializeField] private Button[] coinCardButtons = new Button[3];
+
+        [Tooltip("Coin icon images (one per card)")]
+        [SerializeField] private Image[] coinIcons = new Image[3];
+
+        [Tooltip("Coin name texts (one per card)")]
+        [SerializeField] private TextMeshProUGUI[] coinNameTexts = new TextMeshProUGUI[3];
+
+        [Tooltip("Coin symbol texts (one per card)")]
+        [SerializeField] private TextMeshProUGUI[] coinSymbolTexts = new TextMeshProUGUI[3];
+
+        [Tooltip("Selected indicator text")]
+        [SerializeField] private TextMeshProUGUI selectedIndicatorText;
+
+        [Tooltip("Go to Mode Selection button")]
+        [SerializeField] private Button goToModeSelectionButton;
+
+        [Tooltip("Button to go back to Mode Selection (legacy)")]
         [SerializeField] private Button backToModeSelectionButton;
 
         [Header("Coin Settings")]
@@ -49,7 +71,13 @@ namespace Solracer.UI
         [Tooltip("Loading text")]
         [SerializeField] private TextMeshProUGUI loadingText;
 
+        [Header("Design System")]
+        [Tooltip("Reference to SolracerColors asset (optional - will load from Resources if null)")]
+        [SerializeField] private SolracerColors colorScheme;
+
         private bool isCreatingRace = false;
+        private int selectedCoinIndex = 0; // 0 = BONK, 1 = SOL, 2 = ZEC
+        private bool[] isCardHighlighted = new bool[3]; // Track which cards are highlighted
 
 
         private void Start()
@@ -60,8 +88,24 @@ namespace Solracer.UI
             //load coin sprites
             LoadCoinSprites();
 
-            //setup dropdown
-            SetupDropdown();
+            // Apply new design system styles
+            ApplyTokenPickerStyles();
+
+            // Setup UI based on which system is available
+            if (coinCardButtons != null && coinCardButtons.Length >= 3 && coinCardButtons[0] != null)
+            {
+                // New card-based UI
+                SetupCoinCards();
+                if (coinDropdown != null)
+                {
+                    coinDropdown.gameObject.SetActive(false); // Hide legacy dropdown
+                }
+            }
+            else
+            {
+                // Legacy dropdown UI
+                SetupDropdown();
+            }
 
             //setup button listener
             SetupButton();
@@ -195,13 +239,252 @@ namespace Solracer.UI
         /// </summary>
         private void SetupButton()
         {
-            if (backToModeSelectionButton != null)
+            // Use new button if available, otherwise fall back to legacy
+            Button buttonToUse = goToModeSelectionButton != null ? goToModeSelectionButton : backToModeSelectionButton;
+            
+            if (buttonToUse != null)
             {
-                backToModeSelectionButton.onClick.AddListener(OnBackToModeSelectionClicked);
+                buttonToUse.onClick.AddListener(OnBackToModeSelectionClicked);
             }
             else
             {
-                Debug.LogWarning("TokenPickerScreen: Back to Mode Selection button not found!");
+                Debug.LogWarning("TokenPickerScreen: Go to Mode Selection button not found!");
+            }
+        }
+
+        /// <summary>
+        /// Applies the new Solana Cyberpunk design styles to the token picker screen
+        /// </summary>
+        private void ApplyTokenPickerStyles()
+        {
+            // Load color scheme if not assigned
+            if (colorScheme == null)
+            {
+                colorScheme = Resources.Load<SolracerColors>("SolracerColors");
+                if (colorScheme == null)
+                {
+                    Debug.LogWarning("TokenPickerScreen: SolracerColors not found in Resources! Create it first.");
+                    return;
+                }
+            }
+
+            // Set color scheme in helper
+            UIStyleHelper.Colors = colorScheme;
+
+            // Style title
+            if (titleText != null)
+            {
+                UIStyleHelper.SetFont(titleText, UIStyleHelper.FontType.Orbitron);
+                titleText.text = "Select Your Coin";
+                titleText.color = new Color32(153, 69, 255, 255); // #9945FF
+                titleText.fontStyle = FontStyles.Bold;
+                titleText.characterSpacing = 4;
+                titleText.alignment = TextAlignmentOptions.Center;
+            }
+
+            // Style selected indicator
+            if (selectedIndicatorText != null)
+            {
+                UIStyleHelper.SetFont(selectedIndicatorText, UIStyleHelper.FontType.Exo2);
+                selectedIndicatorText.color = new Color32(148, 163, 184, 255); // #94A3B8
+                selectedIndicatorText.alignment = TextAlignmentOptions.Center;
+            }
+
+        }
+
+        /// <summary>
+        /// Sets up coin cards for the new card-based UI
+        /// </summary>
+        private void SetupCoinCards()
+        {
+            if (coinCardButtons == null || coinCardButtons.Length < 3)
+            {
+                Debug.LogWarning("TokenPickerScreen: Coin card buttons not properly assigned!");
+                return;
+            }
+
+            // Coin data
+            string[] coinNames = { "BONK", "SOL", "ZEC" };
+            string[] coinSymbols = { "BONK", "Solana", "Zcash" };
+            CoinType[] coinTypes = { CoinType.BONK, CoinType.Solana, CoinType.Zcash };
+
+            for (int i = 0; i < 3; i++)
+            {
+                int index = i; // Capture for closure
+
+                // Setup button click listener and highlight tracking
+                if (coinCardButtons[i] != null)
+                {
+                    coinCardButtons[i].onClick.RemoveAllListeners();
+                    coinCardButtons[i].onClick.AddListener(() => OnCoinCardClicked(index));
+
+                    // Track highlight state for glow effect
+                    int cardIndex = index; // Capture for closure
+                    
+                    // Create event trigger for hover states
+                    var eventTrigger = coinCardButtons[i].gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
+                    if (eventTrigger == null)
+                    {
+                        eventTrigger = coinCardButtons[i].gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+                    }
+
+                    // Clear existing triggers
+                    eventTrigger.triggers.Clear();
+
+                    // Pointer Enter (hover/highlight)
+                    var pointerEnter = new UnityEngine.EventSystems.EventTrigger.Entry();
+                    pointerEnter.eventID = UnityEngine.EventSystems.EventTriggerType.PointerEnter;
+                    pointerEnter.callback.AddListener((data) => OnCoinCardHighlighted(cardIndex, true));
+                    eventTrigger.triggers.Add(pointerEnter);
+
+                    // Pointer Exit (unhighlight)
+                    var pointerExit = new UnityEngine.EventSystems.EventTrigger.Entry();
+                    pointerExit.eventID = UnityEngine.EventSystems.EventTriggerType.PointerExit;
+                    pointerExit.callback.AddListener((data) => OnCoinCardHighlighted(cardIndex, false));
+                    eventTrigger.triggers.Add(pointerExit);
+
+                    // Pointer Down (press)
+                    var pointerDown = new UnityEngine.EventSystems.EventTrigger.Entry();
+                    pointerDown.eventID = UnityEngine.EventSystems.EventTriggerType.PointerDown;
+                    pointerDown.callback.AddListener((data) => OnCoinCardPressed(cardIndex, true));
+                    eventTrigger.triggers.Add(pointerDown);
+
+                    // Pointer Up (release)
+                    var pointerUp = new UnityEngine.EventSystems.EventTrigger.Entry();
+                    pointerUp.eventID = UnityEngine.EventSystems.EventTriggerType.PointerUp;
+                    pointerUp.callback.AddListener((data) => OnCoinCardPressed(cardIndex, false));
+                    eventTrigger.triggers.Add(pointerUp);
+                }
+
+                // Setup coin icon
+                if (coinIcons != null && i < coinIcons.Length && coinIcons[i] != null)
+                {
+                    if (coinSpritesArray != null && i < coinSpritesArray.Length && coinSpritesArray[i] != null)
+                    {
+                        coinIcons[i].sprite = coinSpritesArray[i];
+                        coinIcons[i].preserveAspect = true;
+                    }
+                }
+
+                // Setup coin name text
+                if (coinNameTexts != null && i < coinNameTexts.Length && coinNameTexts[i] != null)
+                {
+                    UIStyleHelper.SetFont(coinNameTexts[i], UIStyleHelper.FontType.Orbitron);
+                    coinNameTexts[i].text = coinNames[i];
+                    coinNameTexts[i].fontStyle = FontStyles.Bold;
+                    coinNameTexts[i].alignment = TextAlignmentOptions.Center;
+                    coinNameTexts[i].color = new Color32(153, 69, 255, 255); // #9945FF (will change to green when selected)
+                }
+
+                // Setup coin symbol text
+                if (coinSymbolTexts != null && i < coinSymbolTexts.Length && coinSymbolTexts[i] != null)
+                {
+                    UIStyleHelper.SetFont(coinSymbolTexts[i], UIStyleHelper.FontType.JetBrainsMono);
+                    coinSymbolTexts[i].text = coinSymbols[i];
+                    coinSymbolTexts[i].alignment = TextAlignmentOptions.Center;
+                    coinSymbolTexts[i].color = new Color32(148, 163, 184, 255); // #94A3B8
+                }
+
+                // Style coin card (initial state - no highlight yet)
+                if (coinCardButtons[i] != null)
+                {
+                    if (i < isCardHighlighted.Length)
+                    {
+                        isCardHighlighted[i] = false; // Initialize highlight state
+                    }
+                    UIStyleHelper.StyleCoinCard(coinCardButtons[i].gameObject, isSelected: (i == selectedCoinIndex), isHighlighted: false);
+                }
+            }
+
+            // Set initial selection
+            OnCoinSelected(selectedCoinIndex);
+            UpdateSelectedIndicator();
+        }
+
+        /// <summary>
+        /// Called when a coin card is clicked
+        /// </summary>
+        private void OnCoinCardClicked(int index)
+        {
+            if (index < 0 || index >= 3)
+            {
+                Debug.LogWarning($"TokenPickerScreen: Invalid coin card index {index}");
+                return;
+            }
+
+            selectedCoinIndex = index;
+            OnCoinSelected(index);
+            UpdateSelectedIndicator();
+            UpdateCoinCardStyles(); // This will apply both selection and highlight glow
+        }
+
+        /// <summary>
+        /// Updates the visual styles of all coin cards based on selection and highlight state
+        /// </summary>
+        private void UpdateCoinCardStyles()
+        {
+            if (coinCardButtons == null) return;
+
+            for (int i = 0; i < coinCardButtons.Length && i < 3; i++)
+            {
+                if (coinCardButtons[i] != null)
+                {
+                    bool isSelected = (i == selectedCoinIndex);
+                    bool isHighlighted = (i < isCardHighlighted.Length && isCardHighlighted[i]);
+                    UIStyleHelper.StyleCoinCard(coinCardButtons[i].gameObject, isSelected, isHighlighted);
+
+                    // Update coin name color
+                    if (coinNameTexts != null && i < coinNameTexts.Length && coinNameTexts[i] != null)
+                    {
+                        if (isSelected)
+                        {
+                            coinNameTexts[i].color = new Color32(20, 241, 149, 255); // #14F195 - green when selected
+                        }
+                        else
+                        {
+                            coinNameTexts[i].color = new Color32(153, 69, 255, 255); // #9945FF - purple when unselected
+                        }
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Called when a coin card is highlighted (hovered)
+        /// </summary>
+        private void OnCoinCardHighlighted(int index, bool highlighted)
+        {
+            if (index < 0 || index >= 3) return;
+
+            if (index < isCardHighlighted.Length)
+            {
+                isCardHighlighted[index] = highlighted;
+            }
+
+            // Update visual styles to show/hide highlight glow
+            UpdateCoinCardStyles();
+        }
+
+        /// <summary>
+        /// Called when a coin card is pressed/released
+        /// </summary>
+        private void OnCoinCardPressed(int index, bool isPressed)
+        {
+            // Optional: Add press animation or visual feedback
+            // For now, we'll just ensure the highlight state is maintained
+        }
+
+        /// <summary>
+        /// Updates the selected indicator text
+        /// </summary>
+        private void UpdateSelectedIndicator()
+        {
+            if (selectedIndicatorText == null) return;
+
+            string[] coinNames = { "BONK", "SOL", "ZEC" };
+            if (selectedCoinIndex >= 0 && selectedCoinIndex < coinNames.Length)
+            {
+                selectedIndicatorText.text = $"{coinNames[selectedCoinIndex]}";
             }
         }
 
