@@ -113,15 +113,17 @@ async def settle_race_onchain(db: Session, race: Race) -> bool:
         return False
 
 
-def build_settle_race_transaction(race: Race) -> dict:
+def build_settle_race_transaction(race: Race, payer_wallet: str = None) -> dict:
     """
     Build settle_race transaction for client to sign.
     
-    Returns the transaction bytes that need to be signed by any wallet
-    (the settle_race instruction is permissionless).
+    Returns the transaction bytes that need to be signed by the payer wallet.
+    The settle_race instruction is permissionless, but someone needs to pay tx fees.
     
     Args:
         race: Race object to settle
+        payer_wallet: Wallet address that will sign and pay for the transaction.
+                     If not provided, defaults to player1_wallet.
         
     Returns:
         dict with transaction_bytes (base64) and other info
@@ -151,8 +153,9 @@ def build_settle_race_transaction(race: Race) -> dict:
     if not recent_blockhash:
         raise ValueError("Failed to get recent blockhash")
     
-    # Use player1 as the payer (the client will replace this with their wallet)
-    payer = Pubkey.from_string(race.player1_wallet)
+    # Use the provided payer wallet or fall back to player1
+    payer_address = payer_wallet if payer_wallet else race.player1_wallet
+    payer = Pubkey.from_string(payer_address)
     
     # Build transaction
     transaction = transaction_builder.build_transaction(
@@ -224,15 +227,18 @@ def check_and_cancel_expired_races(db: Session):
 
 def generate_race_id(token_mint: str, entry_fee: float, player1: str) -> str:
     """
-    Generate a deterministic race ID based on race parameters.
+    Generate unique race ID with timestamp to prevent PDA collisions.
     
     NOTE: Race ID must be ≤ 32 bytes for Solana PDA seed compatibility.
     We use a 32-character hex hash (32 bytes when encoded as UTF-8).
+    
+    The timestamp ensures each race gets a unique ID even if the same
+    player creates multiple races with the same token and entry fee.
     """
-    # Create a deterministic seed from race parameters
-    seed_string = f"{token_mint}_{entry_fee}_{player1}"
+    import time
+    timestamp = time.time_ns()  # Nanosecond precision for uniqueness
+    seed_string = f"{token_mint}_{entry_fee}_{player1}_{timestamp}"
     race_id_hash = hashlib.sha256(seed_string.encode()).hexdigest()[:32]
-    # Use just the hash - no prefix to keep it ≤ 32 bytes for PDA seeds
     return race_id_hash
 
 

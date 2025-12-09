@@ -51,6 +51,13 @@ namespace Solracer.UI
         [Tooltip("Path to coin sprites folder (relative to Resources folder)")]
         [SerializeField] private string coinSpritesPath = "Scripts/UI/Coins";
 
+        [Header("Coin Card Backgrounds")]
+        [Tooltip("Background sprite for unselected coin cards")]
+        [SerializeField] private Sprite coinCardBackgroundUnselected;
+
+        [Tooltip("Background sprite for selected coin cards")]
+        [SerializeField] private Sprite coinCardBackgroundSelected;
+
         [Header("Settings")]
         [Tooltip("Scene name for Mode Selection")]
         [SerializeField] private string modeSelectionSceneName = "ModeSelection";
@@ -392,7 +399,13 @@ namespace Solracer.UI
                     {
                         isCardHighlighted[i] = false; // Initialize highlight state
                     }
-                    UIStyleHelper.StyleCoinCard(coinCardButtons[i].gameObject, isSelected: (i == selectedCoinIndex), isHighlighted: false);
+                    UIStyleHelper.StyleCoinCard(
+                        coinCardButtons[i].gameObject, 
+                        isSelected: (i == selectedCoinIndex), 
+                        isHighlighted: false,
+                        backgroundSpriteUnselected: coinCardBackgroundUnselected,
+                        backgroundSpriteSelected: coinCardBackgroundSelected
+                    );
                 }
             }
 
@@ -431,18 +444,24 @@ namespace Solracer.UI
                 {
                     bool isSelected = (i == selectedCoinIndex);
                     bool isHighlighted = (i < isCardHighlighted.Length && isCardHighlighted[i]);
-                    UIStyleHelper.StyleCoinCard(coinCardButtons[i].gameObject, isSelected, isHighlighted);
+                    UIStyleHelper.StyleCoinCard(
+                        coinCardButtons[i].gameObject, 
+                        isSelected, 
+                        isHighlighted,
+                        backgroundSpriteUnselected: coinCardBackgroundUnselected,
+                        backgroundSpriteSelected: coinCardBackgroundSelected
+                    );
 
                     // Update coin name color
                     if (coinNameTexts != null && i < coinNameTexts.Length && coinNameTexts[i] != null)
                     {
                         if (isSelected)
                         {
-                            coinNameTexts[i].color = new Color32(20, 241, 149, 255); // #14F195 - green when selected
+                            coinNameTexts[i].color = new Color32(20, 241, 149, 220); // #14F195 - green when selected
                         }
                         else
                         {
-                            coinNameTexts[i].color = new Color32(153, 69, 255, 255); // #9945FF - purple when unselected
+                            coinNameTexts[i].color = new Color32(153, 69, 255, 220); // #9945FF - purple when unselected
                         }
                     }
                 }

@@ -133,7 +133,10 @@ namespace Solracer.UI
         /// <param name="card">Coin card GameObject (Button)</param>
         /// <param name="isSelected">True if this card is selected</param>
         /// <param name="isHighlighted">True if this card is highlighted (hovered)</param>
-        public static void StyleCoinCard(GameObject card, bool isSelected = false, bool isHighlighted = false)
+        /// <param name="backgroundSpriteUnselected">Optional sprite for unselected card background</param>
+        /// <param name="backgroundSpriteSelected">Optional sprite for selected card background</param>
+        public static void StyleCoinCard(GameObject card, bool isSelected = false, bool isHighlighted = false, 
+            Sprite backgroundSpriteUnselected = null, Sprite backgroundSpriteSelected = null)
         {
             if (card == null) return;
             if (Colors == null)
@@ -151,16 +154,32 @@ namespace Solracer.UI
             // Determine if card should show glow (selected or highlighted)
             bool shouldGlow = isSelected || isHighlighted;
 
-            // Set background color based on selection state
-            if (isSelected)
+            // Set background sprite or color based on selection state
+            if (isSelected && backgroundSpriteSelected != null)
             {
-                // Selected: green tinted background
-                image.color = new Color32(20, 241, 149, 38); // rgba(20, 241, 149, 0.15)
+                // Selected: use selected background sprite
+                image.sprite = backgroundSpriteSelected;
+                image.color = Color.white; // Use sprite's original colors
+            }
+            else if (!isSelected && backgroundSpriteUnselected != null)
+            {
+                // Unselected: use unselected background sprite
+                image.sprite = backgroundSpriteUnselected;
+                image.color = Color.white; // Use sprite's original colors
             }
             else
             {
-                // Unselected: dark semi-transparent background
-                image.color = Colors.GetCardBackgroundWithOpacity(0.85f);
+                // Fallback: use color-based backgrounds if sprites not provided
+                if (isSelected)
+                {
+                    // Selected: green tinted background
+                    image.color = new Color32(20, 241, 149, 38); // rgba(20, 241, 149, 0.15)
+                }
+                else
+                {
+                    // Unselected: dark semi-transparent background
+                    image.color = Colors.GetCardBackgroundWithOpacity(0.85f);
+                }
             }
 
             // Remove all existing outline/shadow effects to rebuild
@@ -569,6 +588,132 @@ namespace Solracer.UI
             {
                 image.color = new Color32(0, 0, 0, 128); // rgba(0, 0, 0, 0.5)
             }
+        }
+
+        /// <summary>
+        /// Styles a stat card item (for stats grid)
+        /// </summary>
+        public static void StyleStatCard(GameObject card)
+        {
+            if (card == null) return;
+            if (Colors == null)
+            {
+                Debug.LogWarning("SolracerColors not loaded! Stat card styling may not work correctly.");
+                return;
+            }
+
+            var image = card.GetComponent<Image>();
+            if (image == null)
+            {
+                image = card.AddComponent<Image>();
+            }
+
+            image.color = new Color32(0, 0, 0, 77); // rgba(0, 0, 0, 0.3)
+
+            // Add outline for border
+            var outline = card.GetComponent<Outline>();
+            if (outline == null)
+            {
+                outline = card.AddComponent<Outline>();
+            }
+            outline.effectColor = new Color32(153, 69, 255, 77); // rgba(153, 69, 255, 0.3)
+            outline.effectDistance = new Vector2(1, 1);
+            outline.useGraphicAlpha = true;
+        }
+
+        /// <summary>
+        /// Styles a section card (opponent section, payout section, etc.)
+        /// </summary>
+        /// <param name="section">Section GameObject</param>
+        /// <param name="isGreen">True for green section (opponent), false for purple (payout)</param>
+        public static void StyleSection(GameObject section, bool isGreen = false)
+        {
+            if (section == null) return;
+            if (Colors == null)
+            {
+                Debug.LogWarning("SolracerColors not loaded! Section styling may not work correctly.");
+                return;
+            }
+
+            var image = section.GetComponent<Image>();
+            if (image == null)
+            {
+                image = section.AddComponent<Image>();
+            }
+
+            if (isGreen)
+            {
+                // Green section (opponent)
+                image.color = new Color32(20, 241, 149, 26); // rgba(20, 241, 149, 0.1)
+            }
+            else
+            {
+                // Purple section (payout)
+                image.color = new Color32(153, 69, 255, 26); // rgba(153, 69, 255, 0.1)
+            }
+
+            // Add outline for border
+            var outline = section.GetComponent<Outline>();
+            if (outline == null)
+            {
+                outline = section.AddComponent<Outline>();
+            }
+
+            if (isGreen)
+            {
+                outline.effectColor = Colors.borderGreen; // #14F195
+            }
+            else
+            {
+                outline.effectColor = Colors.borderPurple; // #9945FF
+            }
+            outline.effectDistance = new Vector2(1, 1);
+            outline.useGraphicAlpha = true;
+        }
+
+        /// <summary>
+        /// Styles a large number display (score, coins, payout amount) with glow effect
+        /// </summary>
+        /// <param name="text">TextMeshProUGUI component</param>
+        /// <param name="isGreen">True for green glow (score), false for purple (coins/payout)</param>
+        public static void StyleLargeNumber(TextMeshProUGUI text, bool isGreen = false)
+        {
+            if (text == null) return;
+            if (Colors == null)
+            {
+                Debug.LogWarning("SolracerColors not loaded! Large number styling may not work correctly.");
+                return;
+            }
+
+            SetFont(text, FontType.JetBrainsMono);
+            text.alignment = TextAlignmentOptions.Center;
+
+            if (isGreen)
+            {
+                text.color = Colors.solGreen; // #14F195
+            }
+            else
+            {
+                text.color = Colors.solPurple; // #9945FF
+            }
+
+            // Add outline for glow effect
+            var outline = text.GetComponent<Outline>();
+            if (outline == null)
+            {
+                outline = text.gameObject.AddComponent<Outline>();
+            }
+
+            if (isGreen)
+            {
+                outline.effectColor = new Color32(20, 241, 149, 128); // rgba(20, 241, 149, 0.5)
+            }
+            else
+            {
+                outline.effectColor = new Color32(153, 69, 255, 128); // rgba(153, 69, 255, 0.5)
+            }
+            outline.effectDistance = new Vector2(3, 3);
+            outline.useGraphicAlpha = true;
         }
 
         public enum FontType

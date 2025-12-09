@@ -1,10 +1,10 @@
 fileFormatVersion: 2
-guid: 07ad6b21403807e4db31a6d5d61933eb
+guid: 6d88f62821383724c949597416731fe4
 TextureImporter:
   internalIDToNameTable:
   - first:
-      213: 7141765067525904753
-    second: Untitled design (1)_0
+      213: -1003695325810134894
+    second: Slider Background_0
   externalObjects: {}
   serializedVersion: 13
   mipmaps:
@@ -46,7 +46,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 1
+  spriteMode: 2
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
@@ -100,12 +100,12 @@ TextureImporter:
     buildTarget: Android
     maxTextureSize: 2048
     resizeAlgorithm: 0
-    textureFormat: -1
+    textureFormat: 47
     textureCompression: 1
     compressionQuality: 50
     crunchedCompression: 0
     allowsAlphaSplitting: 0
-    overridden: 0
+    overridden: 1
     ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
@@ -139,23 +139,23 @@ TextureImporter:
     serializedVersion: 2
     sprites:
     - serializedVersion: 2
-      name: Untitled design (1)_0
+      name: Slider Background_0
       rect:
         serializedVersion: 2
-        x: 86
-        y: 165
-        width: 849
-        height: 708
+        x: 55
+        y: 331
+        width: 914
+        height: 348
       alignment: 0
-      pivot: {x: 0, y: 0}
-      border: {x: 0, y: 0, z: 0, w: 0}
+      pivot: {x: 0.5, y: 0.5}
+      border: {x: 160, y: 160, z: 160, w: 160}
       customData: 
       outline: []
       physicsShape: []
       tessellationDetail: -1
       bones: []
-      spriteID: 179dc2f7d75ac1360800000000000000
-      internalID: 7141765067525904753
+      spriteID: 290fd524b682212f0800000000000000
+      internalID: -1003695325810134894
       vertices: []
       indices: 
       edges: []
@@ -164,7 +164,7 @@ TextureImporter:
     customData: 
     physicsShape: []
     bones: []
-    spriteID: 5e97eb03825dee720800000000000000
+    spriteID: 821fccef9e6587d44a8686451dd181cb
     internalID: 0
     vertices: []
     indices: 
@@ -174,7 +174,7 @@ TextureImporter:
     spriteCustomMetadata:
       entries: []
     nameFileIdTable:
-      Untitled design (1)_0: 7141765067525904753
+      Slider Background_0: -1003695325810134894
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 
