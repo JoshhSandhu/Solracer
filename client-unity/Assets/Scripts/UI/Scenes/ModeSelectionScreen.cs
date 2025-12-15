@@ -319,7 +319,7 @@ namespace Solracer.UI
                 "Race solo to improve your skills. No entry fee, no pressure.",
                 "Race against others for real prizes. Entry fee required."
             };
-            string[] modeIconTexts = { "🏎️", "🏁" }; // Emoji icons
+            string[] modeIconTexts = { "", "" }; // Mode icons (removed emojis)
 
             for (int i = 0; i < 2; i++)
             {
