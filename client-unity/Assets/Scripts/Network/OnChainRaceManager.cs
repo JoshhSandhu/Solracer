@@ -498,6 +498,14 @@ namespace Solracer.Network
 
         private static async Task<bool> ShowTransactionSigningModal(string title, string description, Action<string, float> onProgressUpdate)
         {
+            // For MWA wallets, skip the in-game modal - MWA provides its own bottom sheet UI
+            if (AuthenticationData.IsMWAWallet)
+            {
+                Debug.Log("[OnChainRaceManager] MWA wallet detected - skipping in-game modal (wallet will show bottom sheet)");
+                return true;
+            }
+
+            // For Privy wallets, show the in-game modal (Privy is headless)
             var modal = GetSigningModal();
             if (modal == null)
             {

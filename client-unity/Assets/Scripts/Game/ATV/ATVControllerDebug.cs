@@ -69,11 +69,11 @@ namespace Solracer.Game
             Keyboard keyboard = Keyboard.current;
             if (keyboard == null)
             {
-                GUI.Label(new Rect(10, 160, 500, 30), "⚠️ No keyboard detected!", style);
+                GUI.Label(new Rect(10, 160, 500, 30), "No keyboard detected!", style);
             }
             else
             {
-                GUI.Label(new Rect(10, 160, 500, 30), $"✅ Keyboard: D={keyboard.dKey.isPressed}, A={keyboard.aKey.isPressed}, Space={keyboard.spaceKey.isPressed}", style);
+                GUI.Label(new Rect(10, 160, 500, 30), $"Keyboard: D={keyboard.dKey.isPressed}, A={keyboard.aKey.isPressed}, Space={keyboard.spaceKey.isPressed}", style);
             }
 
             // Show tire rotation
