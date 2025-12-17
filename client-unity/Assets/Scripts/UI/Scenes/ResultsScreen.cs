@@ -232,12 +232,12 @@ namespace Solracer.UI
 
                 if (success)
                 {
-                    Debug.Log("[ResultsScreen] ✅ Retry submission successful!");
+                    Debug.Log("[ResultsScreen] Retry submission successful!");
                     ShowWaitingState("Waiting for opponent...");
                 }
                 else
                 {
-                    Debug.LogWarning("[ResultsScreen] ⚠ Retry submission failed");
+                    Debug.LogWarning("[ResultsScreen] Retry submission failed");
                     ShowErrorState("Failed to submit result. Please try again.");
                     SetButtonActive(fallbackTxnButton, true);
                 }
@@ -763,13 +763,13 @@ namespace Solracer.UI
 
                 if (success)
                 {
-                    Debug.Log("[ResultsScreen] ✅ Retry submission successful!");
+                    Debug.Log("[ResultsScreen] Retry submission successful!");
                     ShowWaitingState("Waiting for opponent...");
                     SetButtonActive(fallbackTxnButton, false);
                 }
                 else
                 {
-                    Debug.LogWarning("[ResultsScreen] ⚠ Retry submission failed again");
+                    Debug.LogWarning("[ResultsScreen] Retry submission failed again");
                     ShowErrorState("Failed to submit result. Please try again.");
                     SetButtonActive(fallbackTxnButton, true);
                 }
@@ -835,7 +835,7 @@ namespace Solracer.UI
                         }
                         else
                         {
-                            Debug.Log("[ResultsScreen] ✅ Race settled on-chain successfully!");
+                            Debug.Log("[ResultsScreen] Race settled on-chain successfully!");
                             // Wait a moment for the settlement to propagate
                             await Task.Delay(2000);
                         }
@@ -881,9 +881,9 @@ namespace Solracer.UI
 
                 if (success)
                 {
-                    Debug.Log("[ResultsScreen] ✅ Prize claimed successfully!");
+                    Debug.Log("[ResultsScreen] Prize claimed successfully!");
                     if (prizeStatusText != null)
-                        prizeStatusText.text = "Prize Claimed! ✓";
+                        prizeStatusText.text = "Prize Claimed!";
                     
                     // Enable mode selection button
                     SetButtonActive(modeSelectionButton, true);
@@ -1035,7 +1035,7 @@ namespace Solracer.UI
                 
                 if (success)
                 {
-                    Debug.Log($"[ResultsScreen] ✅ Settle transaction submitted: {submitResponse.transaction_signature}");
+                    Debug.Log($"[ResultsScreen] Settle transaction submitted: {submitResponse.transaction_signature}");
                 }
                 else
                 {
@@ -1166,7 +1166,7 @@ namespace Solracer.UI
                         SetButtonActive(fallbackTxnButton, false);
                         SetButtonActive(modeSelectionButton, true);
                         
-                        Debug.Log("[ResultsScreen] ✅ Loser UI activated - mode selection button shown");
+                        Debug.Log("[ResultsScreen] Loser UI activated - mode selection button shown");
                         
                         // Verify button state
                         if (modeSelectionButton != null)
@@ -1263,7 +1263,7 @@ namespace Solracer.UI
             
             if (isWinner)
             {
-                Debug.Log("[ResultsScreen] 🏆 Setting up WINNER buttons");
+                Debug.Log("[ResultsScreen] Setting up WINNER buttons");
                 // WINNER flow
                 switch (payout.swap_status?.ToLower())
                 {
@@ -1291,7 +1291,7 @@ namespace Solracer.UI
                         SetButtonActive(fallbackTxnButton, false);
                         SetButtonActive(modeSelectionButton, true);
                         if (prizeStatusText != null)
-                            prizeStatusText.text = "Prize Claimed! ✓";
+                            prizeStatusText.text = "Prize Claimed!";
                         break;
 
                     case "failed":
@@ -1312,7 +1312,7 @@ namespace Solracer.UI
             else
             {
                 // LOSER flow - show mode selection button only
-                Debug.Log("[ResultsScreen] 😢 Setting up LOSER buttons - enabling mode selection");
+                Debug.Log("[ResultsScreen] Setting up LOSER buttons - enabling mode selection");
                 SetButtonActive(claimPrizeButton, false);
                 SetButtonActive(fallbackTxnButton, false);
                 SetButtonActive(modeSelectionButton, true);
@@ -1324,7 +1324,7 @@ namespace Solracer.UI
                 }
                 else
                 {
-                    Debug.LogError("[ResultsScreen] ❌ modeSelectionButton is NULL!");
+                    Debug.LogError("[ResultsScreen] modeSelectionButton is NULL!");
                 }
             }
         }
@@ -1335,8 +1335,8 @@ namespace Solracer.UI
             {
                 "pending" => "Prize Ready to Claim",
                 "swapping" => "Swapping...",
-                "paid" => "Prize Claimed! ✓",
-                "fallback_sol" => "Paid in SOL ✓",
+                "paid" => "Prize Claimed!",
+                "fallback_sol" => "Paid in SOL",
                 "failed" => "Claim Failed",
                 _ => "Processing..."
             };
@@ -1549,7 +1549,7 @@ namespace Solracer.UI
             {
                 if (isWinner)
                 {
-                    winnerIndicatorText.text = "🏆 You Won!";
+                    winnerIndicatorText.text = "You Won!";
                 }
                 else
                 {

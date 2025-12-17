@@ -1,8 +1,10 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using TMPro;
 using System;
 using System.Linq;
+using System.Collections;
 using Privy;
 using System.Threading.Tasks;
 using Solracer.UI;
@@ -220,6 +222,7 @@ namespace Solracer.Auth
                 isAuthenticated = true;
                 AuthenticationData.IsAuthenticated = true;
                 AuthenticationData.WalletAddress = walletAddress;
+                AuthenticationData.CurrentWalletType = WalletType.Privy; // Privy embedded wallet
                 Debug.Log($"User has a Solana wallet: {walletAddress}");
                 ShowWelcomePanel();
             }
@@ -368,6 +371,9 @@ namespace Solracer.Auth
             // Setup UI again with new references
             SetupUI();
             
+            // Setup wallet address tap-to-copy handler
+            SetupWalletAddressCopyHandler();
+            
             // Apply styling after references are set
             ApplyAuthPanelStyles();
             
@@ -383,144 +389,90 @@ namespace Solracer.Auth
             loginScreen = loginScreenRef;
         }
 
+        /// <summary>
+        /// Connects to Mock MWA Wallet (Seeker Wallet) using Mobile Wallet Adapter protocol
+        /// </summary>
         public async void ConnectWallet()
         {
-            if (privyInstance == null) return;
-
             try
             {
-                var currentAuthState = await privyInstance.GetAuthState();
-                if (currentAuthState == AuthState.Authenticated)
+                // Check if already connected via MWA
+                if (AuthenticationData.IsMWAWallet && !string.IsNullOrEmpty(walletAddress))
                 {
-                    Debug.Log("User already authenticated - checking wallet status...");
-                    await CheckWalletStatus();
+                    Debug.Log("[ConnectWallet] Already connected to MWA wallet - showing welcome panel...");
+                    ShowWelcomePanel();
                     return;
                 }
 
-                Debug.Log("Connecting wallet via Google OAuth...");
-                
-                // Configure redirect URI based on platform
-                string redirectUri = isMobileApp
-                    ? "http://localhost:3000/auth/callback"
-                    : "http://localhost:3000/auth/callback";
+                Debug.Log("[ConnectWallet] Connecting to Mock MWA Wallet (Seeker)...");
 
-                var authState = await privyInstance.OAuth.LoginWithProvider(OAuthProvider.Google, redirectUri);
+                // Get or create MWA adapter instance
+                var mwaAdapter = MWAWalletAdapter.Instance;
 
-                if (authState == AuthState.Authenticated)
+                // Use SignIn for SIWS (Sign In With Solana) - combines connect + authenticate
+                var connectionResult = await mwaAdapter.SignInAsync();
+
+                if (connectionResult.Success && !string.IsNullOrEmpty(connectionResult.WalletAddress))
                 {
-                    Debug.Log("OAuth login successful");
-                    await CheckWalletAfterOAuthLogin();
+                    // MWA connection successful
+                    walletAddress = connectionResult.WalletAddress;
+                    hasWallet = true;
+                    isAuthenticated = true;
+                    
+                    // Update AuthenticationData
+                    AuthenticationData.IsAuthenticated = true;
+                    AuthenticationData.WalletAddress = walletAddress;
+                    AuthenticationData.CurrentWalletType = WalletType.MWA;
+                    AuthenticationData.MWAAuthToken = connectionResult.AuthToken ?? "";
+
+                    Debug.Log($"[ConnectWallet] MWA wallet connected successfully");
+                    Debug.Log($"[ConnectWallet] Wallet address: {walletAddress}");
+                    
+                    // Notify listeners
+                    OnAuthenticationStateChanged?.Invoke(true);
+                    
+                    ShowWelcomePanel();
                 }
                 else
                 {
-                    Debug.LogWarning("OAuth login failed or was cancelled");
+                    Debug.LogWarning($"[ConnectWallet] MWA wallet connection failed: {connectionResult.ErrorMessage}");
+                    ShowAuthPanel();
                 }
             }
             catch (Exception e)
             {
-                Debug.LogError($"Wallet connection failed: {e.Message}");
-                Debug.LogError("Note: OAuth login may not work properly in Unity Editor. Try building and testing on device/web.");
+                Debug.LogError($"[ConnectWallet] MWA wallet connection failed: {e.Message}");
+                Debug.LogError($"[ConnectWallet] Stack trace: {e.StackTrace}");
+                ShowAuthPanel();
             }
         }
 
         /// <summary>
-        /// Checks and creates Solana wallet after OAuth login
+        /// Checks MWA wallet status if already connected
         /// </summary>
-        private async Task CheckWalletAfterOAuthLogin()
+        private async Task CheckMWAWalletStatus()
         {
-            await Task.Delay(500); //wait for aut to complete
+            var mwaAdapter = MWAWalletAdapter.Instance;
             
-            // Verify authentication state
-            var authState = await privyInstance.GetAuthState();
-            if (authState != AuthState.Authenticated)
+            if (mwaAdapter.IsConnected && !string.IsNullOrEmpty(mwaAdapter.WalletAddress))
             {
-                Debug.LogError($"User is not authenticated. Auth state: {authState}");
-                ShowAuthPanel();
-                return;
-            }
-
-            var user = await privyInstance.GetUser();
-            if (user == null)
-            {
-                Debug.LogError("Privy instance or User is null - cannot check wallet");
-                ShowAuthPanel();
-                return;
-            }
-
-            Debug.Log($"User authenticated. User ID: {user.Id}");
-
-            var solanaWallets = user.EmbeddedSolanaWallets;
-            if (solanaWallets != null && solanaWallets.Length > 0)
-            {
-                walletAddress = solanaWallets[0].Address;
+                walletAddress = mwaAdapter.WalletAddress;
                 hasWallet = true;
                 isAuthenticated = true;
                 AuthenticationData.IsAuthenticated = true;
                 AuthenticationData.WalletAddress = walletAddress;
-                Debug.Log($"User has Solana wallet: {walletAddress}");
+                AuthenticationData.CurrentWalletType = WalletType.MWA;
+                
+                Debug.Log($"[CheckMWAWalletStatus] MWA wallet still connected: {walletAddress}");
                 ShowWelcomePanel();
             }
             else
             {
-                try
-                {
-                    Debug.Log("No Solana wallet found, creating one...");
-                    
-                    var currentAuthState = await privyInstance.GetAuthState();
-                    if (currentAuthState != AuthState.Authenticated)
-                    {
-                        Debug.LogError($"Authentication lost before wallet creation. State: {currentAuthState}");
-                        ShowAuthPanel();
-                        return;
-                    }
-
-                    var createWalletTask = user.CreateSolanaWallet();
-                    var timeoutTask = Task.Delay(TimeSpan.FromSeconds(30));
-
-                    var completedTask = await Task.WhenAny(createWalletTask, timeoutTask);
-
-                    if (completedTask == timeoutTask)
-                    {
-                        Debug.LogError("Solana wallet creation timed out after 30 seconds");
-                        ShowAuthPanel();
-                        return;
-                    }
-
-                    var newWallet = await createWalletTask;
-                    if (newWallet == null)
-                    {
-                        Debug.LogError("Created wallet is null");
-                        ShowAuthPanel();
-                        return;
-                    }
-
-                    walletAddress = newWallet.Address;
-                    hasWallet = true;
-                    isAuthenticated = true;
-                    AuthenticationData.IsAuthenticated = true;
-                    AuthenticationData.WalletAddress = walletAddress;
-                    Debug.Log($"Solana wallet created successfully: {walletAddress}");
-                    ShowWelcomePanel();
-                }
-                catch (Exception e)
-                {
-                    Debug.LogError($"Failed to create Solana wallet: {e.Message}");
-                    Debug.LogError($"Exception type: {e.GetType().Name}");
-                    Debug.LogError($"Stack trace: {e.StackTrace}");
-                    
-                    if (e.Message.Contains("401") || e.Message.Contains("Invalid auth token") || e.Message.Contains("Unauthorized"))
-                    {
-                        Debug.LogError("=== AUTHENTICATION TOKEN ERROR ===");
-                        Debug.LogError("Possible causes:");
-                        Debug.LogError("1. Privy App ID or Client ID is incorrect");
-                        Debug.LogError("2. Solana wallet creation not enabled in Privy Dashboard");
-                        Debug.LogError("3. Authentication token expired - try logging out and logging in again");
-                        Debug.LogError("4. Check Privy Dashboard → Settings → Solana configuration");
-                    }
-                    
-                    ShowAuthPanel();
-                }
+                Debug.Log("[CheckMWAWalletStatus] MWA wallet not connected, showing auth panel");
+                ShowAuthPanel();
             }
+            
+            await Task.CompletedTask;
         }
 
         public async void SendOTPCode()
@@ -616,6 +568,7 @@ namespace Solracer.Auth
                 AuthenticationData.IsAuthenticated = true;
                 AuthenticationData.WalletAddress = walletAddress;
                 AuthenticationData.UserEmail = userEmail;
+                AuthenticationData.CurrentWalletType = WalletType.Privy; // Email login uses Privy wallet
                 Debug.Log($"User has Solana wallet: {walletAddress}");
                 ShowWelcomePanel();
             }
@@ -659,6 +612,7 @@ namespace Solracer.Auth
                     AuthenticationData.IsAuthenticated = true;
                     AuthenticationData.WalletAddress = walletAddress;
                     AuthenticationData.UserEmail = userEmail;
+                    AuthenticationData.CurrentWalletType = WalletType.Privy; // Email login uses Privy wallet
                     Debug.Log($"Solana wallet created successfully: {walletAddress}");
                     ShowWelcomePanel();
                 }
@@ -801,9 +755,24 @@ namespace Solracer.Auth
 
         private async void UpdateWelcomePanel()
         {
+            // Check if user is connected via MWA or Privy
+            bool isMWA = AuthenticationData.IsMWAWallet;
+
             if (walletAddressText != null)
             {
-                string solanaAddress = await GetSolanaWalletAddress();
+                string solanaAddress;
+                
+                if (isMWA)
+                {
+                    // For MWA users, get wallet address from AuthenticationData
+                    solanaAddress = AuthenticationData.WalletAddress;
+                }
+                else
+                {
+                    // For Privy users, get wallet address from Privy SDK
+                    solanaAddress = await GetSolanaWalletAddress();
+                }
+
                 if (!string.IsNullOrEmpty(solanaAddress) && solanaAddress != "No Wallet")
                 {
                     // Use UIStyleHelper for consistent truncation (BDVvR5...hK6ckt format)
@@ -817,15 +786,24 @@ namespace Solracer.Auth
 
             if (userInfoText != null)
             {
-                var user = await privyInstance.GetUser();
-                if (user != null && !string.IsNullOrEmpty(user.Id))
+                if (isMWA)
                 {
-                    // Use UIStyleHelper for consistent truncation (cmhk...zwl0 format)
-                    userInfoText.text = UIStyleHelper.TruncateUserId(user.Id, 4, 4);
+                    // For MWA users, show "MWA Wallet" instead of Privy user ID
+                    userInfoText.text = "MWA Wallet";
                 }
                 else
                 {
-                    userInfoText.text = "Unknown";
+                    // For Privy users, get user ID from Privy SDK
+                    var user = await privyInstance.GetUser();
+                    if (user != null && !string.IsNullOrEmpty(user.Id))
+                    {
+                        // Use UIStyleHelper for consistent truncation (cmhk...zwl0 format)
+                        userInfoText.text = UIStyleHelper.TruncateUserId(user.Id, 4, 4);
+                    }
+                    else
+                    {
+                        userInfoText.text = "Unknown";
+                    }
                 }
             }
         }
@@ -840,6 +818,85 @@ namespace Solracer.Auth
 
             if (welcomeTitleText != null)
                 welcomeTitleText.text = "Ready to Race!";
+        }
+
+        /// <summary>
+        /// Sets up the wallet address text to be clickable for copy-to-clipboard
+        /// </summary>
+        private void SetupWalletAddressCopyHandler()
+        {
+            if (walletAddressText == null) return;
+
+            // Add EventTrigger component if not present
+            var eventTrigger = walletAddressText.GetComponent<EventTrigger>();
+            if (eventTrigger == null)
+            {
+                eventTrigger = walletAddressText.gameObject.AddComponent<EventTrigger>();
+            }
+
+            // Clear existing triggers to avoid duplicates
+            eventTrigger.triggers.Clear();
+
+            // Create pointer click entry
+            var pointerClickEntry = new EventTrigger.Entry
+            {
+                eventID = EventTriggerType.PointerClick
+            };
+            pointerClickEntry.callback.AddListener((data) => { CopyWalletAddressToClipboard(); });
+            eventTrigger.triggers.Add(pointerClickEntry);
+
+            // Make sure the text has a raycast target
+            if (walletAddressText.raycastTarget == false)
+            {
+                walletAddressText.raycastTarget = true;
+            }
+
+            Debug.Log("[AuthenticationFlowManager] Wallet address copy handler set up");
+        }
+
+        /// <summary>
+        /// Copies the full wallet address to clipboard and shows feedback
+        /// </summary>
+        private void CopyWalletAddressToClipboard()
+        {
+            // Get the full wallet address (not truncated)
+            string fullAddress = AuthenticationData.WalletAddress;
+            
+            if (string.IsNullOrEmpty(fullAddress))
+            {
+                Debug.LogWarning("[CopyWalletAddress] No wallet address to copy");
+                return;
+            }
+
+            // Copy to clipboard
+            GUIUtility.systemCopyBuffer = fullAddress;
+            Debug.Log($"[CopyWalletAddress] Copied wallet address to clipboard: {fullAddress}");
+
+            // Show visual feedback
+            StartCoroutine(ShowCopiedFeedback());
+        }
+
+        /// <summary>
+        /// Shows "Copied!" feedback briefly then restores the wallet address
+        /// </summary>
+        private IEnumerator ShowCopiedFeedback()
+        {
+            if (walletAddressText == null) yield break;
+
+            // Store the original text
+            string originalText = walletAddressText.text;
+            Color originalColor = walletAddressText.color;
+
+            // Show "Copied!" with a green color
+            walletAddressText.text = "Copied!";
+            walletAddressText.color = new Color32(20, 241, 149, 255); // Sol Green
+
+            // Wait for 1.5 seconds
+            yield return new WaitForSeconds(1.5f);
+
+            // Restore original text and color
+            walletAddressText.text = originalText;
+            walletAddressText.color = originalColor;
         }
 
         public async Task<IEmbeddedSolanaWallet> CreateSolanaWallet()
@@ -891,12 +948,8 @@ namespace Solracer.Auth
         }
 
         /// <summary>
-        /// Sign a Solana transaction using Privy wallet and Solana Unity SDK.
-        /// Properly deserializes the transaction, signs it, and serializes it back.
-        /// </summary>
-        /// <summary>
-        /// Sign a Solana transaction using Privy wallet and Solana Unity SDK.
-        /// Properly deserializes the transaction, signs it, and serializes it back.
+        /// Sign a Solana transaction using the active wallet (MWA or Privy).
+        /// Routes to the appropriate signing method based on wallet type.
         /// </summary>
         public async Task<string> SignTransaction(string transactionBase64)
         {
@@ -904,20 +957,92 @@ namespace Solracer.Auth
             {
                 if (!isAuthenticated)
                 {
-                    Debug.LogError("User is not authenticated. Cannot sign transaction.");
+                    Debug.LogError("[SignTransaction] User is not authenticated. Cannot sign transaction.");
                     return null;
                 }
 
                 if (string.IsNullOrEmpty(transactionBase64))
                 {
-                    Debug.LogError("Transaction bytes are empty.");
+                    Debug.LogError("[SignTransaction] Transaction bytes are empty.");
                     return null;
                 }
+
+                // Route to the appropriate wallet based on type
+                WalletType currentWalletType = AuthenticationData.CurrentWalletType;
+                Debug.Log($"[SignTransaction] Using wallet type: {currentWalletType}");
+
+                if (currentWalletType == WalletType.MWA)
+                {
+                    // Use MWA wallet for signing
+                    return await SignTransactionWithMWA(transactionBase64);
+                }
+                else
+                {
+                    // Use Privy wallet for signing (default)
+                    return await SignTransactionWithPrivy(transactionBase64);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SignTransaction] Failed to sign transaction: {ex.Message}");
+                Debug.LogError($"[SignTransaction] Stack trace: {ex.StackTrace}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Sign a transaction using MWA (Mobile Wallet Adapter) - Mock MWA Wallet / Seeker.
+        /// Uses Solana Unity SDK's built-in MWA support which triggers the wallet's bottom sheet UI.
+        /// </summary>
+        private async Task<string> SignTransactionWithMWA(string transactionBase64)
+        {
+            try
+            {
+                Debug.Log("[SignTransactionWithMWA] Starting MWA transaction signing...");
+                Debug.Log("[SignTransactionWithMWA] The wallet app will show a bottom sheet for approval...");
+
+                var mwaAdapter = MWAWalletAdapter.Instance;
+                
+                if (!mwaAdapter.IsConnected)
+                {
+                    Debug.LogError("[SignTransactionWithMWA] MWA wallet is not connected");
+                    return null;
+                }
+
+                // MWA adapter handles the full signing flow using Solana Unity SDK
+                // This will trigger the MWA wallet's bottom sheet UI for user approval
+                string signedTransaction = await mwaAdapter.SignTransactionAsync(transactionBase64);
+
+                if (string.IsNullOrEmpty(signedTransaction))
+                {
+                    Debug.LogError("[SignTransactionWithMWA] MWA signing failed - user may have rejected or wallet error occurred");
+                    return null;
+                }
+
+                Debug.Log("[SignTransactionWithMWA] Transaction signed successfully with MWA wallet!");
+                return signedTransaction;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[SignTransactionWithMWA] Failed: {ex.Message}");
+                Debug.LogError($"[SignTransactionWithMWA] Stack trace: {ex.StackTrace}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Sign a transaction using Privy embedded wallet (for email login users)
+        /// </summary>
+        private async Task<string> SignTransactionWithPrivy(string transactionBase64)
+        {
+            try
+            {
+                Debug.Log("[SignTransactionWithPrivy] Starting Privy transaction signing...");
 
                 var wallets = await GetSolanaWallets();
                 if (wallets == null || wallets.Length == 0)
                 {
-                    Debug.LogError("No Solana wallets found.");
+                    Debug.LogError("[SignTransactionWithPrivy] No Solana wallets found.");
                     return null;
                 }
 
@@ -925,33 +1050,33 @@ namespace Solracer.Auth
 
                 if (wallet.EmbeddedSolanaWalletProvider == null)
                 {
-                    Debug.LogError("EmbeddedSolanaWalletProvider is null on Privy wallet.");
+                    Debug.LogError("[SignTransactionWithPrivy] EmbeddedSolanaWalletProvider is null on Privy wallet.");
                     return null;
                 }
 
-                Debug.Log($"[SignTransaction] Starting transaction signing. Base64 length: {transactionBase64.Length}");
+                Debug.Log($"[SignTransactionWithPrivy] Transaction base64 length: {transactionBase64.Length}");
 
                 // Step 1: Decode base64 to bytes
                 byte[] transactionBytes = System.Convert.FromBase64String(transactionBase64);
-                Debug.Log($"[SignTransaction] Decoded transaction: {transactionBytes.Length} bytes");
+                Debug.Log($"[SignTransactionWithPrivy] Decoded transaction: {transactionBytes.Length} bytes");
 
                 // Step 2: Deserialize transaction using Solana Unity SDK
                 Transaction transaction = null;
                 try
                 {
                     transaction = Transaction.Deserialize(transactionBytes);
-                    Debug.Log($"[SignTransaction] Successfully deserialized transaction. Instructions: {transaction.Instructions?.Count ?? 0}");
+                    Debug.Log($"[SignTransactionWithPrivy] Successfully deserialized transaction. Instructions: {transaction.Instructions?.Count ?? 0}");
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[SignTransaction] Error deserializing transaction: {ex.Message}");
+                    Debug.LogError($"[SignTransactionWithPrivy] Error deserializing transaction: {ex.Message}");
                     Debug.LogError($"Stack trace: {ex.StackTrace}");
                     return null;
                 }
 
                 if (transaction == null)
                 {
-                    Debug.LogError("[SignTransaction] Transaction deserialization returned null");
+                    Debug.LogError("[SignTransactionWithPrivy] Transaction deserialization returned null");
                     return null;
                 }
 
@@ -960,42 +1085,42 @@ namespace Solracer.Auth
                 try
                 {
                     messageBytes = transaction.CompileMessage();
-                    Debug.Log($"[SignTransaction] Compiled message: {messageBytes.Length} bytes");
+                    Debug.Log($"[SignTransactionWithPrivy] Compiled message: {messageBytes.Length} bytes");
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[SignTransaction] Error compiling message: {ex.Message}");
+                    Debug.LogError($"[SignTransactionWithPrivy] Error compiling message: {ex.Message}");
                     return null;
                 }
 
                 if (messageBytes == null || messageBytes.Length == 0)
                 {
-                    Debug.LogError("[SignTransaction] Failed to extract message from transaction");
+                    Debug.LogError("[SignTransactionWithPrivy] Failed to extract message from transaction");
                     return null;
                 }
 
                 // Step 4: Sign the message using Privy
                 string messageBase64 = System.Convert.ToBase64String(messageBytes);
-                Debug.Log($"[SignTransaction] Signing transaction message ({messageBytes.Length} bytes)...");
+                Debug.Log($"[SignTransactionWithPrivy] Signing transaction message ({messageBytes.Length} bytes)...");
 
                 var signTask = wallet.EmbeddedSolanaWalletProvider.SignMessage(messageBase64);
                 var completed = await Task.WhenAny(signTask, Task.Delay(TimeSpan.FromSeconds(30)));
 
                 if (completed != signTask)
                 {
-                    Debug.LogError("Privy signing timed out after 30 seconds.");
+                    Debug.LogError("[SignTransactionWithPrivy] Privy signing timed out after 30 seconds.");
                     return null;
                 }
 
                 string signatureBase64 = await signTask;
                 if (string.IsNullOrEmpty(signatureBase64))
                 {
-                    Debug.LogError("Privy signature failed - returned empty signature.");
+                    Debug.LogError("[SignTransactionWithPrivy] Privy signature failed - returned empty signature.");
                     return null;
                 }
 
                 byte[] signatureBytes = System.Convert.FromBase64String(signatureBase64);
-                Debug.Log($"[SignTransaction] Received signature: {signatureBytes.Length} bytes");
+                Debug.Log($"[SignTransactionWithPrivy] Received signature: {signatureBytes.Length} bytes");
 
                 // Step 5: Add signature to transaction
                 try
@@ -1020,7 +1145,7 @@ namespace Solracer.Auth
                                     Signature = signatureBytes
                                 };
                                 signatureAdded = true;
-                                Debug.Log($"[SignTransaction] Updated signature at index {i}");
+                                Debug.Log($"[SignTransactionWithPrivy] Updated signature at index {i}");
                                 break;
                             }
                         }
@@ -1034,7 +1159,7 @@ namespace Solracer.Auth
                                 Signature = signatureBytes
                             };
                             signatureAdded = true;
-                            Debug.Log("[SignTransaction] Added signature to first slot");
+                            Debug.Log("[SignTransactionWithPrivy] Added signature to first slot");
                         }
                     }
                     else
@@ -1049,18 +1174,18 @@ namespace Solracer.Auth
                             }
                         };
                         signatureAdded = true;
-                        Debug.Log("[SignTransaction] Created new signatures list with our signature");
+                        Debug.Log("[SignTransactionWithPrivy] Created new signatures list with our signature");
                     }
 
                     if (!signatureAdded)
                     {
-                        Debug.LogError("[SignTransaction] Failed to add signature to transaction");
+                        Debug.LogError("[SignTransactionWithPrivy] Failed to add signature to transaction");
                         return null;
                     }
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[SignTransaction] Error adding signature: {ex.Message}");
+                    Debug.LogError($"[SignTransactionWithPrivy] Error adding signature: {ex.Message}");
                     Debug.LogError($"Stack trace: {ex.StackTrace}");
                     return null;
                 }
@@ -1070,38 +1195,38 @@ namespace Solracer.Auth
                 try
                 {
                     signedTransactionBytes = transaction.Serialize();
-                    Debug.Log($"[SignTransaction] Serialized signed transaction: {signedTransactionBytes.Length} bytes");
+                    Debug.Log($"[SignTransactionWithPrivy] Serialized signed transaction: {signedTransactionBytes.Length} bytes");
                 }
                 catch (Exception ex)
                 {
-                    Debug.LogError($"[SignTransaction] Error serializing transaction: {ex.Message}");
+                    Debug.LogError($"[SignTransactionWithPrivy] Error serializing transaction: {ex.Message}");
                     Debug.LogError($"Stack trace: {ex.StackTrace}");
                     return null;
                 }
 
                 if (signedTransactionBytes == null || signedTransactionBytes.Length == 0)
                 {
-                    Debug.LogError("[SignTransaction] Failed to serialize signed transaction");
+                    Debug.LogError("[SignTransactionWithPrivy] Failed to serialize signed transaction");
                     return null;
                 }
 
                 // Verify we're not just returning a signature
                 if (signedTransactionBytes.Length == 64)
                 {
-                    Debug.LogError("[SignTransaction] ERROR: Serialized transaction is only 64 bytes - this is just a signature!");
-                    Debug.LogError("[SignTransaction] The backend will reject this. Transaction signing failed.");
+                    Debug.LogError("[SignTransactionWithPrivy] ERROR: Serialized transaction is only 64 bytes - this is just a signature!");
+                    Debug.LogError("[SignTransactionWithPrivy] The backend will reject this. Transaction signing failed.");
                     return null;
                 }
 
                 // Step 7: Return base64-encoded signed transaction
                 string signedTransactionBase64 = System.Convert.ToBase64String(signedTransactionBytes);
-                Debug.Log($"[SignTransaction] ✓ Transaction signed successfully! Signed transaction: {signedTransactionBytes.Length} bytes (base64: {signedTransactionBase64.Length} chars)");
+                Debug.Log($"[SignTransactionWithPrivy] Transaction signed successfully! Signed transaction: {signedTransactionBytes.Length} bytes (base64: {signedTransactionBase64.Length} chars)");
                 return signedTransactionBase64;
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[SignTransaction] Failed to sign transaction: {ex.Message}");
-                Debug.LogError($"[SignTransaction] Stack trace: {ex.StackTrace}");
+                Debug.LogError($"[SignTransactionWithPrivy] Failed to sign transaction: {ex.Message}");
+                Debug.LogError($"[SignTransactionWithPrivy] Stack trace: {ex.StackTrace}");
                 return null;
             }
         }
