@@ -498,7 +498,7 @@ namespace Solracer.Game
                     }
                     catch (System.Exception ex)
                     {
-                        Debug.LogError($"[RaceManager] ❌ Exception submitting result (game over): {ex.Message}");
+                        Debug.LogError($"[RaceManager] Exception submitting result (game over): {ex.Message}");
                     }
                     
                     // *** Store submission result ***
@@ -506,16 +506,16 @@ namespace Solracer.Game
                     
                     if (!submitted)
                     {
-                        Debug.LogWarning("[RaceManager] ⚠ Result submission failed or was cancelled (game over)");
+                        Debug.LogWarning("[RaceManager] Result submission failed or was cancelled (game over)");
                     }
                     else
                     {
-                        Debug.Log("[RaceManager] ✅ Result submitted successfully (game over)!");
+                        Debug.Log("[RaceManager] Result submitted successfully (game over)!");
                     }
                 }
                 else
                 {
-                    Debug.LogWarning($"[RaceManager] ⚠ Competitive mode but no active race (game over)! RaceId: '{RaceData.CurrentRaceId}'");
+                    Debug.LogWarning($"[RaceManager] Competitive mode but no active race (game over)! RaceId: '{RaceData.CurrentRaceId}'");
                 }
             }
             else
@@ -598,7 +598,7 @@ namespace Solracer.Game
                     }
                     catch (System.Exception ex)
                     {
-                        Debug.LogError($"[RaceManager] ❌ Exception submitting result: {ex.Message}");
+                        Debug.LogError($"[RaceManager] Exception submitting result: {ex.Message}");
                     }
                     
                     // *** Store submission result ***
@@ -606,16 +606,16 @@ namespace Solracer.Game
                     
                     if (!submitted)
                     {
-                        Debug.LogWarning("[RaceManager] ⚠ Result submission failed or was cancelled");
+                        Debug.LogWarning("[RaceManager] Result submission failed or was cancelled");
                     }
                     else
                     {
-                        Debug.Log("[RaceManager] ✅ Result submitted successfully!");
+                        Debug.Log("[RaceManager] Result submitted successfully!");
                     }
                 }
                 else
                 {
-                    Debug.LogWarning($"[RaceManager] ⚠ Competitive mode but no active race! RaceId: '{RaceData.CurrentRaceId}'");
+                    Debug.LogWarning($"[RaceManager] Competitive mode but no active race! RaceId: '{RaceData.CurrentRaceId}'");
                 }
             }
             else
