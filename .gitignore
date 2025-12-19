@@ -52,13 +52,24 @@ target/
 test-ledger/
 
 # Documentation & Temporary Files
-ARCHITECTURE_UNITY_BACKEND.md
-*.plan.md
+# Exclude all .md files EXCEPT README.md files
+# Pattern: exclude all .md, then un-exclude README.md at any level
+*.md
+!README.md
+!**/README.md
+# Also exclude .meta files for .md (Unity)
+*.md.meta
+!README.md.meta
+!**/README.md.meta
+
+# Keep specific documentation directories excluded
 backend/documentation/Phase3/
 backend/documentation/Phase4/
 backend/documentation/Phase5/
 backend/documentation/Phase6/
 backend/documentation/Phase7/
+
+# Test scripts
 backend/scripts/remove_emojis.py
 backend/scripts/test_phase4_3.py
 backend/scripts/test_phase7.py
@@ -66,11 +77,8 @@ backend/scripts/verify_program_instructions.py
 backend/scripts/test_pda.py
 backend/scripts/test_onchain_flow.py
 backend/scripts/test_birdeye_api.py
-client-unity/*.md
-client-unity/*.md.meta
+
+# HTML mockups
+html-mockups/
 client-unity/LOBBY_UI_MOCKUP.html
 client-unity/LOBBY_UI_MOCKUP.html.meta
-client-unity/Assets/Scripts/Config/*.md
-client-unity/Assets/Scripts/Config/*.md.meta
-client-unity/Assets/Scripts/UI/*.md
-client-unity/Assets/Scripts/UI/*.md.meta
