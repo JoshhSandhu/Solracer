@@ -57,6 +57,8 @@ test-ledger/
 *.md
 !README.md
 !**/README.md
+!**/TECHNICAL-GUIDE.md
+!**/TECHNICAL-GUIDE.md.meta
 # Also exclude .meta files for .md (Unity)
 *.md.meta
 !README.md.meta
