@@ -12,15 +12,29 @@ Solracer is a **demo application** showcasing Solana Unity SDK integration for g
 
 **[Authentication & Wallet Connection]**
 
-| Login Screen | Wallet Connection | Token Selection |
-|---|---|---|
-| <img src="assets/login.png" alt="Login Screen" height="360" /> | <img src="assets/wallet-connect.png" alt="Wallet Connection" height="360" /> | <img src="assets/token-picker.png" alt="Token Picker" height="360" /> |
+| Welcome Screen | MWA Wallet Connection |
+|---|---|
+| <img src="Images/welcome%20screen.jpeg" alt="Welcome Screen" width="480" /> | <img src="Images/MWA%20wallet%20connection.jpeg" alt="MWA Wallet Connection" width="480" /> |
+
+| Token Selection |
+|---|
+| <img src="Images/token%20selection.jpeg" alt="Token Selection" width="640" /> |
 
 **[Game Flow]**
 
-| Mode Selection | Race Gameplay | Results & Payouts |
-|---|---|---|
-| <img src="assets/mode-selection.png" alt="Mode Selection" height="360" /> | <img src="assets/race.png" alt="Race Gameplay" height="360" /> | <img src="assets/results.png" alt="Results Screen" height="360" /> |
+| Mode Selection | Lobby Screen |
+|---|---|
+| <img src="Images/mode%20selection.jpeg" alt="Mode Selection" width="480" /> | <img src="Images/lobby%20screen.jpeg" alt="Lobby Screen" width="480" /> |
+
+| Join Private Lobby |
+|---|
+| <img src="Images/join%20private%20lobby.jpeg" alt="Join Private Lobby" width="640" /> |
+
+**[Wallet Status]**
+
+| Wallet Connected |
+|---|
+| <img src="Images/wallet%20connected.jpeg" alt="Wallet Connected" width="640" /> |
 
 **Key Features:**
 - Connect Solana wallet via Mobile Wallet Adapter (MWA) on Seeker
