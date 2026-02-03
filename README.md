@@ -30,6 +30,12 @@ Solracer is a **demo application** showcasing Solana Unity SDK integration for g
 |---|
 | <img src="Images/join%20private%20lobby.jpeg" alt="Join Private Lobby" width="640" /> |
 
+**[Gameplay]**
+
+| Race Gameplay |
+|---|
+| <img src="Images/solracer%20gif.gif" alt="Race Gameplay" width="800" /> |
+
 **[Wallet Status]**
 
 | Wallet Connected |
