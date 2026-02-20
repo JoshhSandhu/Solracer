@@ -12,23 +12,15 @@ Solracer is a **demo application** showcasing Solana Unity SDK integration for g
 
 **[Authentication & Wallet Connection]**
 
-| Welcome Screen | MWA Wallet Connection |
-|---|---|
-| <img src="Images/welcome%20screen.jpeg" alt="Welcome Screen" width="480" /> | <img src="Images/MWA%20wallet%20connection.jpeg" alt="MWA Wallet Connection" width="480" /> |
-
-| Token Selection |
-|---|
-| <img src="Images/token%20selection.jpeg" alt="Token Selection" width="640" /> |
+| Welcome Screen | MWA Wallet Connection | Token Selection |
+|---|---|---|
+| <img src="Images/welcome%20screen.jpeg" alt="Welcome Screen" height="360" /> | <img src="Images/MWA%20wallet%20connection.jpeg" alt="MWA Wallet Connection" height="360" /> | <img src="Images/token%20selection.jpeg" alt="Token Selection" height="360" /> |
 
 **[Game Flow]**
 
-| Mode Selection | Lobby Screen |
-|---|---|
-| <img src="Images/mode%20selection.jpeg" alt="Mode Selection" width="480" /> | <img src="Images/lobby%20screen.jpeg" alt="Lobby Screen" width="480" /> |
-
-| Join Private Lobby |
-|---|
-| <img src="Images/join%20private%20lobby.jpeg" alt="Join Private Lobby" width="640" /> |
+| Mode Selection | Lobby Screen | Join Private Lobby |
+|---|---|---|
+| <img src="Images/mode%20selection.jpeg" alt="Mode Selection" height="360" /> | <img src="Images/lobby%20screen.jpeg" alt="Lobby Screen" height="360" /> | <img src="Images/join%20private%20lobby.jpeg" alt="Join Private Lobby" height="360" /> |
 
 **[Gameplay]**
 
@@ -40,7 +32,7 @@ Solracer is a **demo application** showcasing Solana Unity SDK integration for g
 
 | Wallet Connected |
 |---|
-| <img src="Images/wallet%20connected.jpeg" alt="Wallet Connected" width="640" /> |
+| <img src="Images/wallet%20connected.jpeg" alt="Wallet Connected" height="360" /> |
 
 **Key Features:**
 - Connect Solana wallet via Mobile Wallet Adapter (MWA) on Seeker
