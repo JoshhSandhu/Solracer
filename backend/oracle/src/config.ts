@@ -60,6 +60,10 @@ export function loadConfig(): OracleConfig {
     10,
   );
 
+  if (isNaN(retentionHours) || retentionHours <= 0) {
+    throw new Error('RETENTION_HOURS must be a positive integer.');
+  }
+
   const trackPointCount = parseInt(
     process.env['TRACK_POINT_COUNT'] ?? '1000',
     10,
@@ -82,6 +86,10 @@ export function loadConfig(): OracleConfig {
     process.env['MAX_CATCHUP_HOURS'] ?? '48',
     10,
   );
+
+  if (isNaN(maxCatchUpHours) || maxCatchUpHours <= 0) {
+    throw new Error('MAX_CATCHUP_HOURS must be a positive integer.');
+  }
 
   return {
     databaseUrl,
