@@ -7,9 +7,10 @@
     "scripts": {
         "build": "tsc",
         "check": "tsc --noEmit",
-        "dev": "ts-node src/index.ts",
+        "dev": "node --env-file=.env -r ts-node/register src/index.ts",
         "start": "node dist/index.js",
         "test": "vitest run",
+        "test:db": "cross-env TEST_DATABASE_URL=postgresql://postgres.mltluakdflwitltuudhd:usC4pvZ2FhfUUnWV@aws-1-ap-south-1.pooler.supabase.com:5432/postgres vitest run",
         "test:watch": "vitest",
         "typecheck": "tsc --noEmit"
     },
@@ -21,6 +22,7 @@
         "@types/node": "^22.0.0",
         "@types/node-cron": "^3.0.11",
         "@types/pg": "^8.11.10",
+        "cross-env": "^10.1.0",
         "ts-node": "^10.9.2",
         "typescript": "^5.7.0",
         "vitest": "^3.0.0"

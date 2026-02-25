@@ -136,7 +136,7 @@ export async function getPlayableTrackBuckets(
   trackVersion: string,
 ): Promise<PlayableTrackBucket[]> {
   const sql = `
-    WITH window AS (
+    WITH valid_window AS (
       SELECT *
       FROM track_buckets
       WHERE token_mint = $1
@@ -147,7 +147,7 @@ export async function getPlayableTrackBuckets(
       SELECT
         MIN(track_hour_start_utc) AS oldest,
         MAX(track_hour_start_utc) AS newest
-      FROM window
+      FROM valid_window
     )
     SELECT w.token_mint,
            w.track_hour_start_utc,
@@ -156,7 +156,7 @@ export async function getPlayableTrackBuckets(
            w.track_hash,
            w.normalized_points_blob,
            w.normalization_meta
-    FROM window w, bounds b
+    FROM valid_window w, bounds b
     WHERE w.track_hour_start_utc > b.oldest
       AND w.track_hour_start_utc < b.newest
     ORDER BY w.track_hour_start_utc ASC
