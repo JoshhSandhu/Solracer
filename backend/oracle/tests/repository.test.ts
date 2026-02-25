@@ -215,7 +215,7 @@ describeDB('Repository  Database Integration', () => {
         await storeTrackBucket(pool, makeBucket('TOKEN_A', hour));
       }
 
-      const buckets = await getPlayableTrackBuckets(pool, 'TOKEN_A');
+      const buckets = await getPlayableTrackBuckets(pool, 'TOKEN_A', 26, '1');
 
       for (let i = 1; i < buckets.length; i++) {
         const prev = buckets[i - 1].track_hour_start_utc.getTime();
@@ -237,7 +237,7 @@ describeDB('Repository  Database Integration', () => {
       const oldest = hours[0];
       const newest = hours[hours.length - 1];
 
-      const buckets = await getPlayableTrackBuckets(pool, 'TOKEN_A');
+      const buckets = await getPlayableTrackBuckets(pool, 'TOKEN_A', 26, '1');
 
       const bucketTimes = buckets.map((b) => b.track_hour_start_utc.getTime());
 
@@ -253,13 +253,13 @@ describeDB('Repository  Database Integration', () => {
         await storeTrackBucket(pool, makeBucket('TOKEN_A', hour));
       }
 
-      const buckets = await getPlayableTrackBuckets(pool, 'TOKEN_A');
+      const buckets = await getPlayableTrackBuckets(pool, 'TOKEN_A', 26, '1');
 
       expect(buckets.length).toBe(24);
     });
 
     it('returns empty array when no buckets exist', async () => {
-      const buckets = await getPlayableTrackBuckets(pool, 'NONEXISTENT');
+      const buckets = await getPlayableTrackBuckets(pool, 'NONEXISTENT', 26, '1');
 
       expect(buckets).toEqual([]);
     });
@@ -273,8 +273,8 @@ describeDB('Repository  Database Integration', () => {
         await storeTrackBucket(pool, makeBucket('TOKEN_B', hour));
       }
 
-      const bucketsA = await getPlayableTrackBuckets(pool, 'TOKEN_A');
-      const bucketsB = await getPlayableTrackBuckets(pool, 'TOKEN_B');
+      const bucketsA = await getPlayableTrackBuckets(pool, 'TOKEN_A', 26, '1');
+      const bucketsB = await getPlayableTrackBuckets(pool, 'TOKEN_B', 26, '1');
 
       expect(bucketsA.every((b) => b.token_mint === 'TOKEN_A')).toBe(true);
       expect(bucketsB.every((b) => b.token_mint === 'TOKEN_B')).toBe(true);

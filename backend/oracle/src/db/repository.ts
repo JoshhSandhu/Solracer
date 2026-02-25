@@ -132,16 +132,16 @@ export async function storeTrackBucket(
 export async function getPlayableTrackBuckets(
   pool: Pool,
   tokenMint: string,
+  retentionHours: number,
+  trackVersion: string,
 ): Promise<PlayableTrackBucket[]> {
-  // Window boundaries: (now - retentionHours) .. now
-  // Exclude the newest bucket (current hour) and the oldest bucket
-  // We use a subquery to find the min/max then filter them out
   const sql = `
     WITH window AS (
       SELECT *
       FROM track_buckets
       WHERE token_mint = $1
-        AND track_hour_start_utc > now() - interval '26 hours'
+        AND track_hour_start_utc > now() - ($2::int * interval '1 hour')
+        AND track_version = $3
     ),
     bounds AS (
       SELECT
@@ -162,7 +162,7 @@ export async function getPlayableTrackBuckets(
     ORDER BY w.track_hour_start_utc ASC
   `;
 
-  const result = await pool.query(sql, [tokenMint]);
+  const result = await pool.query(sql, [tokenMint, retentionHours, trackVersion]);
 
   return result.rows.map((row) => ({
     token_mint: row.token_mint as string,

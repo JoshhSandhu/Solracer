@@ -264,8 +264,9 @@ export function computeCatchUpStartHour(
   );
 
   if (gapHours > maxCatchUpHours) {
+    const clampHours = Math.min(retentionHours, maxCatchUpHours);
     startHour = floorToHour(
-      new Date(currentHour.getTime() - retentionHours * ONE_HOUR_MS),
+      new Date(currentHour.getTime() - clampHours * ONE_HOUR_MS),
     );
   }
 
@@ -287,72 +288,87 @@ async function runStartupCatchUp(
   pool: Pool,
   config: OracleConfig,
 ): Promise<void> {
-  log({ ts: now(), level: 'info', msg: 'Running startup catch-up...' });
+  isRunning = true;
+  try {
+    log({ ts: now(), level: 'info', msg: 'Running startup catch-up...' });
 
-  const currentHour = currentHourUTC();
+    const currentHour = currentHourUTC();
 
-  for (const tokenMint of config.supportedTokens) {
-    try {
-      const latestHour = await getLatestOracleHour(pool, tokenMint);
+    for (const tokenMint of config.supportedTokens) {
+      try {
+        const latestHour = await getLatestOracleHour(pool, tokenMint);
 
-      const startHour = computeCatchUpStartHour(
-        latestHour,
-        currentHour,
-        config.retentionHours,
-        config.maxCatchUpHours,
-      );
-
-      if (latestHour !== null) {
-        const gapHours = Math.floor(
-          (currentHour.getTime() - (latestHour.getTime() + ONE_HOUR_MS)) / ONE_HOUR_MS,
+        const startHour = computeCatchUpStartHour(
+          latestHour,
+          currentHour,
+          config.retentionHours,
+          config.maxCatchUpHours,
         );
-        if (gapHours > config.maxCatchUpHours) {
+
+        if (latestHour !== null) {
+          const gapHours = Math.floor(
+            (currentHour.getTime() - (latestHour.getTime() + ONE_HOUR_MS)) / ONE_HOUR_MS,
+          );
+          if (gapHours > config.maxCatchUpHours) {
+            log({
+              ts: now(),
+              level: 'warn',
+              msg: `Gap of ${gapHours}h exceeds MAX_CATCHUP_HOURS=${config.maxCatchUpHours}. Clamped start to now - ${config.retentionHours}h`,
+              tokenMint,
+            });
+          }
+        } else {
           log({
             ts: now(),
-            level: 'warn',
-            msg: `Gap of ${gapHours}h exceeds MAX_CATCHUP_HOURS=${config.maxCatchUpHours}. Clamped start to now - ${config.retentionHours}h`,
+            level: 'info',
+            msg: 'No existing data  starting fresh backfill',
             tokenMint,
+            hourStart: startHour.toISOString(),
           });
         }
-      } else {
+
+        let current = new Date(startHour.getTime());
+        let backfilled = 0;
+
+        while (current.getTime() <= currentHour.getTime()) {
+          try {
+            await ingestTokenHour(pool, tokenMint, current);
+            backfilled++;
+          } catch (err) {
+            log({
+              ts: now(),
+              level: 'error',
+              msg: 'Catch-up hour failed, continuing',
+              tokenMint,
+              hourStart: current.toISOString(),
+              error: String(err),
+            });
+          }
+          current = new Date(current.getTime() + ONE_HOUR_MS);
+        }
+
         log({
           ts: now(),
           level: 'info',
-          msg: 'No existing data  starting fresh backfill',
+          msg: backfilled > 0
+            ? `Catch-up complete`
+            : `Already up to date`,
           tokenMint,
-          hourStart: startHour.toISOString(),
+          backfilled,
+        });
+      } catch (err) {
+        log({
+          ts: now(),
+          level: 'error',
+          msg: 'Catch-up failed for token',
+          tokenMint,
+          error: String(err),
         });
       }
-
-      // Walk forward hour by hour until we reach current hour
-      let current = new Date(startHour.getTime());
-      let backfilled = 0;
-
-      while (current.getTime() <= currentHour.getTime()) {
-        await ingestTokenHour(pool, tokenMint, current);
-        backfilled++;
-        current = new Date(current.getTime() + ONE_HOUR_MS);
-      }
-
-      log({
-        ts: now(),
-        level: 'info',
-        msg: backfilled > 0
-          ? `Catch-up complete`
-          : `Already up to date`,
-        tokenMint,
-        backfilled,
-      });
-    } catch (err) {
-      log({
-        ts: now(),
-        level: 'error',
-        msg: 'Catch-up failed for token',
-        tokenMint,
-        error: String(err),
-      });
     }
-  }
 
-  log({ ts: now(), level: 'info', msg: 'Startup catch-up complete.' });
+    log({ ts: now(), level: 'info', msg: 'Startup catch-up complete.' });
+  } finally {
+    isRunning = false;
+  }
 }
