@@ -1,35 +1,34 @@
 // ---------------------------------------------------------------------------
-// Oracle Pipeline Repository Layer
+// Oracle Pipeline  Repository Layer (Tick-Based)
 // ---------------------------------------------------------------------------
-// All database operations for oracle points and track buckets
-// Every query uses has parameters to prevent SQL injection
+// All database operations for oracle ticks and track buckets.
+// Every query uses parameterized queries to prevent SQL injection.
 // ---------------------------------------------------------------------------
 
 import type { Pool } from 'pg';
 import type {
-  OracleHourlyPoint,
-  OraclePointInput,
-  TrackBucket,
+  OracleTick,
+  OracleTickInput,
   TrackBucketInput,
   PlayableTrackBucket,
   NormalizationMeta,
 } from '../types/oracle.types';
 
-// ===== Oracle Hourly Points =====
+// ===== Oracle Ticks =====
 
-/*
- Upsert a single oracle price sample
- overwrites with the latest data without erroring
-*/
-export async function storeOraclePoint(
+/**
+ * Upsert a single oracle tick.
+ * ON CONFLICT overwrites with latest data without erroring.
+ */
+export async function storeOracleTick(
   pool: Pool,
-  data: OraclePointInput,
+  data: OracleTickInput,
 ): Promise<void> {
   const sql = `
-    INSERT INTO oracle_hourly_points
-      (token_mint, hour_start_utc, oracle_price, publish_time, source_slot)
+    INSERT INTO oracle_ticks
+      (token_mint, tick_time, oracle_price, publish_time, source_slot)
     VALUES ($1, $2, $3, $4, $5)
-    ON CONFLICT (token_mint, hour_start_utc)
+    ON CONFLICT (token_mint, tick_time)
     DO UPDATE SET
       oracle_price  = EXCLUDED.oracle_price,
       publish_time  = EXCLUDED.publish_time,
@@ -38,65 +37,67 @@ export async function storeOraclePoint(
 
   await pool.query(sql, [
     data.token_mint,
-    data.hour_start_utc,
+    data.tick_time,
     data.oracle_price,
     data.publish_time,
     data.source_slot,
   ]);
 }
 
-/*
- Retrieve oracle points for a specific token + hour
-*/
-export async function getOraclePointsForHour(
+/**
+ * Get all ticks for a token within a specific hour window.
+ * Returns ticks sorted by tick_time ASC (deterministic ordering).
+ */
+export async function getTicksForHour(
   pool: Pool,
   tokenMint: string,
   hourStart: Date,
-): Promise<OracleHourlyPoint | null> {
+): Promise<OracleTick[]> {
+  const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000);
+
   const sql = `
-    SELECT token_mint, hour_start_utc, oracle_price,
+    SELECT token_mint, tick_time, oracle_price,
            publish_time, source_slot, created_at
-    FROM oracle_hourly_points
+    FROM oracle_ticks
     WHERE token_mint = $1
-      AND hour_start_utc = $2
+      AND tick_time >= $2
+      AND tick_time < $3
+    ORDER BY tick_time ASC
   `;
 
-  const result = await pool.query(sql, [tokenMint, hourStart]);
-  if (result.rows.length === 0) return null;
-
-  return result.rows[0] as OracleHourlyPoint;
+  const result = await pool.query(sql, [tokenMint, hourStart, hourEnd]);
+  return result.rows as OracleTick[];
 }
 
-/*
- Get the most recent stored hour for a token
- Used by the ingestion worker startup catch-up logic to detect
- gaps and backfill missing hours
-*/
-export async function getLatestOracleHour(
+/**
+ * Get the most recent tick time for a token.
+ * Used for gap detection logging.
+ */
+export async function getLatestTickTime(
   pool: Pool,
   tokenMint: string,
 ): Promise<Date | null> {
   const sql = `
-    SELECT hour_start_utc
-    FROM oracle_hourly_points
+    SELECT tick_time
+    FROM oracle_ticks
     WHERE token_mint = $1
-    ORDER BY hour_start_utc DESC
+    ORDER BY tick_time DESC
     LIMIT 1
   `;
 
   const result = await pool.query(sql, [tokenMint]);
   if (result.rows.length === 0) return null;
 
-  return result.rows[0].hour_start_utc as Date;
+  return result.rows[0].tick_time as Date;
 }
 
 // ===== Track Buckets =====
 
-/*
- Insert a generated track bucket
- Uses `ON CONFLICT DO UPDATE` so re-generation with the same
- version overwrites cleanly
-*/
+/**
+ * Insert a generated track bucket.
+ * Uses ON CONFLICT DO UPDATE so re-generation with the same
+ * version overwrites cleanly.
+ */
 export async function storeTrackBucket(
   pool: Pool,
   data: TrackBucketInput,
@@ -125,10 +126,32 @@ export async function storeTrackBucket(
   ]);
 }
 
-/*
- Return the 24 playable track buckets for a token
- Results are deterministically ordered by `track_hour_start_utc ASC`
-*/
+/**
+ * Check if a track bucket already exists for a given token+hour+version.
+ * Used for crash-safe track generation (only generate if missing).
+ */
+export async function trackBucketExists(
+  pool: Pool,
+  tokenMint: string,
+  hourStart: Date,
+  trackVersion: string,
+): Promise<boolean> {
+  const sql = `
+    SELECT 1 FROM track_buckets
+    WHERE token_mint = $1
+      AND track_hour_start_utc = $2
+      AND track_version = $3
+    LIMIT 1
+  `;
+
+  const result = await pool.query(sql, [tokenMint, hourStart, trackVersion]);
+  return result.rows.length > 0;
+}
+
+/**
+ * Return the 24 playable track buckets for a token.
+ * Results are deterministically ordered by track_hour_start_utc ASC.
+ */
 export async function getPlayableTrackBuckets(
   pool: Pool,
   tokenMint: string,
@@ -177,21 +200,18 @@ export async function getPlayableTrackBuckets(
 
 // ===== Retention / Cleanup =====
 
-/*
- Delete oracle points and track buckets older than the retention window
- Retention is based on `hour_start_utc`, NOT `created_at`
- This prevents drift caused by ingestion delays or catch-up runs
-*/
+/**
+ * Delete oracle ticks and track buckets older than the retention window.
+ * Retention is based on tick_time / track_hour_start_utc, NOT created_at.
+ */
 export async function deleteExpiredData(
   pool: Pool,
   retentionHours: number,
-): Promise<{ deletedPoints: number; deletedBuckets: number }> {
-  // Pre-compute cutoff in JS so the query uses `WHERE col < $1` form
-  // This is index-friendly and avoids string interpolation in SQL
+): Promise<{ deletedTicks: number; deletedBuckets: number }> {
   const cutoff = new Date(Date.now() - retentionHours * 60 * 60 * 1000);
 
-  const pointsResult = await pool.query(
-    'DELETE FROM oracle_hourly_points WHERE hour_start_utc < $1',
+  const ticksResult = await pool.query(
+    'DELETE FROM oracle_ticks WHERE tick_time < $1',
     [cutoff],
   );
 
@@ -201,7 +221,7 @@ export async function deleteExpiredData(
   );
 
   return {
-    deletedPoints: pointsResult.rowCount ?? 0,
+    deletedTicks: ticksResult.rowCount ?? 0,
     deletedBuckets: bucketsResult.rowCount ?? 0,
   };
 }

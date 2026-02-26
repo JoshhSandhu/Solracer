@@ -1,36 +1,48 @@
 // ---------------------------------------------------------------------------
-// Oracle Pipeline  Ingestion Worker
+// Oracle Pipeline  Tick Ingestion Worker
 // ---------------------------------------------------------------------------
-// Hourly cron worker that:
-//   1. Fetches oracle prices for each configured token.
-//   2. Stores them as hourly buckets.
-//   3. Runs catch-up on startup to backfill gaps (capped).
+// Continuous worker that:
+//   1. Samples oracle prices every 2s with aligned tick times.
+//   2. Stores ticks in oracle_ticks table.
+//   3. Generates tracks for completed hours (DB-checked, crash-safe).
 //   4. Cleans up expired data beyond the retention window.
-//   5. Guards against overlapping cycles.
+//   5. Guards against overlapping tick cycles.
 // ---------------------------------------------------------------------------
 
-import * as cron from 'node-cron';
 import type { Pool } from 'pg';
 import type { OracleConfig } from '../config';
-import { ONE_HOUR_MS } from '../constants';
-import { floorToHour, currentHourUTC } from '../utils/time';
+import {
+  TICK_INTERVAL_MS,
+  ONE_HOUR_MS,
+  TRACK_VERSION,
+  MIN_TICKS_FOR_TRACK,
+  TRACK_GEN_BUFFER_MINUTES,
+} from '../constants';
+import { floorToHour } from '../utils/time';
 import { fetchOraclePrice } from '../services/oracle-fetcher';
 import { generateTrackBucket } from '../services/track-generator';
 import {
-  storeOraclePoint,
-  getLatestOracleHour,
-  getOraclePointsForHour,
+  storeOracleTick,
+  getTicksForHour,
+  getLatestTickTime,
   storeTrackBucket,
+  trackBucketExists,
   deleteExpiredData,
 } from '../db/repository';
-import type { OraclePointInput } from '../types/oracle.types';
+import type { OracleTickInput } from '../types/oracle.types';
 
 // ---------------------------------------------------------------------------
 // Worker State
 // ---------------------------------------------------------------------------
 
-/** Overlap guard  prevents concurrent cron cycles. */
+/** Overlap guard  prevents concurrent tick cycles. */
 let isRunning = false;
+
+/** Timer handle for shutdown. */
+let tickTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Track last retention cleanup time to avoid running every tick. */
+let lastCleanupTime = 0;
 
 // ---------------------------------------------------------------------------
 // Structured Logger
@@ -41,11 +53,13 @@ interface LogEntry {
   level: 'info' | 'warn' | 'error';
   msg: string;
   tokenMint?: string;
+  tickTime?: string;
   hourStart?: string;
   price?: number;
-  backfilled?: number;
-  deletedPoints?: number;
+  tickCount?: number;
+  deletedTicks?: number;
   deletedBuckets?: number;
+  gapMs?: number;
   error?: string;
 }
 
@@ -72,338 +86,245 @@ function now(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Aligned Tick Time
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the current aligned tick time.
+ * Always a multiple of TICK_INTERVAL_MS.
+ */
+function alignedTickTime(): Date {
+  return new Date(Math.floor(Date.now() / TICK_INTERVAL_MS) * TICK_INTERVAL_MS);
+}
+
+/**
+ * Compute ms until the next tick boundary.
+ */
+function msUntilNextTick(): number {
+  return TICK_INTERVAL_MS - (Date.now() % TICK_INTERVAL_MS);
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 /**
- * Start the ingestion cron worker.
+ * Start the tick ingestion worker.
  *
- * - Immediately runs startup catch-up to backfill missed hours (capped).
- * - Then schedules hourly execution at the configured poll minute.
+ * - Runs a continuous aligned-interval loop (every 2s).
+ * - Each tick: fetch prices, store ticks, check for track generation.
+ * - Track generation is DB-checked (crash-safe).
  */
-export function startIngestionWorker(pool: Pool, config: OracleConfig): void {
+export function startTickWorker(pool: Pool, config: OracleConfig): void {
   log({
     ts: now(),
     level: 'info',
-    msg: `Starting ingestion worker. tokens=${config.supportedTokens.length} retention=${config.retentionHours}h pollMinute=:${String(config.oraclePollMinute).padStart(2, '0')} maxCatchUp=${config.maxCatchUpHours}h`,
+    msg: `Starting tick worker. tokens=${config.supportedTokens.length} retention=${config.retentionHours}h interval=${TICK_INTERVAL_MS}ms`,
   });
 
-  // Run catch-up immediately on startup
-  runStartupCatchUp(pool, config).catch((err) => {
-    log({
-      ts: now(),
-      level: 'error',
-      msg: 'Startup catch-up failed',
-      error: String(err),
-    });
-  });
+  scheduleNextTick(pool, config);
+}
 
-  // Schedule hourly at the configured minute
-  const cronExpr = `${config.oraclePollMinute} * * * *`;
-  cron.schedule(cronExpr, () => {
-    runIngestionCycle(pool, config).catch((err) => {
-      log({
-        ts: now(),
-        level: 'error',
-        msg: 'Ingestion cycle failed',
-        error: String(err),
-      });
-    });
-  });
-
-  log({
-    ts: now(),
-    level: 'info',
-    msg: `Cron scheduled: "${cronExpr}" (every hour at :${String(config.oraclePollMinute).padStart(2, '0')})`,
-  });
+/**
+ * Stop the tick worker (for graceful shutdown).
+ */
+export function stopTickWorker(): void {
+  if (tickTimer) {
+    clearTimeout(tickTimer);
+    tickTimer = null;
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Core Ingestion Cycle
+// Tick Loop
 // ---------------------------------------------------------------------------
 
-/**
- * Single ingestion cycle: fetch → store → cleanup for all tokens.
- * Guarded by `isRunning` flag to prevent overlap.
- */
-async function runIngestionCycle(
-  pool: Pool,
-  config: OracleConfig,
-): Promise<void> {
-  // --- Overlap guard ---
+function scheduleNextTick(pool: Pool, config: OracleConfig): void {
+  const delay = msUntilNextTick();
+  tickTimer = setTimeout(() => {
+    runTickCycle(pool, config)
+      .catch((err) => {
+        log({
+          ts: now(),
+          level: 'error',
+          msg: 'Tick cycle failed',
+          error: String(err),
+        });
+      })
+      .finally(() => {
+        scheduleNextTick(pool, config);
+      });
+  }, delay);
+}
+
+// ---------------------------------------------------------------------------
+// Core Tick Cycle
+// ---------------------------------------------------------------------------
+
+async function runTickCycle(pool: Pool, config: OracleConfig): Promise<void> {
+  // Overlap guard
   if (isRunning) {
-    log({
-      ts: now(),
-      level: 'warn',
-      msg: 'Skipping cycle  previous cycle still running',
-    });
+    log({ ts: now(), level: 'warn', msg: 'Skipping tick  previous cycle still running' });
     return;
   }
 
   isRunning = true;
-  const hourStart = currentHourUTC();
+  const tickTime = alignedTickTime();
 
   try {
-    log({
-      ts: now(),
-      level: 'info',
-      msg: 'Ingestion cycle start',
-      hourStart: hourStart.toISOString(),
-    });
-
+    // 1. Fetch and store ticks for all tokens
     for (const tokenMint of config.supportedTokens) {
       try {
-        await ingestTokenHour(pool, tokenMint, hourStart, config);
+        await ingestTick(pool, tokenMint, tickTime);
       } catch (err) {
         log({
           ts: now(),
           level: 'error',
-          msg: 'Token ingestion failed',
+          msg: 'Tick ingestion failed',
           tokenMint,
-          hourStart: hourStart.toISOString(),
+          tickTime: tickTime.toISOString(),
           error: String(err),
         });
       }
     }
 
-    // Cleanup expired data
-    try {
-      const { deletedPoints, deletedBuckets } = await deleteExpiredData(
-        pool,
-        config.retentionHours,
-      );
-
-      if (deletedPoints > 0 || deletedBuckets > 0) {
-        log({
-          ts: now(),
-          level: 'info',
-          msg: 'Retention cleanup complete',
-          deletedPoints,
-          deletedBuckets,
-        });
-      }
-    } catch (err) {
-      log({
-        ts: now(),
-        level: 'error',
-        msg: 'Retention cleanup failed',
-        error: String(err),
-      });
+    // 2. Check for track generation (after hour close buffer)
+    const currentMinute = new Date().getMinutes();
+    if (currentMinute >= TRACK_GEN_BUFFER_MINUTES) {
+      await checkAndGenerateTracks(pool, config);
     }
 
-    log({ ts: now(), level: 'info', msg: 'Ingestion cycle complete' });
+    // 3. Periodic retention cleanup (once per hour, not every tick)
+    const nowMs = Date.now();
+    if (nowMs - lastCleanupTime >= ONE_HOUR_MS) {
+      try {
+        const { deletedTicks, deletedBuckets } = await deleteExpiredData(
+          pool,
+          config.retentionHours,
+        );
+
+        if (deletedTicks > 0 || deletedBuckets > 0) {
+          log({
+            ts: now(),
+            level: 'info',
+            msg: 'Retention cleanup complete',
+            deletedTicks,
+            deletedBuckets,
+          });
+        }
+        lastCleanupTime = nowMs;
+      } catch (err) {
+        log({
+          ts: now(),
+          level: 'error',
+          msg: 'Retention cleanup failed',
+          error: String(err),
+        });
+      }
+    }
   } finally {
     isRunning = false;
   }
 }
 
 // ---------------------------------------------------------------------------
-// Per-Token Ingestion
+// Per-Token Tick Ingestion
 // ---------------------------------------------------------------------------
 
-/**
- * Fetch and store a single oracle price for a token + hour.
- */
-async function ingestTokenHour(
+async function ingestTick(
   pool: Pool,
   tokenMint: string,
-  hourStart: Date,
-  config: OracleConfig,
+  tickTime: Date,
 ): Promise<void> {
+  // Gap detection
+  const latestTick = await getLatestTickTime(pool, tokenMint);
+  if (latestTick) {
+    const gapMs = tickTime.getTime() - latestTick.getTime();
+    if (gapMs > 10000) {
+      log({
+        ts: now(),
+        level: 'warn',
+        msg: 'Tick gap detected',
+        tokenMint,
+        gapMs,
+      });
+    }
+  }
+
+  // Fetch price  worker owns tick_time, fetcher does NOT
   const priceData = await fetchOraclePrice(tokenMint);
 
-  const point: OraclePointInput = {
+  const tick: OracleTickInput = {
     token_mint: priceData.token_mint,
-    hour_start_utc: hourStart,
+    tick_time: tickTime,
     oracle_price: priceData.price,
     publish_time: priceData.publish_time,
     source_slot: priceData.source_slot,
   };
 
-  await storeOraclePoint(pool, point);
-
-  log({
-    ts: now(),
-    level: 'info',
-    msg: 'Stored oracle point',
-    tokenMint,
-    hourStart: hourStart.toISOString(),
-    price: priceData.price,
-  });
-
-  // Generate and store deterministic track bucket
-  try {
-    const oraclePoint = await getOraclePointsForHour(pool, tokenMint, hourStart);
-    if (oraclePoint) {
-      const bucket = await generateTrackBucket(
-        tokenMint,
-        hourStart,
-        [oraclePoint],
-        config.trackPointCount,
-      );
-      await storeTrackBucket(pool, bucket);
-
-      log({
-        ts: now(),
-        level: 'info',
-        msg: 'Stored track bucket',
-        tokenMint,
-        hourStart: hourStart.toISOString(),
-      });
-    }
-  } catch (err) {
-    log({
-      ts: now(),
-      level: 'error',
-      msg: 'Track generation failed',
-      tokenMint,
-      hourStart: hourStart.toISOString(),
-      error: String(err),
-    });
-  }
+  await storeOracleTick(pool, tick);
 }
 
 // ---------------------------------------------------------------------------
-// Startup Catch-Up
+// Track Generation (DB-Checked, Crash-Safe)
 // ---------------------------------------------------------------------------
 
-/**
- * Pure function: compute the starting hour for catch-up backfill.
- *
- * Exported for testability. No side effects  just math.
- *
- * Rules:
- *   - If `latestHour` is null → start from `currentHour - retentionHours`.
- *   - Otherwise start from `latestHour + 1h`.
- *   - If the resulting gap exceeds `maxCatchUpHours` → clamp to
- *     `currentHour - retentionHours` to prevent runaway loops.
- */
-export function computeCatchUpStartHour(
-  latestHour: Date | null,
-  currentHour: Date,
-  retentionHours: number,
-  maxCatchUpHours: number,
-): Date {
-  let startHour: Date;
-
-  if (latestHour === null) {
-    startHour = floorToHour(
-      new Date(currentHour.getTime() - retentionHours * ONE_HOUR_MS),
-    );
-  } else {
-    startHour = new Date(latestHour.getTime() + ONE_HOUR_MS);
-  }
-
-  const gapHours = Math.floor(
-    (currentHour.getTime() - startHour.getTime()) / ONE_HOUR_MS,
-  );
-
-  if (gapHours > maxCatchUpHours) {
-    const clampHours = Math.min(retentionHours, maxCatchUpHours);
-    startHour = floorToHour(
-      new Date(currentHour.getTime() - clampHours * ONE_HOUR_MS),
-    );
-  }
-
-  return startHour;
-}
-
-/**
- * On startup, detect gaps and backfill missed hours (with safety cap).
- *
- * For each token:
- *   1. Get the latest stored hour.
- *   2. Compute missing hours up to current hour.
- *   3. Cap backfill to `maxCatchUpHours` to prevent runaway loops.
- *   4. Ingest each missing hour.
- *
- * If no data exists at all, backfills from `now - retentionHours`.
- */
-async function runStartupCatchUp(
+async function checkAndGenerateTracks(
   pool: Pool,
   config: OracleConfig,
 ): Promise<void> {
-  isRunning = true;
-  try {
-    log({ ts: now(), level: 'info', msg: 'Running startup catch-up...' });
+  const currentHour = floorToHour(new Date());
 
-    const currentHour = currentHourUTC();
+  // Check last 2 hours (previousHour and previousHour-1)
+  for (let offset = 1; offset <= 2; offset++) {
+    const targetHour = new Date(currentHour.getTime() - offset * ONE_HOUR_MS);
 
     for (const tokenMint of config.supportedTokens) {
       try {
-        const latestHour = await getLatestOracleHour(pool, tokenMint);
+        const exists = await trackBucketExists(pool, tokenMint, targetHour, TRACK_VERSION);
+        if (exists) continue;
 
-        const startHour = computeCatchUpStartHour(
-          latestHour,
-          currentHour,
-          config.retentionHours,
-          config.maxCatchUpHours,
-        );
+        const ticks = await getTicksForHour(pool, tokenMint, targetHour);
 
-        if (latestHour !== null) {
-          const gapHours = Math.floor(
-            (currentHour.getTime() - (latestHour.getTime() + ONE_HOUR_MS)) / ONE_HOUR_MS,
-          );
-          if (gapHours > config.maxCatchUpHours) {
-            log({
-              ts: now(),
-              level: 'warn',
-              msg: `Gap of ${gapHours}h exceeds MAX_CATCHUP_HOURS=${config.maxCatchUpHours}. Clamped start to now - ${config.retentionHours}h`,
-              tokenMint,
-            });
-          }
-        } else {
+        if (ticks.length < MIN_TICKS_FOR_TRACK) {
           log({
             ts: now(),
-            level: 'info',
-            msg: 'No existing data  starting fresh backfill',
+            level: 'warn',
+            msg: `Skipping track gen  insufficient ticks (${ticks.length}/${MIN_TICKS_FOR_TRACK})`,
             tokenMint,
-            hourStart: startHour.toISOString(),
+            hourStart: targetHour.toISOString(),
+            tickCount: ticks.length,
           });
+          continue;
         }
 
-        let current = new Date(startHour.getTime());
-        let backfilled = 0;
+        const bucket = await generateTrackBucket(
+          tokenMint,
+          targetHour,
+          ticks,
+          config.trackPointCount,
+        );
 
-        while (current.getTime() <= currentHour.getTime()) {
-          try {
-            await ingestTokenHour(pool, tokenMint, current, config);
-            backfilled++;
-          } catch (err) {
-            log({
-              ts: now(),
-              level: 'error',
-              msg: 'Catch-up hour failed, continuing',
-              tokenMint,
-              hourStart: current.toISOString(),
-              error: String(err),
-            });
-          }
-          current = new Date(current.getTime() + ONE_HOUR_MS);
-        }
+        await storeTrackBucket(pool, bucket);
 
         log({
           ts: now(),
           level: 'info',
-          msg: backfilled > 0
-            ? `Catch-up complete`
-            : `Already up to date`,
+          msg: 'Generated track bucket',
           tokenMint,
-          backfilled,
+          hourStart: targetHour.toISOString(),
+          tickCount: ticks.length,
         });
       } catch (err) {
         log({
           ts: now(),
           level: 'error',
-          msg: 'Catch-up failed for token',
+          msg: 'Track generation failed',
           tokenMint,
+          hourStart: targetHour.toISOString(),
           error: String(err),
         });
       }
     }
-
-    log({ ts: now(), level: 'info', msg: 'Startup catch-up complete.' });
-  } finally {
-    isRunning = false;
   }
 }

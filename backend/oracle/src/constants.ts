@@ -14,37 +14,33 @@
  * Bump this when normalization logic changes to ensure old and new
  * tracks are never mixed in the same race.
  */
-export const TRACK_VERSION = '1';
+export const TRACK_VERSION = '2';
 
 /**
- * Random walk step size for terrain generation.
- * Each point is offset from the previous by `(prng() - 0.5) * TERRAIN_STEP_SIZE`.
+ * Tick sampling interval in milliseconds.
+ * Worker aligns tick_time to multiples of this value.
  */
-export const TERRAIN_STEP_SIZE = 0.02;
+export const TICK_INTERVAL_MS = 2000;
 
 /**
  * Maximum allowed delta between consecutive normalized Y-values.
  * Applied AFTER normalization to prevent unplayable cliff sections.
- * 0.03 means ~33 steps to traverse the full 0→1 range.
+ * 0.03 means ~33 steps to traverse the full 0-1 range.
  */
 export const MAX_DELTA_PER_STEP = 0.03;
 
 /**
- * Soft clamp boundaries for raw terrain before normalization.
- * Prevents runaway random walks from compressing normalization.
+ * Minimum number of ticks required to generate a track for an hour.
+ * If fewer ticks exist (worker was down), skip track generation.
+ * 1200 out of 1800 expected = 67% coverage threshold.
  */
-export const TERRAIN_SOFT_CLAMP = 2.0;
+export const MIN_TICKS_FOR_TRACK = 1200;
 
 /**
- * Number of smoothing passes applied to raw terrain.
+ * Minutes after the hour to wait before generating the previous hour's track.
+ * Ensures all ticks have been written before generation.
  */
-export const SMOOTHING_PASSES = 2;
-
-/**
- * Window size for moving average smoothing (must be odd).
- * 5 = average of [i-2, i-1, i, i+1, i+2] for interior points.
- */
-export const SMOOTHING_WINDOW = 5;
+export const TRACK_GEN_BUFFER_MINUTES = 2;
 
 /**
  * One hour in milliseconds  avoids magic numbers in time arithmetic.

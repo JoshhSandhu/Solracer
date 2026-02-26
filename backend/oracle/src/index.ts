@@ -7,8 +7,8 @@
 
 // Types
 export type {
-  OracleHourlyPoint,
-  OraclePointInput,
+  OracleTick,
+  OracleTickInput,
   TrackBucket,
   TrackBucketInput,
   NormalizationMeta,
@@ -21,7 +21,7 @@ export { loadConfig } from './config';
 export type { OracleConfig } from './config';
 
 // Constants
-export { TRACK_VERSION, TERRAIN_STEP_SIZE, MAX_DELTA_PER_STEP, TERRAIN_SOFT_CLAMP, SMOOTHING_PASSES, SMOOTHING_WINDOW, ONE_HOUR_MS } from './constants';
+export { TRACK_VERSION, TICK_INTERVAL_MS, MAX_DELTA_PER_STEP, MIN_TICKS_FOR_TRACK, TRACK_GEN_BUFFER_MINUTES, ONE_HOUR_MS } from './constants';
 
 // Utilities
 export { floorToHour, currentHourUTC } from './utils/time';
@@ -29,10 +29,11 @@ export { floorToHour, currentHourUTC } from './utils/time';
 // Database
 export { getPool, closePool } from './db/connection';
 export {
-  storeOraclePoint,
-  getOraclePointsForHour,
-  getLatestOracleHour,
+  storeOracleTick,
+  getTicksForHour,
+  getLatestTickTime,
   storeTrackBucket,
+  trackBucketExists,
   getPlayableTrackBuckets,
   deleteExpiredData,
 } from './db/repository';
@@ -42,7 +43,7 @@ export { fetchOraclePrice } from './services/oracle-fetcher';
 export { generateTrackBucket } from './services/track-generator';
 
 // Workers
-export { startIngestionWorker, computeCatchUpStartHour } from './workers/oracleIngestionWorker';
+export { startTickWorker, stopTickWorker } from './workers/oracleIngestionWorker';
 
 // ---------------------------------------------------------------------------
 // Bootstrap (run directly with ts-node or node)
@@ -51,23 +52,25 @@ export { startIngestionWorker, computeCatchUpStartHour } from './workers/oracleI
 async function main(): Promise<void> {
   const { loadConfig: load } = await import('./config');
   const { getPool: pool } = await import('./db/connection');
-  const { startIngestionWorker: start } = await import(
+  const { startTickWorker: start } = await import(
     './workers/oracleIngestionWorker'
   );
 
-  console.log('[oracle] Initialising oracle pipeline...');
+  console.log('[oracle] Initialising oracle pipeline (tick mode)...');
 
   const config = load();
   const dbPool = pool(config.databaseUrl);
 
   start(dbPool, config);
 
-  console.log('[oracle] Pipeline running. Press Ctrl+C to stop.');
+  console.log('[oracle] Pipeline running (2s tick interval). Press Ctrl+C to stop.');
 
   // Graceful shutdown
   const shutdown = async (): Promise<void> => {
     console.log('\n[oracle] Shutting down...');
+    const { stopTickWorker: stop } = await import('./workers/oracleIngestionWorker');
     const { closePool: close } = await import('./db/connection');
+    stop();
     await close();
     process.exit(0);
   };
