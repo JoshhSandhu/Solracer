@@ -21,7 +21,7 @@ export { loadConfig } from './config';
 export type { OracleConfig } from './config';
 
 // Constants
-export { TRACK_VERSION, DEFAULT_SLOPE_CLAMP_DEGREES, ONE_HOUR_MS } from './constants';
+export { TRACK_VERSION, TERRAIN_STEP_SIZE, MAX_DELTA_PER_STEP, TERRAIN_SOFT_CLAMP, SMOOTHING_PASSES, SMOOTHING_WINDOW, ONE_HOUR_MS } from './constants';
 
 // Utilities
 export { floorToHour, currentHourUTC } from './utils/time';
