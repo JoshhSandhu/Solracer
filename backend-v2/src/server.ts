@@ -55,9 +55,10 @@ async function main(): Promise<void> {
   // ── Global Error Handler ─────────────────────────────────────────────
   fastify.setErrorHandler((error, request, reply) => {
     request.log.error(error);
-    const statusCode = error.statusCode ?? 500;
+    const err = error as { statusCode?: number; message?: string };
+    const statusCode = err.statusCode ?? 500;
     reply.status(statusCode).send({
-      error: statusCode < 500 ? error.message : 'Internal server error',
+      error: statusCode < 500 ? err.message : 'Internal server error',
     });
   });
 
