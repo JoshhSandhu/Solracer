@@ -46,7 +46,7 @@ function resetConnection(): void {
 // ---------------------------------------------------------------------------
 // Known limitation: Promise.race does not cancel the underlying HTTP request.
 // On timeout the in-flight RPC call completes in the background. At ~1800
-// calls/hour and a 5s timeout this is acceptable — stale responses are
+// calls/hour and a 5s timeout this is acceptable  stale responses are
 // discarded and the connection is reset for the next tick.
 // ---------------------------------------------------------------------------
 
@@ -87,7 +87,7 @@ function decodePrice(data: Buffer, exponent: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Public API — Single Token Fetch
+// Public API  Single Token Fetch
 // ---------------------------------------------------------------------------
 
 /**
@@ -147,7 +147,7 @@ export async function fetchOraclePrice(
 }
 
 // ---------------------------------------------------------------------------
-// Public API — Batch Fetch (Preferred)
+// Public API  Batch Fetch (Preferred)
 // ---------------------------------------------------------------------------
 
 /**

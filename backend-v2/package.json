@@ -1,0 +1,25 @@
+{
+    "name": "@solracer/backend-v2",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Minimal read-only API for SolRacer track buckets",
+    "main": "dist/server.js",
+    "scripts": {
+        "build": "tsc",
+        "check": "tsc --noEmit",
+        "dev": "tsx --env-file=.env src/server.ts",
+        "start": "node dist/server.js"
+    },
+    "dependencies": {
+        "fastify": "^5.2.0",
+        "@fastify/rate-limit": "^10.2.0",
+        "@fastify/cors": "^11.0.0",
+        "pg": "^8.13.1"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "@types/pg": "^8.11.10",
+        "tsx": "^4.19.0",
+        "typescript": "^5.7.0"
+    }
+}
