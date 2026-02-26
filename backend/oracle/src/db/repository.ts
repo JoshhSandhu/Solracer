@@ -13,6 +13,7 @@ import type {
   PlayableTrackBucket,
   NormalizationMeta,
 } from '../types/oracle.types';
+import { ONE_HOUR_MS } from '../constants';
 
 // ===== Oracle Ticks =====
 
@@ -53,7 +54,7 @@ export async function getTicksForHour(
   tokenMint: string,
   hourStart: Date,
 ): Promise<OracleTick[]> {
-  const hourEnd = new Date(hourStart.getTime() + 60 * 60 * 1000);
+  const hourEnd = new Date(hourStart.getTime() + ONE_HOUR_MS);
 
   const sql = `
     SELECT token_mint, tick_time, oracle_price,
@@ -208,7 +209,7 @@ export async function deleteExpiredData(
   pool: Pool,
   retentionHours: number,
 ): Promise<{ deletedTicks: number; deletedBuckets: number }> {
-  const cutoff = new Date(Date.now() - retentionHours * 60 * 60 * 1000);
+  const cutoff = new Date(Date.now() - retentionHours * ONE_HOUR_MS);
 
   const ticksResult = await pool.query(
     'DELETE FROM oracle_ticks WHERE tick_time < $1',

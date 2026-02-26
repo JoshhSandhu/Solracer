@@ -19,7 +19,7 @@ import {
   TRACK_GEN_BUFFER_MINUTES,
 } from '../constants';
 import { floorToHour } from '../utils/time';
-import { fetchOraclePrice } from '../services/oracle-fetcher';
+import { fetchOraclePricesBatch } from '../services/oracle-fetcher';
 import { generateTrackBucket } from '../services/track-generator';
 import {
   storeOracleTick,
@@ -185,20 +185,17 @@ async function runTickCycle(pool: Pool, config: OracleConfig): Promise<void> {
   const tickTime = alignedTickTime();
 
   try {
-    // 1. Fetch and store ticks for all tokens
-    for (const tokenMint of config.supportedTokens) {
-      try {
-        await ingestTick(pool, tokenMint, tickTime);
-      } catch (err) {
-        log({
-          ts: now(),
-          level: 'error',
-          msg: 'Tick ingestion failed',
-          tokenMint,
-          tickTime: tickTime.toISOString(),
-          error: String(err),
-        });
-      }
+    // 1. Batch fetch all oracle prices (single RPC call)
+    try {
+      await ingestTicksBatch(pool, config.supportedTokens, tickTime);
+    } catch (err) {
+      log({
+        ts: now(),
+        level: 'error',
+        msg: 'Batch tick ingestion failed',
+        tickTime: tickTime.toISOString(),
+        error: String(err),
+      });
     }
 
     // 2. Check for track generation (after hour close buffer)
@@ -242,46 +239,57 @@ async function runTickCycle(pool: Pool, config: OracleConfig): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Per-Token Tick Ingestion
+// Batch Tick Ingestion (Single RPC Call)
 // ---------------------------------------------------------------------------
 
-async function ingestTick(
+async function ingestTicksBatch(
   pool: Pool,
-  tokenMint: string,
+  tokenMints: string[],
   tickTime: Date,
 ): Promise<void> {
-  const lastKnown = lastTickTimeMap.get(tokenMint);
-  if (lastKnown) {
-    const gapMs = tickTime.getTime() - lastKnown.getTime();
-    if (gapMs > TICK_INTERVAL_MS * 5) {
-      log({
-        ts: now(),
-        level: 'warn',
-        msg: 'Tick gap detected',
-        tokenMint,
-        gapMs,
-      });
+  // Gap detection (from in-memory cache)
+  for (const tokenMint of tokenMints) {
+    const lastKnown = lastTickTimeMap.get(tokenMint);
+    if (lastKnown) {
+      const gapMs = tickTime.getTime() - lastKnown.getTime();
+      if (gapMs > TICK_INTERVAL_MS * 5) {
+        log({
+          ts: now(),
+          level: 'warn',
+          msg: 'Tick gap detected',
+          tokenMint,
+          gapMs,
+        });
+      }
     }
   }
 
-  const priceData = await fetchOraclePrice(tokenMint);
+  // Single batched RPC call for all tokens
+  const priceMap = await fetchOraclePricesBatch(tokenMints);
 
-  if (!Number.isFinite(priceData.price) || priceData.price <= 0) {
-    throw new Error(
-      `Invalid oracle price for ${tokenMint}: ${priceData.price}`,
-    );
+  // Store each successfully fetched price as a tick
+  for (const [tokenMint, priceData] of priceMap) {
+    try {
+      const tick: OracleTickInput = {
+        token_mint: priceData.token_mint,
+        tick_time: tickTime,
+        oracle_price: priceData.price,
+        publish_time: priceData.publish_time,
+        source_slot: priceData.source_slot,
+      };
+
+      await storeOracleTick(pool, tick);
+      lastTickTimeMap.set(tokenMint, tickTime);
+    } catch (err) {
+      log({
+        ts: now(),
+        level: 'error',
+        msg: 'Failed to store tick',
+        tokenMint,
+        error: String(err),
+      });
+    }
   }
-
-  const tick: OracleTickInput = {
-    token_mint: priceData.token_mint,
-    tick_time: tickTime,
-    oracle_price: priceData.price,
-    publish_time: priceData.publish_time,
-    source_slot: priceData.source_slot,
-  };
-
-  await storeOracleTick(pool, tick);
-  lastTickTimeMap.set(tokenMint, tickTime);
 }
 
 // ---------------------------------------------------------------------------

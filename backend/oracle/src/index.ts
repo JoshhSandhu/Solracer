@@ -39,8 +39,10 @@ export {
 } from './db/repository';
 
 // Services
-export { fetchOraclePrice } from './services/oracle-fetcher';
+export { fetchOraclePrice, fetchOraclePricesBatch } from './services/oracle-fetcher';
 export { generateTrackBucket } from './services/track-generator';
+export { FEED_REGISTRY, MAGICBLOCK_RPC_URL, PYTH_LAZER_PRICE_OFFSET } from './services/oracle-config';
+export type { FeedEntry } from './services/oracle-config';
 
 // Workers
 export { startTickWorker, stopTickWorker } from './workers/oracleIngestionWorker';
@@ -55,11 +57,31 @@ async function main(): Promise<void> {
   const { startTickWorker: start } = await import(
     './workers/oracleIngestionWorker'
   );
+  const { fetchOraclePrice } = await import('./services/oracle-fetcher');
 
   console.log('[oracle] Initialising oracle pipeline (tick mode)...');
 
   const config = load();
   const dbPool = pool(config.databaseUrl);
+
+  // Startup health checks — fail fast on misconfiguration
+  console.log('[oracle] Running startup health checks...');
+
+  try {
+    await dbPool.query('SELECT 1');
+    console.log('[oracle] ✓ Database reachable');
+  } catch (err) {
+    console.error('[oracle] ✗ Database unreachable:', err);
+    process.exit(1);
+  }
+
+  try {
+    await fetchOraclePrice(config.supportedTokens[0]);
+    console.log('[oracle] ✓ MagicBlock RPC reachable');
+  } catch (err) {
+    console.error('[oracle] ✗ MagicBlock RPC unreachable:', err);
+    process.exit(1);
+  }
 
   start(dbPool, config);
 
