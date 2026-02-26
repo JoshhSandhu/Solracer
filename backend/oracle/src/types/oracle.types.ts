@@ -3,15 +3,16 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Row in `oracle_hourly_points`.
- * PRIMARY KEY is (token_mint, hour_start_utc).
+ * Row in `oracle_ticks`.
+ * PRIMARY KEY is (token_mint, tick_time).
+ * tick_time is always aligned to TICK_INTERVAL_MS boundaries.
  */
-export interface OracleHourlyPoint {
+export interface OracleTick {
   /** Solana token mint address (base-58). */
   token_mint: string;
 
-  /** UTC hour bucket start, floored to the hour. */
-  hour_start_utc: Date;
+  /** Aligned tick timestamp (multiple of TICK_INTERVAL_MS). */
+  tick_time: Date;
 
   /** Oracle-reported price at sample time. */
   oracle_price: number;
@@ -27,10 +28,10 @@ export interface OracleHourlyPoint {
 }
 
 /**
- * Input payload for `storeOraclePoint()`.
- * Same as `OracleHourlyPoint` but without server-generated fields.
+ * Input payload for `storeOracleTick()`.
+ * Same as `OracleTick` but without server-generated fields.
  */
-export type OraclePointInput = Omit<OracleHourlyPoint, 'created_at'>;
+export type OracleTickInput = Omit<OracleTick, 'created_at'>;
 
 // ---------------------------------------------------------------------------
 // Track Buckets
@@ -56,8 +57,8 @@ export interface NormalizationMeta {
   /** Maximum delta between consecutive normalized Y-values. */
   max_delta_per_step: number;
 
-  /** Random walk step size used during terrain generation. */
-  terrain_step_size: number;
+  /** Number of source ticks used to generate this track. */
+  source_tick_count: number;
 
   /** Normalization algorithm version tag. */
   version: string;
@@ -110,6 +111,7 @@ export type TrackBucketInput = Omit<TrackBucket, 'created_at'>;
 
 /**
  * Raw price data returned by the oracle fetcher (MagicBlock or stub).
+ * NOTE: tick_time is NOT included here. The worker owns tick_time alignment.
  */
 export interface OraclePriceData {
   token_mint: string;

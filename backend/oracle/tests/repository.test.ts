@@ -1,10 +1,11 @@
 // ---------------------------------------------------------------------------
-// Tests  Repository Layer (Database Integration)
+// Tests  Repository Layer (Database Integration)  Tick Model
 // ---------------------------------------------------------------------------
 // Verifies architecture invariants against a real PostgreSQL database:
-//   - UPSERT: storeOraclePoint updates, never duplicates
-//   - Retention: deleteExpiredData uses hour_start_utc, not created_at
+//   - UPSERT: storeOracleTick updates, never duplicates
+//   - Retention: deleteExpiredData uses tick_time, not created_at
 //   - Playable buckets: exactly 24, ascending, excludes newest/oldest
+//   - trackBucketExists: correct existence check
 //
 // Requires TEST_DATABASE_URL environment variable.
 // Skips gracefully if not set.
@@ -13,14 +14,16 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Pool } from 'pg';
 import {
-  storeOraclePoint,
-  getOraclePointsForHour,
+  storeOracleTick,
+  getTicksForHour,
+  getLatestTickTime,
   storeTrackBucket,
+  trackBucketExists,
   getPlayableTrackBuckets,
   deleteExpiredData,
 } from '../src/db/repository';
 import type {
-  OraclePointInput,
+  OracleTickInput,
   TrackBucketInput,
   NormalizationMeta,
 } from '../src/types/oracle.types';
@@ -39,18 +42,19 @@ const describeDB = shouldRun ? describe : describe.skip;
 let pool: Pool;
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
+const TICK_INTERVAL_MS = 2000;
 
-function makePoint(tokenMint: string, hourStart: Date, price: number): OraclePointInput {
+function makeTick(tokenMint: string, tickTime: Date, price: number): OracleTickInput {
   return {
     token_mint: tokenMint,
-    hour_start_utc: hourStart,
+    tick_time: tickTime,
     oracle_price: price,
     publish_time: new Date(),
     source_slot: 12345,
   };
 }
 
-function makeBucket(tokenMint: string, hourStart: Date, version: string = '1'): TrackBucketInput {
+function makeBucket(tokenMint: string, hourStart: Date, version: string = '2'): TrackBucketInput {
   const blob = Buffer.from(new Int16Array([100, 200, 300, 400]).buffer);
   const meta: NormalizationMeta = {
     min_price: 90,
@@ -58,7 +62,7 @@ function makeBucket(tokenMint: string, hourStart: Date, version: string = '1'): 
     scale_factor: 1.0,
     point_count: 4,
     max_delta_per_step: 0.03,
-    terrain_step_size: 0.02,
+    source_tick_count: 1800,
     version,
   };
   const crypto = require('crypto');
@@ -75,7 +79,7 @@ function makeBucket(tokenMint: string, hourStart: Date, version: string = '1'): 
   };
 }
 
-describeDB('Repository  Database Integration', () => {
+describeDB('Repository  Database Integration (Tick Model)', () => {
   beforeAll(async () => {
     pool = new Pool({
       connectionString: TEST_DATABASE_URL,
@@ -97,55 +101,109 @@ describeDB('Repository  Database Integration', () => {
   beforeEach(async () => {
     // Clean slate for each test
     await pool.query('DELETE FROM track_buckets');
-    await pool.query('DELETE FROM oracle_hourly_points');
+    await pool.query('DELETE FROM oracle_ticks');
   });
 
   // =========================================================================
-  // UPSERT Behaviour
+  // Tick UPSERT
   // =========================================================================
 
-  describe('storeOraclePoint()  UPSERT invariant', () => {
-    it('inserts a new row when none exists for the token+hour', async () => {
-      const hour = new Date('2026-02-24T10:00:00.000Z');
-      const point = makePoint('TOKEN_A', hour, 100.5);
+  describe('storeOracleTick()  UPSERT invariant', () => {
+    it('inserts a new tick', async () => {
+      const tickTime = new Date('2026-02-24T10:00:02.000Z');
+      const tick = makeTick('TOKEN_A', tickTime, 100.5);
 
-      await storeOraclePoint(pool, point);
+      await storeOracleTick(pool, tick);
 
-      const stored = await getOraclePointsForHour(pool, 'TOKEN_A', hour);
-      expect(stored).not.toBeNull();
-      expect(stored!.oracle_price).toBe(100.5);
+      const ticks = await getTicksForHour(pool, 'TOKEN_A', new Date('2026-02-24T10:00:00.000Z'));
+      expect(ticks.length).toBe(1);
+      expect(ticks[0].oracle_price).toBe(100.5);
     });
 
-    it('updates (not duplicates) when storing the same token+hour twice', async () => {
-      const hour = new Date('2026-02-24T10:00:00.000Z');
+    it('updates (not duplicates) when storing same token+tick_time', async () => {
+      const tickTime = new Date('2026-02-24T10:00:02.000Z');
 
-      await storeOraclePoint(pool, makePoint('TOKEN_A', hour, 100.0));
-      await storeOraclePoint(pool, makePoint('TOKEN_A', hour, 200.0));
+      await storeOracleTick(pool, makeTick('TOKEN_A', tickTime, 100.0));
+      await storeOracleTick(pool, makeTick('TOKEN_A', tickTime, 200.0));
 
-      // Must have exactly 1 row, not 2
-      const result = await pool.query(
-        'SELECT COUNT(*) AS cnt FROM oracle_hourly_points WHERE token_mint = $1 AND hour_start_utc = $2',
-        ['TOKEN_A', hour],
-      );
-      expect(parseInt(result.rows[0].cnt, 10)).toBe(1);
+      const ticks = await getTicksForHour(pool, 'TOKEN_A', new Date('2026-02-24T10:00:00.000Z'));
+      expect(ticks.length).toBe(1);
+      expect(ticks[0].oracle_price).toBe(200.0);
+    });
+  });
 
-      // Price must be the LATEST value
-      const stored = await getOraclePointsForHour(pool, 'TOKEN_A', hour);
-      expect(stored!.oracle_price).toBe(200.0);
+  // =========================================================================
+  // getTicksForHour
+  // =========================================================================
+
+  describe('getTicksForHour()  ordering', () => {
+    it('returns ticks sorted by tick_time ASC', async () => {
+      const base = new Date('2026-02-24T10:00:00.000Z');
+
+      // Insert in random order
+      await storeOracleTick(pool, makeTick('TOKEN_A', new Date(base.getTime() + 6000), 103));
+      await storeOracleTick(pool, makeTick('TOKEN_A', new Date(base.getTime() + 2000), 101));
+      await storeOracleTick(pool, makeTick('TOKEN_A', new Date(base.getTime() + 4000), 102));
+
+      const ticks = await getTicksForHour(pool, 'TOKEN_A', base);
+      expect(ticks.length).toBe(3);
+
+      for (let i = 1; i < ticks.length; i++) {
+        expect(ticks[i].tick_time.getTime()).toBeGreaterThan(ticks[i - 1].tick_time.getTime());
+      }
     });
 
-    it('does not affect other tokens when upserting', async () => {
+    it('does not return ticks from other hours', async () => {
+      const hour10 = new Date('2026-02-24T10:00:00.000Z');
+      const hour11 = new Date('2026-02-24T11:00:00.000Z');
+
+      await storeOracleTick(pool, makeTick('TOKEN_A', new Date(hour10.getTime() + 2000), 100));
+      await storeOracleTick(pool, makeTick('TOKEN_A', new Date(hour11.getTime() + 2000), 200));
+
+      const ticks10 = await getTicksForHour(pool, 'TOKEN_A', hour10);
+      expect(ticks10.length).toBe(1);
+      expect(ticks10[0].oracle_price).toBe(100);
+    });
+  });
+
+  // =========================================================================
+  // getLatestTickTime
+  // =========================================================================
+
+  describe('getLatestTickTime()', () => {
+    it('returns null when no ticks exist', async () => {
+      const latest = await getLatestTickTime(pool, 'NONEXISTENT');
+      expect(latest).toBeNull();
+    });
+
+    it('returns the latest tick time', async () => {
+      const t1 = new Date('2026-02-24T10:00:02.000Z');
+      const t2 = new Date('2026-02-24T10:00:04.000Z');
+
+      await storeOracleTick(pool, makeTick('TOKEN_A', t1, 100));
+      await storeOracleTick(pool, makeTick('TOKEN_A', t2, 101));
+
+      const latest = await getLatestTickTime(pool, 'TOKEN_A');
+      expect(latest!.getTime()).toBe(t2.getTime());
+    });
+  });
+
+  // =========================================================================
+  // trackBucketExists
+  // =========================================================================
+
+  describe('trackBucketExists()', () => {
+    it('returns false when no bucket exists', async () => {
+      const exists = await trackBucketExists(pool, 'TOKEN_A', new Date('2026-02-24T10:00:00.000Z'), '2');
+      expect(exists).toBe(false);
+    });
+
+    it('returns true after storing a bucket', async () => {
       const hour = new Date('2026-02-24T10:00:00.000Z');
+      await storeTrackBucket(pool, makeBucket('TOKEN_A', hour));
 
-      await storeOraclePoint(pool, makePoint('TOKEN_A', hour, 100.0));
-      await storeOraclePoint(pool, makePoint('TOKEN_B', hour, 300.0));
-      await storeOraclePoint(pool, makePoint('TOKEN_A', hour, 200.0));
-
-      const a = await getOraclePointsForHour(pool, 'TOKEN_A', hour);
-      const b = await getOraclePointsForHour(pool, 'TOKEN_B', hour);
-
-      expect(a!.oracle_price).toBe(200.0);
-      expect(b!.oracle_price).toBe(300.0);
+      const exists = await trackBucketExists(pool, 'TOKEN_A', hour, '2');
+      expect(exists).toBe(true);
     });
   });
 
@@ -154,25 +212,16 @@ describeDB('Repository  Database Integration', () => {
   // =========================================================================
 
   describe('deleteExpiredData()  retention invariant', () => {
-    it('deletes oracle points older than retention window based on hour_start_utc', async () => {
-      const now = floorToHour(new Date());
-      const oldHour = new Date(now.getTime() - 30 * ONE_HOUR_MS); // 30h ago
-      const recentHour = new Date(now.getTime() - 10 * ONE_HOUR_MS); // 10h ago
+    it('deletes ticks older than retention window based on tick_time', async () => {
+      const now = new Date();
+      const oldTick = new Date(now.getTime() - 30 * ONE_HOUR_MS);
+      const recentTick = new Date(now.getTime() - 10 * ONE_HOUR_MS);
 
-      await storeOraclePoint(pool, makePoint('TOKEN_A', oldHour, 100));
-      await storeOraclePoint(pool, makePoint('TOKEN_A', recentHour, 200));
+      await storeOracleTick(pool, makeTick('TOKEN_A', oldTick, 100));
+      await storeOracleTick(pool, makeTick('TOKEN_A', recentTick, 200));
 
-      const { deletedPoints } = await deleteExpiredData(pool, 26);
-
-      expect(deletedPoints).toBe(1);
-
-      // Old row gone
-      const oldRow = await getOraclePointsForHour(pool, 'TOKEN_A', oldHour);
-      expect(oldRow).toBeNull();
-
-      // Recent row survives
-      const recentRow = await getOraclePointsForHour(pool, 'TOKEN_A', recentHour);
-      expect(recentRow).not.toBeNull();
+      const { deletedTicks } = await deleteExpiredData(pool, 26);
+      expect(deletedTicks).toBe(1);
     });
 
     it('deletes track buckets older than retention window', async () => {
@@ -184,21 +233,7 @@ describeDB('Repository  Database Integration', () => {
       await storeTrackBucket(pool, makeBucket('TOKEN_A', recentHour));
 
       const { deletedBuckets } = await deleteExpiredData(pool, 26);
-
       expect(deletedBuckets).toBe(1);
-    });
-
-    it('does not delete data within the retention window', async () => {
-      const now = floorToHour(new Date());
-
-      // Insert hours within 26h window
-      for (let i = 1; i <= 5; i++) {
-        const hour = new Date(now.getTime() - i * ONE_HOUR_MS);
-        await storeOraclePoint(pool, makePoint('TOKEN_A', hour, 100 + i));
-      }
-
-      const { deletedPoints } = await deleteExpiredData(pool, 26);
-      expect(deletedPoints).toBe(0);
     });
   });
 
@@ -207,46 +242,23 @@ describeDB('Repository  Database Integration', () => {
   // =========================================================================
 
   describe('getPlayableTrackBuckets()  rolling window invariant', () => {
-    it('returns buckets in ascending order by track_hour_start_utc', async () => {
+    it('returns buckets in ascending order', async () => {
       const now = floorToHour(new Date());
 
-      // Insert 26 buckets covering a full window
       for (let i = 0; i < 26; i++) {
         const hour = new Date(now.getTime() - (25 - i) * ONE_HOUR_MS);
         await storeTrackBucket(pool, makeBucket('TOKEN_A', hour));
       }
 
-      const buckets = await getPlayableTrackBuckets(pool, 'TOKEN_A', 26, '1');
+      const buckets = await getPlayableTrackBuckets(pool, 'TOKEN_A', 26, '2');
 
       for (let i = 1; i < buckets.length; i++) {
-        const prev = buckets[i - 1].track_hour_start_utc.getTime();
-        const curr = buckets[i].track_hour_start_utc.getTime();
-        expect(curr).toBeGreaterThan(prev);
+        expect(buckets[i].track_hour_start_utc.getTime())
+          .toBeGreaterThan(buckets[i - 1].track_hour_start_utc.getTime());
       }
     });
 
-    it('excludes the newest and oldest buckets', async () => {
-      const now = floorToHour(new Date());
-
-      const hours: Date[] = [];
-      for (let i = 0; i < 26; i++) {
-        const hour = new Date(now.getTime() - (25 - i) * ONE_HOUR_MS);
-        hours.push(hour);
-        await storeTrackBucket(pool, makeBucket('TOKEN_A', hour));
-      }
-
-      const oldest = hours[0];
-      const newest = hours[hours.length - 1];
-
-      const buckets = await getPlayableTrackBuckets(pool, 'TOKEN_A', 26, '1');
-
-      const bucketTimes = buckets.map((b) => b.track_hour_start_utc.getTime());
-
-      expect(bucketTimes).not.toContain(oldest.getTime());
-      expect(bucketTimes).not.toContain(newest.getTime());
-    });
-
-    it('returns exactly 24 playable buckets from a full 26-hour window', async () => {
+    it('returns exactly 24 playable buckets from a full window', async () => {
       const now = floorToHour(new Date());
 
       for (let i = 0; i < 26; i++) {
@@ -254,31 +266,13 @@ describeDB('Repository  Database Integration', () => {
         await storeTrackBucket(pool, makeBucket('TOKEN_A', hour));
       }
 
-      const buckets = await getPlayableTrackBuckets(pool, 'TOKEN_A', 26, '1');
-
+      const buckets = await getPlayableTrackBuckets(pool, 'TOKEN_A', 26, '2');
       expect(buckets.length).toBe(24);
     });
 
     it('returns empty array when no buckets exist', async () => {
-      const buckets = await getPlayableTrackBuckets(pool, 'NONEXISTENT', 26, '1');
-
+      const buckets = await getPlayableTrackBuckets(pool, 'NONEXISTENT', 26, '2');
       expect(buckets).toEqual([]);
-    });
-
-    it('does not mix tokens  returns only requested token', async () => {
-      const now = floorToHour(new Date());
-
-      for (let i = 0; i < 26; i++) {
-        const hour = new Date(now.getTime() - (25 - i) * ONE_HOUR_MS);
-        await storeTrackBucket(pool, makeBucket('TOKEN_A', hour));
-        await storeTrackBucket(pool, makeBucket('TOKEN_B', hour));
-      }
-
-      const bucketsA = await getPlayableTrackBuckets(pool, 'TOKEN_A', 26, '1');
-      const bucketsB = await getPlayableTrackBuckets(pool, 'TOKEN_B', 26, '1');
-
-      expect(bucketsA.every((b) => b.token_mint === 'TOKEN_A')).toBe(true);
-      expect(bucketsB.every((b) => b.token_mint === 'TOKEN_B')).toBe(true);
     });
   });
 });

@@ -20,20 +20,6 @@ export interface OracleConfig {
    * Normalization must produce exactly this many Y-values.
    */
   trackPointCount: number;
-
-  /**
-   * Minute past the hour at which the cron worker fires.
-   * Gives oracle feeds time to publish before we sample.
-   * Default: 5 (i.e. XX:05).
-   */
-  oraclePollMinute: number;
-
-  /**
-   * Maximum number of hours to backfill during startup catch-up.
-   * Prevents runaway loops if the server was down for weeks.
-   * Default: 48.
-   */
-  maxCatchUpHours: number;
 }
 
 /**
@@ -73,31 +59,11 @@ export function loadConfig(): OracleConfig {
     throw new Error('TRACK_POINT_COUNT must be a positive integer.');
   }
 
-  const oraclePollMinute = parseInt(
-    process.env['ORACLE_POLL_MINUTE'] ?? '5',
-    10,
-  );
-
-  if (isNaN(oraclePollMinute) || oraclePollMinute < 0 || oraclePollMinute > 59) {
-    throw new Error('ORACLE_POLL_MINUTE must be an integer 0–59.');
-  }
-
-  const maxCatchUpHours = parseInt(
-    process.env['MAX_CATCHUP_HOURS'] ?? '48',
-    10,
-  );
-
-  if (isNaN(maxCatchUpHours) || maxCatchUpHours <= 0) {
-    throw new Error('MAX_CATCHUP_HOURS must be a positive integer.');
-  }
-
   return {
     databaseUrl,
     supportedTokens,
     retentionHours,
     trackPointCount,
-    oraclePollMinute,
-    maxCatchUpHours,
   };
 }
 
