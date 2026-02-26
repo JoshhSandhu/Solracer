@@ -80,11 +80,11 @@ export const FEED_REGISTRY: Record<string, FeedEntry> = {
     exponent: -10,
     pda: deriveFeedPDA(9),
   },
-  // JUP/USD
-  'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN': {
-    symbol: 'JUP',
-    feedId: 92,
+  // USDC/USD
+  'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': {
+    symbol: 'USDC',
+    feedId: 7,
     exponent: -8,
-    pda: deriveFeedPDA(92),
+    pda: deriveFeedPDA(7),
   },
 };
