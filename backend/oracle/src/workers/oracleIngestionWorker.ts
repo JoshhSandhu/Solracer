@@ -24,7 +24,6 @@ import { generateTrackBucket } from '../services/track-generator';
 import {
   storeOracleTick,
   getTicksForHour,
-  getLatestTickTime,
   storeTrackBucket,
   trackBucketExists,
   deleteExpiredData,
@@ -43,6 +42,20 @@ let tickTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** Track last retention cleanup time to avoid running every tick. */
 let lastCleanupTime = 0;
+
+/** Minimum interval between cleanup attempts (successful or failed). */
+const CLEANUP_RETRY_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+
+/** In-memory cache: last stored tick time per token (avoids DB query every tick). */
+const lastTickTimeMap = new Map<string, Date>();
+
+/**
+ * In-memory cache: generated track bucket keys for the current period.
+ * Key format: `${tokenMint}|${hourISO}|${version}`.
+ * Cleared every hour to allow re-checking after the hour rolls.
+ */
+const generatedTrackCache = new Set<string>();
+let generatedTrackCacheHour = 0;
 
 // ---------------------------------------------------------------------------
 // Structured Logger
@@ -189,12 +202,12 @@ async function runTickCycle(pool: Pool, config: OracleConfig): Promise<void> {
     }
 
     // 2. Check for track generation (after hour close buffer)
-    const currentMinute = new Date().getMinutes();
+    const currentMinute = new Date().getUTCMinutes();
     if (currentMinute >= TRACK_GEN_BUFFER_MINUTES) {
       await checkAndGenerateTracks(pool, config);
     }
 
-    // 3. Periodic retention cleanup (once per hour, not every tick)
+    // 3. Periodic retention cleanup (once per hour; backoff to 5min on failure)
     const nowMs = Date.now();
     if (nowMs - lastCleanupTime >= ONE_HOUR_MS) {
       try {
@@ -214,10 +227,11 @@ async function runTickCycle(pool: Pool, config: OracleConfig): Promise<void> {
         }
         lastCleanupTime = nowMs;
       } catch (err) {
+        lastCleanupTime = nowMs - ONE_HOUR_MS + CLEANUP_RETRY_INTERVAL_MS;
         log({
           ts: now(),
           level: 'error',
-          msg: 'Retention cleanup failed',
+          msg: 'Retention cleanup failed, retry in 5m',
           error: String(err),
         });
       }
@@ -236,11 +250,10 @@ async function ingestTick(
   tokenMint: string,
   tickTime: Date,
 ): Promise<void> {
-  // Gap detection
-  const latestTick = await getLatestTickTime(pool, tokenMint);
-  if (latestTick) {
-    const gapMs = tickTime.getTime() - latestTick.getTime();
-    if (gapMs > 10000) {
+  const lastKnown = lastTickTimeMap.get(tokenMint);
+  if (lastKnown) {
+    const gapMs = tickTime.getTime() - lastKnown.getTime();
+    if (gapMs > TICK_INTERVAL_MS * 5) {
       log({
         ts: now(),
         level: 'warn',
@@ -251,8 +264,13 @@ async function ingestTick(
     }
   }
 
-  // Fetch price  worker owns tick_time, fetcher does NOT
   const priceData = await fetchOraclePrice(tokenMint);
+
+  if (!Number.isFinite(priceData.price) || priceData.price <= 0) {
+    throw new Error(
+      `Invalid oracle price for ${tokenMint}: ${priceData.price}`,
+    );
+  }
 
   const tick: OracleTickInput = {
     token_mint: priceData.token_mint,
@@ -263,6 +281,7 @@ async function ingestTick(
   };
 
   await storeOracleTick(pool, tick);
+  lastTickTimeMap.set(tokenMint, tickTime);
 }
 
 // ---------------------------------------------------------------------------
@@ -274,15 +293,27 @@ async function checkAndGenerateTracks(
   config: OracleConfig,
 ): Promise<void> {
   const currentHour = floorToHour(new Date());
+  const currentHourMs = currentHour.getTime();
 
-  // Check last 2 hours (previousHour and previousHour-1)
+  if (generatedTrackCacheHour !== currentHourMs) {
+    generatedTrackCache.clear();
+    generatedTrackCacheHour = currentHourMs;
+  }
+
   for (let offset = 1; offset <= 2; offset++) {
-    const targetHour = new Date(currentHour.getTime() - offset * ONE_HOUR_MS);
+    const targetHour = new Date(currentHourMs - offset * ONE_HOUR_MS);
 
     for (const tokenMint of config.supportedTokens) {
+      const cacheKey = `${tokenMint}|${targetHour.toISOString()}|${TRACK_VERSION}`;
+
+      if (generatedTrackCache.has(cacheKey)) continue;
+
       try {
         const exists = await trackBucketExists(pool, tokenMint, targetHour, TRACK_VERSION);
-        if (exists) continue;
+        if (exists) {
+          generatedTrackCache.add(cacheKey);
+          continue;
+        }
 
         const ticks = await getTicksForHour(pool, tokenMint, targetHour);
 
@@ -306,6 +337,7 @@ async function checkAndGenerateTracks(
         );
 
         await storeTrackBucket(pool, bucket);
+        generatedTrackCache.add(cacheKey);
 
         log({
           ts: now(),

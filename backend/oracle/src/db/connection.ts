@@ -19,6 +19,7 @@ export function getPool(databaseUrl: string): Pool {
       max: 10,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 5_000,
+      statement_timeout: 10_000,
     };
     pool = new Pool(config);
 

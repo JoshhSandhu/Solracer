@@ -1,48 +1,53 @@
 # Oracle-v2  SolRacer Track Data Pipeline
 
-Deterministic oracle ingestion and track bucket pipeline for the SolRacer ER multiplayer system.
+Deterministic oracle tick ingestion and track bucket pipeline for the SolRacer ER multiplayer system.
 
-This module runs independently from the Python/FastAPI backend. It ingests MagicBlock oracle price data hourly and generates normalized track buckets that ER race sessions commit to on-chain.
+This module runs independently from the Python/FastAPI backend. It samples MagicBlock oracle prices every 2 seconds and generates deterministic hourly track buckets that ER race sessions commit to on-chain.
 
 ## Architecture
 
 ```
 MagicBlock Oracle Feed
-       │
-       ▼
-[Ingestion Worker]──hourly──▶[oracle_hourly_points (DB)]
-       │                           │
-       │                           │ rolling delete (>26h)
-       ▼                           ▼
-[Track Generator]───────────▶[track_buckets (DB)]
-                                   │
-                                   ▼
-                            [Internal API]
-                                   │
-                                   ▼
-                             Unity Client
+       |
+       v
+[Tick Worker]--every 2s-->[oracle_ticks (DB)]
+       |                         |
+       |                         | rolling delete (>26h)
+       |                         v
+       +--after hour close-->[Track Generator]
+                                 |
+                                 v
+                          [track_buckets (DB)]
+                                 |
+                                 v
+                          [Internal API]
+                                 |
+                                 v
+                           Unity Client
 ```
 
-**Ingestion worker** runs on a configurable cron schedule (default `:05` past each hour). For each configured token mint, it fetches the current oracle price and stores one row per token per hour. A startup catch-up routine detects gaps and backfills missed hours (capped at `MAX_CATCHUP_HOURS`).
+**Tick worker** runs a continuous `setTimeout` loop aligned to 2-second boundaries (`TICK_INTERVAL_MS = 2000`). Each tick fetches the current oracle price for every configured token and stores a row in `oracle_ticks`. The worker owns `tick_time` alignment; the oracle fetcher never produces timestamps.
 
-**Track buckets** are deterministic normalizations of hourly oracle data. Each bucket stores quantized int16 Y-values as BYTEA, a SHA-256 `track_hash` for on-chain commitment, and normalization metadata for reproducibility.
+**Track generation** runs inside the same tick loop. Starting at 2 minutes past each UTC hour, the worker checks the last 2 completed hours. For each token+hour that has no existing track bucket (DB-checked, crash-safe), it generates a deterministic track if at least 1200 ticks are present (`MIN_TICKS_FOR_TRACK`).
 
-**Rolling 26-hour window** ensures old data is pruned every cycle. Retention is based on `hour_start_utc`, not `created_at`.
+**Track pipeline** (locked order): downsample -> normalize [0,1] -> delta clamp -> quantize Int16LE + SHA-256 hash. All arithmetic uses JS `number` (f64). No float32 anywhere.
+
+**Rolling 26-hour window** ensures old data is pruned once per hour. Retention is based on `tick_time` / `track_hour_start_utc`, not `created_at`.
 
 ## Database Tables
 
-### `oracle_hourly_points`
+### `oracle_ticks`
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `token_mint` | TEXT | Solana token mint address (PK) |
-| `hour_start_utc` | TIMESTAMPTZ | UTC hour bucket start (PK) |
+| `tick_time` | TIMESTAMPTZ | Aligned tick timestamp, multiple of 2000ms (PK) |
 | `oracle_price` | DOUBLE PRECISION | Sampled oracle price |
 | `publish_time` | TIMESTAMPTZ | Oracle feed publish timestamp |
 | `source_slot` | BIGINT | Solana slot at observation |
 | `created_at` | TIMESTAMPTZ | Row insertion time (default `now()`) |
 
-**Primary key**: `(token_mint, hour_start_utc)`
+**Primary key**: `(token_mint, tick_time)`
 
 ### `track_buckets`
 
@@ -51,9 +56,9 @@ MagicBlock Oracle Feed
 | `token_mint` | TEXT | Solana token mint address (PK) |
 | `track_hour_start_utc` | TIMESTAMPTZ | Source hour bucket (PK) |
 | `track_version` | TEXT | Normalization algorithm version (PK) |
-| `normalized_points_blob` | BYTEA | Quantized int16 Y-values |
+| `normalized_points_blob` | BYTEA | Quantized Int16LE Y-values |
 | `point_count` | INTEGER | Number of points in track |
-| `normalization_meta` | JSONB | Scale factor, clamp, version info |
+| `normalization_meta` | JSONB | Scale factor, clamp, tick count, version |
 | `track_hash` | TEXT | SHA-256 hex digest of blob |
 | `created_at` | TIMESTAMPTZ | Row insertion time (default `now()`) |
 
@@ -61,29 +66,48 @@ MagicBlock Oracle Feed
 
 ## Rolling Window Rules
 
-- **26 hours** of data stored per token.
-- **Newest hour** excluded (still forming  may have incomplete data).
-- **Oldest hour** excluded (about to roll off the retention window).
+- **26 hours** of tick data and track buckets stored per token.
+- **Newest bucket** excluded from playable set (current hour still forming).
+- **Oldest bucket** excluded (about to roll off the retention window).
 - **24 remaining hours** are playable track candidates.
-- Data older than 26 hours is deleted on `hour_start_utc` each cycle.
+- Retention cleanup runs once per hour, deleting on `tick_time` / `track_hour_start_utc`.
 
 When a lobby is created, the backend randomly selects one of the 24 playable buckets. Both players race the same deterministic track.
 
+## Expected Data Volume
+
+| Metric | Value |
+|--------|-------|
+| Tick interval | 2 seconds |
+| Ticks per token per hour | ~1,800 |
+| Ticks per token in retention window | ~46,800 |
+| Track buckets per token | ~26 |
+| With 3 tokens: total tick rows | ~140,400 |
+
+## Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `TRACK_VERSION` | `'2'` | Normalization algorithm version |
+| `TICK_INTERVAL_MS` | `2000` | Tick sampling interval (ms) |
+| `MAX_DELTA_PER_STEP` | `0.03` | Max delta between consecutive normalized Y-values |
+| `MIN_TICKS_FOR_TRACK` | `1200` | Minimum ticks to generate a track (67% coverage) |
+| `TRACK_GEN_BUFFER_MINUTES` | `2` | Minutes after hour to wait before track generation |
+| `ONE_HOUR_MS` | `3600000` | One hour in milliseconds |
+
 ## Determinism Guarantees
 
-Oracle-v2 enforces deterministic track bucket generation so ER race sessions can commit to track data on-chain.
+The system must produce identical track hashes for identical tick data across any server, timezone, or restart.
 
-Determinism requirements:
-- Hour buckets use UTC floor-to-hour rounding.
-- One oracle sample per token per hour.
-- UPSERT guarantees no duplicate buckets.
-- Track normalization produces identical output for identical inputs.
-- `track_hash` is SHA-256 of `normalized_points_blob`.
-- `point_count` must equal `TRACK_POINT_COUNT`.
-- `track_version` identifies normalization algorithm version.
+- Tick timestamps are aligned to exact multiples of `TICK_INTERVAL_MS` by the worker.
+- `getTicksForHour()` enforces `ORDER BY tick_time ASC` (deterministic input ordering).
+- Track pipeline: downsample -> normalize -> delta clamp -> quantize is fully deterministic (no randomness, no locale dependency).
+- `track_hash` = `SHA-256(normalized_points_blob)` (hash depends only on the blob).
+- `track_version` pins the algorithm version; old and new versions never mix.
+- UPSERT guarantees no duplicate ticks or buckets.
+- All time operations use UTC (`setUTCMinutes`, `getUTCMinutes`, epoch math).
 
-These guarantees ensure that:
-`hash(track_blob) == track_hash` committed in ER race session.
+These guarantees ensure: `sha256(track_blob) === track_hash` committed in ER race session.
 
 ## Running the Worker
 
@@ -93,7 +117,7 @@ cd backend/oracle
 # Install dependencies
 npm install
 
-# Run in development mode
+# Run in development mode (loads .env automatically)
 npm run dev
 
 # Build and run production
@@ -102,28 +126,29 @@ npm start
 ```
 
 The worker will:
-1. Run startup catch-up to backfill any missed hours.
-2. Schedule hourly ingestion at the configured poll minute.
-3. Clean up expired data after each cycle.
+1. Start a 2-second aligned tick loop.
+2. Fetch and store oracle prices for all configured tokens each tick.
+3. Generate track buckets for completed hours (2 minutes after hour close).
+4. Run retention cleanup once per hour.
 
 ## Environment Variables
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DATABASE_URL` | Yes |  | PostgreSQL connection string |
-| `ORACLE_SUPPORTED_TOKENS` | Yes |  | Comma-separated token mint addresses |
+| `DATABASE_URL` | Yes | | PostgreSQL connection string |
+| `ORACLE_SUPPORTED_TOKENS` | Yes | | Comma-separated token mint addresses |
 | `RETENTION_HOURS` | No | `26` | Rolling window size in hours |
 | `TRACK_POINT_COUNT` | No | `1000` | Fixed point count per normalized track |
-| `ORACLE_POLL_MINUTE` | No | `5` | Minute past hour for cron (0–59) |
-| `MAX_CATCHUP_HOURS` | No | `48` | Max hours to backfill on startup |
 
 Example `.env`:
 ```
 DATABASE_URL=postgresql://postgres:password@db.project.supabase.co:5432/postgres
-ORACLE_SUPPORTED_TOKENS=So11111111111111111111111111111111111112,DezXcbUBnEAA2F9tQupAwmAEuGPPdP4hMsp9pq2GKb8
+ORACLE_SUPPORTED_TOKENS=So11111111111111111111111111111111111112,DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263
 TRACK_POINT_COUNT=1000
-ORACLE_POLL_MINUTE=5
+RETENTION_HOURS=26
 ```
+
+**Note:** Never commit `.env` or credentials to git. The `test:db` script requires `TEST_DATABASE_URL` to be set as an environment variable.
 
 ## Tests
 
@@ -135,53 +160,37 @@ npm test
 npm run test:watch
 
 # Run DB integration tests (requires TEST_DATABASE_URL)
-TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/test_db npm test
+TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/test_db npm run test:db
 ```
 
 **Test structure:**
-- `tests/time.test.ts`  Deterministic hour rounding invariants.
-- `tests/catchup.test.ts`  Catch-up safety cap (pure logic, no DB).
-- `tests/repository.test.ts`  UPSERT, retention, playable bucket rules (requires `TEST_DATABASE_URL`, skips gracefully without it).
+- `tests/time.test.ts` - Deterministic hour rounding invariants (9 tests).
+- `tests/track-generator.test.ts` - Track pipeline determinism, blob validation, hash verification, edge cases (8 tests).
+- `tests/repository.test.ts` - Tick UPSERT, ordering, retention, playable bucket rules, `trackBucketExists` (13 tests, requires `TEST_DATABASE_URL`, skips gracefully without it).
 
-## Production-Readiness Fixes (Audit Pass)
+## Known Minor Issues (Deferred)
 
-The following issues were identified during a production-readiness audit and fixed:
+The following were identified during production audits and intentionally deferred:
 
-### Critical Fixes
+- **Redundant DESC indexes**: The explicit `(token_mint, tick_time DESC)` indexes duplicate what the PK B-tree provides via backward scans. Wastes disk and write overhead but causes no correctness issues.
 
-- **C1  Env validation for `RETENTION_HOURS` and `MAX_CATCHUP_HOURS`**: Both values lacked `isNaN` and range checks. A malformed env var (e.g. `RETENTION_HOURS=abc`) would produce `NaN`, silently breaking retention cleanup and catch-up logic. Added validation that throws on non-positive or non-numeric values, matching the existing pattern for `TRACK_POINT_COUNT`.
+- **`source_slot` BIGINT returned as string by pg**: The `pg` library returns `BIGINT` as a string, but the TypeScript type declares `number`. No arithmetic is performed on this field, so no runtime breakage, but the type assertion is incorrect.
 
-- **C2  Per-hour error isolation in catch-up**: A single failed hour (transient DB error, oracle timeout) inside the catch-up `while` loop would abort all remaining hours for that token. Added a `try/catch` around each individual hour so failures are logged and skipped, allowing subsequent hours to proceed.
+- **`deleteExpiredData` runs two DELETEs without a transaction**: If the process crashes between the two statements, one table is cleaned and the other isn't. Self-correcting on the next cleanup cycle.
 
-### Major Fixes
+- **`getPool` singleton ignores `databaseUrl` on subsequent calls**: The singleton pattern returns the pool connected to the first URL. Confusing in test or multi-tenant scenarios.
 
-- **M1  Config-driven retention window in `getPlayableTrackBuckets`**: The SQL query hardcoded `interval '26 hours'`. If `RETENTION_HOURS` was changed, the playable query and retention cleanup would disagree. The function now accepts a `retentionHours` parameter and uses `$2::int * interval '1 hour'` in the SQL.
+- **`oracle_price` uses `DOUBLE PRECISION`**: Floating point representation risks for price data. Acceptable for track generation (quantized to Int16) but not suitable for financial accounting.
 
-- **M2  Filter playable buckets by `track_version`**: `getPlayableTrackBuckets` did not filter by version. If `TRACK_VERSION` was bumped, the query would return a mix of old and new version buckets with incorrect min/max bounds. Added a `trackVersion` parameter and `track_version = $3` filter to the CTE.
+- **Playable query uses DB clock (`now()`) while retention uses JS clock (`Date.now()`)**: Clock skew between app and DB servers could briefly cause a bucket to be playable but about to be deleted, or vice versa.
 
-- **M3  Catch-up clamp uses `min(retentionHours, maxCatchUpHours)`**: When the gap exceeded `maxCatchUpHours`, the clamp set `startHour` to `currentHour - retentionHours`. If `retentionHours > maxCatchUpHours`, this defeated the safety cap. Changed to `Math.min(retentionHours, maxCatchUpHours)`.
+- **`isDirectRun` detection is fragile**: The `process.argv[1]?.endsWith('index.ts')` fallbacks could false-positive on similarly named files.
 
-- **M5  Prevent cron/catch-up overlap**: `runStartupCatchUp` ran as fire-and-forget while the cron was scheduled immediately. Both could execute concurrently. The catch-up function now sets the `isRunning` overlap guard (with `try/finally` cleanup), so the cron's existing guard skips cycles until catch-up completes.
+- **Delta clamping can push values outside [0, 1]**: After normalization, delta clamping can produce values slightly below 0 or above 1. The quantizer's `[0, 32767]` clamp catches this, but it means tracks may have small plateaus at boundaries.
 
-### Known Minor Issues (Not Fixed)
+- **No backfill for missed ticks**: If the worker is down, missed ticks are gone permanently. If an hour has fewer than 1200 ticks, no track is generated and there is no recovery path.
 
-The following were identified but intentionally deferred:
-
-- **m1  Redundant database indexes**: The explicit `DESC` indexes on `(token_mint, hour_start_utc DESC)` duplicate what the PK B-tree already provides via backward scans. Wastes disk and write overhead but causes no correctness issues.
-
-- **m2  `source_slot` BIGINT returned as string by pg**: The `pg` library returns `BIGINT` as a string, but the TypeScript type declares `number`. No arithmetic is performed on this field currently, so no runtime breakage, but the type assertion is technically incorrect.
-
-- **m3  `deleteExpiredData` runs two DELETEs without a transaction**: If the process crashes between the two statements, one table is cleaned and the other isn't. Self-correcting on the next cycle.
-
-- **m4  Cron task not stopped on shutdown**: The `ScheduledTask` from `cron.schedule()` is not `.stop()`-ed in the SIGINT/SIGTERM handler. Could fire once more during pool teardown.
-
-- **m5  `getPool` silently ignores `databaseUrl` after first call**: Singleton pattern means subsequent calls with a different URL return the original pool. Confusing in test scenarios.
-
-- **m6  `oracle_price` uses `DOUBLE PRECISION`**: Floating point representation risks for price data. Acceptable for track generation (quantized to int16) but not for financial accounting.
-
-- **m7  Playable query uses DB clock (`now()`) while retention uses JS clock (`Date.now()`)**: Clock skew between app and DB servers could cause a brief window where a bucket is playable but about to be deleted, or vice versa.
-
-- **m8  `isDirectRun` detection is fragile**: The `process.argv[1]?.endsWith('index.ts')` fallbacks could false-positive on similarly named files.
+- **`getTicksForHour` hardcodes hour duration**: Uses `60 * 60 * 1000` instead of the `ONE_HOUR_MS` constant.
 
 ## Project Structure
 
@@ -189,26 +198,26 @@ The following were identified but intentionally deferred:
 backend/oracle/
 ├── package.json
 ├── tsconfig.json
-├── vitest.config.ts
+├── vitest.config.mts
 ├── src/
 │   ├── index.ts                          # Barrel exports + bootstrap
 │   ├── config.ts                         # Environment config
-│   ├── constants.ts                      # TRACK_VERSION, defaults
+│   ├── constants.ts                      # TRACK_VERSION, TICK_INTERVAL_MS, etc.
 │   ├── types/
 │   │   └── oracle.types.ts               # Domain types
 │   ├── utils/
 │   │   └── time.ts                       # floorToHour()
 │   ├── db/
 │   │   ├── schema.sql                    # PostgreSQL DDL
-│   │   ├── connection.ts                 # pg.Pool
+│   │   ├── connection.ts                 # pg.Pool (with statement_timeout)
 │   │   └── repository.ts                 # DB operations
 │   ├── services/
 │   │   ├── oracle-fetcher.ts             # MagicBlock stub
-│   │   └── track-generator.ts            # Normalization stub
+│   │   └── track-generator.ts            # Deterministic normalization pipeline
 │   └── workers/
-│       └── oracleIngestionWorker.ts      # Cron worker
+│       └── oracleIngestionWorker.ts      # Tick loop worker
 └── tests/
     ├── time.test.ts
-    ├── catchup.test.ts
+    ├── track-generator.test.ts
     └── repository.test.ts
 ```
