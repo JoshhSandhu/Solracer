@@ -57,7 +57,8 @@ function makeBucket(tokenMint: string, hourStart: Date, version: string = '1'): 
     max_price: 150,
     scale_factor: 1.0,
     point_count: 4,
-    slope_clamp_degrees: 75,
+    max_delta_per_step: 0.03,
+    terrain_step_size: 0.02,
     version,
   };
   const crypto = require('crypto');

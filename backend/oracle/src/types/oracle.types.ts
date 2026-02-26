@@ -41,20 +41,23 @@ export type OraclePointInput = Omit<OracleHourlyPoint, 'created_at'>;
  * Stored as JSONB in `normalization_meta`.
  */
 export interface NormalizationMeta {
-  /** Minimum raw oracle price in the source data. */
+  /** Minimum raw value in the source data (pre-normalization). */
   min_price: number;
 
-  /** Maximum raw oracle price in the source data. */
+  /** Maximum raw value in the source data (pre-normalization). */
   max_price: number;
 
-  /** Scale factor applied during int16 quantization. */
+  /** Scale factor applied during normalization (1 / (max - min)). */
   scale_factor: number;
 
   /** Number of output points (must equal config TRACK_POINT_COUNT). */
   point_count: number;
 
-  /** Maximum slope angle (degrees) applied during clamping. */
-  slope_clamp_degrees: number;
+  /** Maximum delta between consecutive normalized Y-values. */
+  max_delta_per_step: number;
+
+  /** Random walk step size used during terrain generation. */
+  terrain_step_size: number;
 
   /** Normalization algorithm version tag. */
   version: string;
