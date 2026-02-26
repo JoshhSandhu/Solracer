@@ -2,6 +2,8 @@
 // Oracle Pipeline  Runtime Configuration
 // ---------------------------------------------------------------------------
 
+import { FEED_REGISTRY } from './services/oracle-config';
+
 export interface OracleConfig {
   /** PostgreSQL connection string. */
   databaseUrl: string;
@@ -39,6 +41,15 @@ export function loadConfig(): OracleConfig {
     throw new Error(
       'ORACLE_SUPPORTED_TOKENS must be set to a comma-separated list of token mints.',
     );
+  }
+
+  for (const token of supportedTokens) {
+    if (!FEED_REGISTRY[token]) {
+      throw new Error(
+        `Token "${token}" in ORACLE_SUPPORTED_TOKENS has no entry in FEED_REGISTRY. ` +
+        `Available: ${Object.keys(FEED_REGISTRY).join(', ')}`,
+      );
+    }
   }
 
   const retentionHours = parseInt(
