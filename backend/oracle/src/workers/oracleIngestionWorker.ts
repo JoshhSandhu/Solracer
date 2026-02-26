@@ -15,9 +15,12 @@ import type { OracleConfig } from '../config';
 import { ONE_HOUR_MS } from '../constants';
 import { floorToHour, currentHourUTC } from '../utils/time';
 import { fetchOraclePrice } from '../services/oracle-fetcher';
+import { generateTrackBucket } from '../services/track-generator';
 import {
   storeOraclePoint,
   getLatestOracleHour,
+  getOraclePointsForHour,
+  storeTrackBucket,
   deleteExpiredData,
 } from '../db/repository';
 import type { OraclePointInput } from '../types/oracle.types';
@@ -150,7 +153,7 @@ async function runIngestionCycle(
 
     for (const tokenMint of config.supportedTokens) {
       try {
-        await ingestTokenHour(pool, tokenMint, hourStart);
+        await ingestTokenHour(pool, tokenMint, hourStart, config);
       } catch (err) {
         log({
           ts: now(),
@@ -205,6 +208,7 @@ async function ingestTokenHour(
   pool: Pool,
   tokenMint: string,
   hourStart: Date,
+  config: OracleConfig,
 ): Promise<void> {
   const priceData = await fetchOraclePrice(tokenMint);
 
@@ -226,6 +230,37 @@ async function ingestTokenHour(
     hourStart: hourStart.toISOString(),
     price: priceData.price,
   });
+
+  // Generate and store deterministic track bucket
+  try {
+    const oraclePoint = await getOraclePointsForHour(pool, tokenMint, hourStart);
+    if (oraclePoint) {
+      const bucket = await generateTrackBucket(
+        tokenMint,
+        hourStart,
+        [oraclePoint],
+        config.trackPointCount,
+      );
+      await storeTrackBucket(pool, bucket);
+
+      log({
+        ts: now(),
+        level: 'info',
+        msg: 'Stored track bucket',
+        tokenMint,
+        hourStart: hourStart.toISOString(),
+      });
+    }
+  } catch (err) {
+    log({
+      ts: now(),
+      level: 'error',
+      msg: 'Track generation failed',
+      tokenMint,
+      hourStart: hourStart.toISOString(),
+      error: String(err),
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -332,7 +367,7 @@ async function runStartupCatchUp(
 
         while (current.getTime() <= currentHour.getTime()) {
           try {
-            await ingestTokenHour(pool, tokenMint, current);
+            await ingestTokenHour(pool, tokenMint, current, config);
             backfilled++;
           } catch (err) {
             log({

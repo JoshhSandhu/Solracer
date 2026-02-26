@@ -149,39 +149,39 @@ The following issues were identified during a production-readiness audit and fix
 
 ### Critical Fixes
 
-- **C1 — Env validation for `RETENTION_HOURS` and `MAX_CATCHUP_HOURS`**: Both values lacked `isNaN` and range checks. A malformed env var (e.g. `RETENTION_HOURS=abc`) would produce `NaN`, silently breaking retention cleanup and catch-up logic. Added validation that throws on non-positive or non-numeric values, matching the existing pattern for `TRACK_POINT_COUNT`.
+- **C1  Env validation for `RETENTION_HOURS` and `MAX_CATCHUP_HOURS`**: Both values lacked `isNaN` and range checks. A malformed env var (e.g. `RETENTION_HOURS=abc`) would produce `NaN`, silently breaking retention cleanup and catch-up logic. Added validation that throws on non-positive or non-numeric values, matching the existing pattern for `TRACK_POINT_COUNT`.
 
-- **C2 — Per-hour error isolation in catch-up**: A single failed hour (transient DB error, oracle timeout) inside the catch-up `while` loop would abort all remaining hours for that token. Added a `try/catch` around each individual hour so failures are logged and skipped, allowing subsequent hours to proceed.
+- **C2  Per-hour error isolation in catch-up**: A single failed hour (transient DB error, oracle timeout) inside the catch-up `while` loop would abort all remaining hours for that token. Added a `try/catch` around each individual hour so failures are logged and skipped, allowing subsequent hours to proceed.
 
 ### Major Fixes
 
-- **M1 — Config-driven retention window in `getPlayableTrackBuckets`**: The SQL query hardcoded `interval '26 hours'`. If `RETENTION_HOURS` was changed, the playable query and retention cleanup would disagree. The function now accepts a `retentionHours` parameter and uses `$2::int * interval '1 hour'` in the SQL.
+- **M1  Config-driven retention window in `getPlayableTrackBuckets`**: The SQL query hardcoded `interval '26 hours'`. If `RETENTION_HOURS` was changed, the playable query and retention cleanup would disagree. The function now accepts a `retentionHours` parameter and uses `$2::int * interval '1 hour'` in the SQL.
 
-- **M2 — Filter playable buckets by `track_version`**: `getPlayableTrackBuckets` did not filter by version. If `TRACK_VERSION` was bumped, the query would return a mix of old and new version buckets with incorrect min/max bounds. Added a `trackVersion` parameter and `track_version = $3` filter to the CTE.
+- **M2  Filter playable buckets by `track_version`**: `getPlayableTrackBuckets` did not filter by version. If `TRACK_VERSION` was bumped, the query would return a mix of old and new version buckets with incorrect min/max bounds. Added a `trackVersion` parameter and `track_version = $3` filter to the CTE.
 
-- **M3 — Catch-up clamp uses `min(retentionHours, maxCatchUpHours)`**: When the gap exceeded `maxCatchUpHours`, the clamp set `startHour` to `currentHour - retentionHours`. If `retentionHours > maxCatchUpHours`, this defeated the safety cap. Changed to `Math.min(retentionHours, maxCatchUpHours)`.
+- **M3  Catch-up clamp uses `min(retentionHours, maxCatchUpHours)`**: When the gap exceeded `maxCatchUpHours`, the clamp set `startHour` to `currentHour - retentionHours`. If `retentionHours > maxCatchUpHours`, this defeated the safety cap. Changed to `Math.min(retentionHours, maxCatchUpHours)`.
 
-- **M5 — Prevent cron/catch-up overlap**: `runStartupCatchUp` ran as fire-and-forget while the cron was scheduled immediately. Both could execute concurrently. The catch-up function now sets the `isRunning` overlap guard (with `try/finally` cleanup), so the cron's existing guard skips cycles until catch-up completes.
+- **M5  Prevent cron/catch-up overlap**: `runStartupCatchUp` ran as fire-and-forget while the cron was scheduled immediately. Both could execute concurrently. The catch-up function now sets the `isRunning` overlap guard (with `try/finally` cleanup), so the cron's existing guard skips cycles until catch-up completes.
 
 ### Known Minor Issues (Not Fixed)
 
 The following were identified but intentionally deferred:
 
-- **m1 — Redundant database indexes**: The explicit `DESC` indexes on `(token_mint, hour_start_utc DESC)` duplicate what the PK B-tree already provides via backward scans. Wastes disk and write overhead but causes no correctness issues.
+- **m1  Redundant database indexes**: The explicit `DESC` indexes on `(token_mint, hour_start_utc DESC)` duplicate what the PK B-tree already provides via backward scans. Wastes disk and write overhead but causes no correctness issues.
 
-- **m2 — `source_slot` BIGINT returned as string by pg**: The `pg` library returns `BIGINT` as a string, but the TypeScript type declares `number`. No arithmetic is performed on this field currently, so no runtime breakage, but the type assertion is technically incorrect.
+- **m2  `source_slot` BIGINT returned as string by pg**: The `pg` library returns `BIGINT` as a string, but the TypeScript type declares `number`. No arithmetic is performed on this field currently, so no runtime breakage, but the type assertion is technically incorrect.
 
-- **m3 — `deleteExpiredData` runs two DELETEs without a transaction**: If the process crashes between the two statements, one table is cleaned and the other isn't. Self-correcting on the next cycle.
+- **m3  `deleteExpiredData` runs two DELETEs without a transaction**: If the process crashes between the two statements, one table is cleaned and the other isn't. Self-correcting on the next cycle.
 
-- **m4 — Cron task not stopped on shutdown**: The `ScheduledTask` from `cron.schedule()` is not `.stop()`-ed in the SIGINT/SIGTERM handler. Could fire once more during pool teardown.
+- **m4  Cron task not stopped on shutdown**: The `ScheduledTask` from `cron.schedule()` is not `.stop()`-ed in the SIGINT/SIGTERM handler. Could fire once more during pool teardown.
 
-- **m5 — `getPool` silently ignores `databaseUrl` after first call**: Singleton pattern means subsequent calls with a different URL return the original pool. Confusing in test scenarios.
+- **m5  `getPool` silently ignores `databaseUrl` after first call**: Singleton pattern means subsequent calls with a different URL return the original pool. Confusing in test scenarios.
 
-- **m6 — `oracle_price` uses `DOUBLE PRECISION`**: Floating point representation risks for price data. Acceptable for track generation (quantized to int16) but not for financial accounting.
+- **m6  `oracle_price` uses `DOUBLE PRECISION`**: Floating point representation risks for price data. Acceptable for track generation (quantized to int16) but not for financial accounting.
 
-- **m7 — Playable query uses DB clock (`now()`) while retention uses JS clock (`Date.now()`)**: Clock skew between app and DB servers could cause a brief window where a bucket is playable but about to be deleted, or vice versa.
+- **m7  Playable query uses DB clock (`now()`) while retention uses JS clock (`Date.now()`)**: Clock skew between app and DB servers could cause a brief window where a bucket is playable but about to be deleted, or vice versa.
 
-- **m8 — `isDirectRun` detection is fragile**: The `process.argv[1]?.endsWith('index.ts')` fallbacks could false-positive on similarly named files.
+- **m8  `isDirectRun` detection is fragile**: The `process.argv[1]?.endsWith('index.ts')` fallbacks could false-positive on similarly named files.
 
 ## Project Structure
 
