@@ -27,7 +27,8 @@ export function decodeBlobToFloats(blob: Buffer, pointCount: number): number[] {
 
     const floats = new Array<number>(pointCount);
     for (let i = 0; i < pointCount; i++) {
-        floats[i] = blob.readInt16LE(i * 2) / 32767;
+        const raw = blob.readInt16LE(i * 2) / 32767;
+        floats[i] = raw < 0 ? 0 : raw > 1 ? 1 : raw;
     }
 
     return floats;
