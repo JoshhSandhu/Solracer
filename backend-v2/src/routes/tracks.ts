@@ -40,7 +40,7 @@ export async function trackRoutes(
 
       const sql = `
         WITH valid_window AS (
-          SELECT token_mint, track_hour_start_utc, track_version, point_count, track_hash
+          SELECT token_mint, track_hour_start_utc, track_version, point_count, track_hash, difficulty
           FROM track_buckets
           WHERE token_mint = $1
             AND track_hour_start_utc > now() - ($2::int * interval '1 hour')
@@ -56,7 +56,8 @@ export async function trackRoutes(
                w.track_hour_start_utc,
                w.track_version,
                w.point_count,
-               w.track_hash
+               w.track_hash,
+               w.difficulty
         FROM valid_window w, bounds b
         WHERE w.track_hour_start_utc > b.oldest
           AND w.track_hour_start_utc < b.newest
@@ -71,6 +72,7 @@ export async function trackRoutes(
         trackVersion: row.track_version as string,
         pointCount: row.point_count as number,
         trackHash: row.track_hash as string,
+        difficulty: (row.difficulty as number) ?? 1,
       }));
 
       reply.header('Cache-Control', 'public, max-age=300');
@@ -94,7 +96,7 @@ export async function trackRoutes(
 
       const sql = `
         WITH valid_window AS (
-          SELECT track_hour_start_utc, track_hash
+          SELECT track_hour_start_utc, track_hash, difficulty
           FROM track_buckets
           WHERE token_mint = $1
             AND track_hour_start_utc > now() - ($2::int * interval '1 hour')
@@ -107,7 +109,8 @@ export async function trackRoutes(
           FROM valid_window
         )
         SELECT w.track_hour_start_utc,
-               w.track_hash
+               w.track_hash,
+               w.difficulty
         FROM valid_window w, bounds b
         WHERE w.track_hour_start_utc > b.oldest
           AND w.track_hour_start_utc < b.newest
@@ -125,6 +128,7 @@ export async function trackRoutes(
       const latest: LatestTrack = {
         hourStartUTC: (row.track_hour_start_utc as Date).toISOString(),
         trackHash: row.track_hash as string,
+        difficulty: (row.difficulty as number) ?? 1,
       };
 
       reply.header('Cache-Control', 'public, max-age=300');
@@ -164,7 +168,8 @@ export async function trackRoutes(
                track_version,
                point_count,
                track_hash,
-               normalized_points_blob
+               normalized_points_blob,
+               difficulty
         FROM track_buckets
         WHERE token_mint = $1
           AND track_hour_start_utc = $2
@@ -202,6 +207,7 @@ export async function trackRoutes(
         pointCount,
         trackHash: row.track_hash as string,
         normalizedPointsBlobBase64: blob.toString('base64'),
+        difficulty: (row.difficulty as number) ?? 1,
       };
 
       reply.header('Cache-Control', 'public, max-age=3600');
