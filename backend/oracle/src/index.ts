@@ -64,7 +64,7 @@ async function main(): Promise<void> {
   const config = load();
   const dbPool = pool(config.databaseUrl);
 
-  // Startup health checks — fail fast on misconfiguration
+  // Startup health checks  fail fast on misconfiguration
   console.log('[oracle] Running startup health checks...');
 
   try {
