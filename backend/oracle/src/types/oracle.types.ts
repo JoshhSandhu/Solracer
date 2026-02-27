@@ -96,6 +96,9 @@ export interface TrackBucket {
    */
   track_hash: string;
 
+  /** Difficulty classification: 0 = Easy, 1 = Medium, 2 = Hard. */
+  difficulty: number;
+
   /** Row insertion timestamp (DB default). */
   created_at?: Date;
 }
@@ -136,4 +139,5 @@ export interface PlayableTrackBucket {
   track_hash: string;
   normalized_points_blob: Buffer;
   normalization_meta: NormalizationMeta;
+  difficulty: number;
 }
