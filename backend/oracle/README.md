@@ -30,7 +30,7 @@ MagicBlock Oracle Feed
 
 **Track generation** runs inside the same tick loop. Starting at 2 minutes past each UTC hour, the worker checks the last 2 completed hours. For each token+hour that has no existing track bucket (DB-checked, crash-safe), it generates a deterministic track if at least 1200 ticks are present (`MIN_TICKS_FOR_TRACK`).
 
-**Track pipeline** (locked order): downsample -> normalize [0,1] -> delta clamp -> quantize Int16LE + SHA-256 hash. All arithmetic uses JS `number` (f64). No float32 anywhere.
+**Track pipeline** (locked order): downsample -> normalize [0,1] -> delta clamp -> classify difficulty -> quantize Int16LE + SHA-256 hash. Difficulty is classified on the normalized float array *before* quantization, guaranteeing determinism. All arithmetic uses JS `number` (f64). No float32 anywhere.
 
 **Rolling 26-hour window** ensures old data is pruned once per hour. Retention is based on `tick_time` / `track_hour_start_utc`, not `created_at`.
 
@@ -60,9 +60,12 @@ MagicBlock Oracle Feed
 | `point_count` | INTEGER | Number of points in track |
 | `normalization_meta` | JSONB | Scale factor, clamp, tick count, version |
 | `track_hash` | TEXT | SHA-256 hex digest of blob |
+| `difficulty` | SMALLINT | Track difficulty: 0=Easy, 1=Medium, 2=Hard |
 | `created_at` | TIMESTAMPTZ | Row insertion time (default `now()`) |
 
 **Primary key**: `(token_mint, track_hour_start_utc, track_version)`
+
+**Indexes**: `(token_mint, difficulty)` for matchmaking queries.
 
 ## Rolling Window Rules
 
@@ -94,6 +97,11 @@ When a lobby is created, the backend randomly selects one of the 24 playable buc
 | `MIN_TICKS_FOR_TRACK` | `1200` | Minimum ticks to generate a track (67% coverage) |
 | `TRACK_GEN_BUFFER_MINUTES` | `2` | Minutes after hour to wait before track generation |
 | `ONE_HOUR_MS` | `3600000` | One hour in milliseconds |
+| `DIFFICULTY_EASY` | `0` | Easy track classification |
+| `DIFFICULTY_MEDIUM` | `1` | Medium track classification |
+| `DIFFICULTY_HARD` | `2` | Hard track classification |
+| `DIFFICULTY_THRESHOLD_EASY` | `0.08` | Score below this = Easy |
+| `DIFFICULTY_THRESHOLD_HARD` | `0.16` | Score above this = Hard |
 
 ## Determinism Guarantees
 
@@ -101,7 +109,8 @@ The system must produce identical track hashes for identical tick data across an
 
 - Tick timestamps are aligned to exact multiples of `TICK_INTERVAL_MS` by the worker.
 - `getTicksForHour()` enforces `ORDER BY tick_time ASC` (deterministic input ordering).
-- Track pipeline: downsample -> normalize -> delta clamp -> quantize is fully deterministic (no randomness, no locale dependency).
+- Track pipeline: downsample -> normalize -> delta clamp -> classify difficulty -> quantize is fully deterministic (no randomness, no locale dependency).
+- Difficulty classification runs on normalized floats before quantization; same clamped array always produces the same difficulty.
 - `track_hash` = `SHA-256(normalized_points_blob)` (hash depends only on the blob).
 - `track_version` pins the algorithm version; old and new versions never mix.
 - UPSERT guarantees no duplicate ticks or buckets.
@@ -128,8 +137,16 @@ npm start
 The worker will:
 1. Start a 2-second aligned tick loop.
 2. Fetch and store oracle prices for all configured tokens each tick.
-3. Generate track buckets for completed hours (2 minutes after hour close).
+3. Generate track buckets (with difficulty) for completed hours (2 minutes after hour close).
 4. Run retention cleanup once per hour.
+
+### Backfill Difficulty for Existing Rows
+
+```bash
+npx tsx scripts/backfill-difficulty.ts
+```
+
+Idempotent, batched (50 rows at a time), crash-safe. Only updates rows where `difficulty IS NULL` or invalid.
 
 ## Environment Variables
 
@@ -166,6 +183,7 @@ TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/test_db npm run test:db
 **Test structure:**
 - `tests/time.test.ts` - Deterministic hour rounding invariants (9 tests).
 - `tests/track-generator.test.ts` - Track pipeline determinism, blob validation, hash verification, edge cases (8 tests).
+- `tests/classifier.test.ts` - Difficulty classifier determinism, edge cases, blob decoder round-trip (11 tests).
 - `tests/repository.test.ts` - Tick UPSERT, ordering, retention, playable bucket rules, `trackBucketExists` (13 tests, requires `TEST_DATABASE_URL`, skips gracefully without it).
 
 ## Known Minor Issues (Deferred)
@@ -190,7 +208,11 @@ The following were identified during production audits and intentionally deferre
 
 - **No backfill for missed ticks**: If the worker is down, missed ticks are gone permanently. If an hour has fewer than 1200 ticks, no track is generated and there is no recovery path.
 
-- **`getTicksForHour` hardcodes hour duration**: Uses `60 * 60 * 1000` instead of the `ONE_HOUR_MS` constant.
+- **Blob decoder does not reject oversized blobs**: If `blob.length > pointCount * 2`, extra bytes are silently ignored instead of failing fast. No correctness issue for valid data.
+
+- **`storeTrackBucket` silently corrects invalid difficulty**: Invalid difficulty values (outside 0–2) are defaulted to 1 without logging. Masks upstream bugs.
+
+- **Difficulty threshold boundary precision**: `0.08` and `0.16` are not exactly representable in binary float. Scores extremely close to thresholds could theoretically differ across platforms, though JS f64 is consistent in practice.
 
 ## Project Structure
 
@@ -199,25 +221,32 @@ backend/oracle/
 ├── package.json
 ├── tsconfig.json
 ├── vitest.config.mts
+├── scripts/
+│   ├── add-difficulty-column.sql         # Migration: difficulty column + index
+│   ├── backfill-difficulty.ts            # Batched idempotent backfill script
+│   └── verify-oracle-decode.ts           # Manual MagicBlock decode verifier
 ├── src/
 │   ├── index.ts                          # Barrel exports + bootstrap
 │   ├── config.ts                         # Environment config
-│   ├── constants.ts                      # TRACK_VERSION, TICK_INTERVAL_MS, etc.
+│   ├── constants.ts                      # TRACK_VERSION, TICK_INTERVAL_MS, difficulty, etc.
 │   ├── types/
 │   │   └── oracle.types.ts               # Domain types
 │   ├── utils/
-│   │   └── time.ts                       # floorToHour()
+│   │   ├── time.ts                       # floorToHour()
+│   │   └── blob-decoder.ts              # Int16LE blob → float[] decoder
 │   ├── db/
 │   │   ├── schema.sql                    # PostgreSQL DDL
 │   │   ├── connection.ts                 # pg.Pool (with statement_timeout)
 │   │   └── repository.ts                 # DB operations
 │   ├── services/
-│   │   ├── oracle-fetcher.ts             # MagicBlock stub
-│   │   └── track-generator.ts            # Deterministic normalization pipeline
+│   │   ├── oracle-config.ts              # MagicBlock feed registry + PDAs
+│   │   ├── oracle-fetcher.ts             # MagicBlock RPC fetcher
+│   │   └── track-generator.ts            # Deterministic pipeline + classifier
 │   └── workers/
 │       └── oracleIngestionWorker.ts      # Tick loop worker
 └── tests/
     ├── time.test.ts
     ├── track-generator.test.ts
+    ├── classifier.test.ts
     └── repository.test.ts
 ```
