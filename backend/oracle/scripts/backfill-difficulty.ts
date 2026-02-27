@@ -2,8 +2,8 @@
 // Backfill Script — Track Difficulty Classification
 // ---------------------------------------------------------------------------
 // Idempotent: only updates rows WHERE difficulty IS NULL or invalid.
-// Batched in groups of 50.
-// Safe to run multiple times.
+// Batched: fetches and processes BATCH_SIZE rows at a time (no full table load).
+// Crash-safe: partial runs leave already-updated rows intact.
 //
 // Usage:
 //   npx tsx scripts/backfill-difficulty.ts
@@ -28,59 +28,70 @@ if (!DATABASE_URL) {
 const BATCH_SIZE = 50;
 
 interface TrackRow {
-    id: number;
+    token_mint: string;
+    track_hour_start_utc: Date;
+    track_version: string;
     normalized_points_blob: Buffer;
     point_count: number;
-    difficulty: number | null;
+}
+
+function rowKey(row: TrackRow): string {
+    return `${row.token_mint} | ${(row.track_hour_start_utc as Date).toISOString()} | ${row.track_version}`;
 }
 
 async function main(): Promise<void> {
     const pool = new Pool({ connectionString: DATABASE_URL });
 
+    const counts = { [DIFFICULTY_EASY]: 0, [DIFFICULTY_MEDIUM]: 0, [DIFFICULTY_HARD]: 0 };
+    let totalProcessed = 0;
+    let errors = 0;
+    let batchNum = 0;
+
+    console.log(`\n=== Difficulty Backfill ===\n`);
+
     try {
-        // Select rows that need backfill: NULL difficulty or invalid values
-        const { rows } = await pool.query<TrackRow>(`
-      SELECT id, normalized_points_blob, point_count, difficulty
-      FROM track_buckets
-      WHERE difficulty IS NULL
-         OR difficulty NOT IN (0, 1, 2)
-      ORDER BY id ASC
-    `);
+        // Batched loop: fetch BATCH_SIZE rows at a time until none remain
+        while (true) {
+            const { rows } = await pool.query<TrackRow>(`
+                SELECT token_mint, track_hour_start_utc, track_version,
+                       normalized_points_blob, point_count
+                FROM track_buckets
+                WHERE difficulty IS NULL
+                   OR difficulty NOT IN (0, 1, 2)
+                ORDER BY track_hour_start_utc ASC
+                LIMIT $1
+            `, [BATCH_SIZE]);
 
-        console.log(`\n=== Difficulty Backfill ===`);
-        console.log(`Found ${rows.length} rows to backfill\n`);
+            if (rows.length === 0) break;
 
-        if (rows.length === 0) {
-            console.log('Nothing to do — all rows already classified.');
-            return;
-        }
-
-        // Counters for summary
-        const counts = { [DIFFICULTY_EASY]: 0, [DIFFICULTY_MEDIUM]: 0, [DIFFICULTY_HARD]: 0 };
-        let errors = 0;
-
-        // Process in batches
-        for (let batchStart = 0; batchStart < rows.length; batchStart += BATCH_SIZE) {
-            const batch = rows.slice(batchStart, batchStart + BATCH_SIZE);
-
-            // Build batch UPDATE using a transaction
+            batchNum++;
             const client = await pool.connect();
             try {
                 await client.query('BEGIN');
 
-                for (const row of batch) {
+                for (const row of rows) {
                     try {
+                        const expectedBytes = row.point_count * 2;
+                        if (!row.normalized_points_blob || row.normalized_points_blob.length < expectedBytes) {
+                            console.error(`  Skipping ${rowKey(row)}: blob too short (${row.normalized_points_blob?.length ?? 0} < ${expectedBytes})`);
+                            errors++;
+                            continue;
+                        }
+
                         const floats = decodeBlobToFloats(row.normalized_points_blob, row.point_count);
                         const difficulty = classifyDifficulty(floats);
 
                         await client.query(
-                            'UPDATE track_buckets SET difficulty = $1 WHERE id = $2',
-                            [difficulty, row.id],
+                            `UPDATE track_buckets SET difficulty = $1
+                             WHERE token_mint = $2
+                               AND track_hour_start_utc = $3
+                               AND track_version = $4`,
+                            [difficulty, row.token_mint, row.track_hour_start_utc, row.track_version],
                         );
 
                         counts[difficulty]++;
                     } catch (err) {
-                        console.error(`Error processing row ${row.id}:`, err);
+                        console.error(`  Error processing ${rowKey(row)}:`, err);
                         errors++;
                     }
                 }
@@ -93,12 +104,17 @@ async function main(): Promise<void> {
                 client.release();
             }
 
-            const processed = Math.min(batchStart + BATCH_SIZE, rows.length);
-            console.log(`  Batch ${Math.floor(batchStart / BATCH_SIZE) + 1}: processed ${processed}/${rows.length}`);
+            totalProcessed += rows.length;
+            console.log(`  Batch ${batchNum}: processed ${totalProcessed} rows so far`);
         }
 
-        // Summary
+        if (totalProcessed === 0) {
+            console.log('Nothing to do — all rows already classified.\n');
+            return;
+        }
+
         console.log(`\n=== Backfill Complete ===`);
+        console.log(`  Total:  ${totalProcessed}`);
         console.log(`  Easy:   ${counts[DIFFICULTY_EASY]}`);
         console.log(`  Medium: ${counts[DIFFICULTY_MEDIUM]}`);
         console.log(`  Hard:   ${counts[DIFFICULTY_HARD]}`);
