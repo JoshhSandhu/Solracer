@@ -22,6 +22,11 @@ import type {
 import {
   TRACK_VERSION,
   MAX_DELTA_PER_STEP,
+  DIFFICULTY_EASY,
+  DIFFICULTY_MEDIUM,
+  DIFFICULTY_HARD,
+  DIFFICULTY_THRESHOLD_EASY,
+  DIFFICULTY_THRESHOLD_HARD,
 } from '../constants';
 
 // ---------------------------------------------------------------------------
@@ -121,6 +126,58 @@ function quantizeAndHash(y: number[], pointCount: number): { blob: Buffer; hash:
 }
 
 // ---------------------------------------------------------------------------
+// Step 5 — Classify Difficulty (MUST run on normalized floats BEFORE quantize)
+// ---------------------------------------------------------------------------
+// Deterministic, O(N), zero-allocation classifier.
+// Uses vertical range, average slope, and max slope.
+// Returns 0 (Easy), 1 (Medium), or 2 (Hard).
+// ---------------------------------------------------------------------------
+
+/**
+ * Deterministic difficulty classifier.
+ *
+ * @param heights  Normalized float array (0..1), post-delta-clamp, pre-quantize.
+ * @returns        0 = Easy, 1 = Medium, 2 = Hard. Never NaN, never outside 0–2.
+ */
+export function classifyDifficulty(heights: number[]): number {
+  const n = heights.length;
+
+  // Edge cases: no data or single point → Easy
+  if (n <= 1) return DIFFICULTY_EASY;
+
+  let min = heights[0];
+  let max = heights[0];
+  let slopeSum = 0;
+  let maxSlope = 0;
+
+  for (let i = 1; i < n; i++) {
+    const h = heights[i];
+
+    if (h < min) min = h;
+    if (h > max) max = h;
+
+    const slope = h - heights[i - 1];
+    const absSlope = slope < 0 ? -slope : slope;
+
+    slopeSum += absSlope;
+    if (absSlope > maxSlope) maxSlope = absSlope;
+  }
+
+  const verticalRange = max - min;
+  const avgSlope = slopeSum / (n - 1);
+
+  let score = 0.5 * verticalRange + 0.3 * avgSlope + 0.2 * maxSlope;
+
+  // Safety clamp — prevent pathological tracks from breaking thresholds
+  if (score < 0) score = 0;
+  if (score > 1) score = 1;
+
+  if (score < DIFFICULTY_THRESHOLD_EASY) return DIFFICULTY_EASY;
+  if (score > DIFFICULTY_THRESHOLD_HARD) return DIFFICULTY_HARD;
+  return DIFFICULTY_MEDIUM;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -153,7 +210,10 @@ export async function generateTrackBucket(
   // Step 3: Delta clamp (AFTER normalization)
   const clamped = clampDeltas(normalized);
 
-  // Step 4: Quantize + hash
+  // Step 4: Classify difficulty on final normalized floats BEFORE quantization
+  const difficulty = classifyDifficulty(clamped);
+
+  // Step 5: Quantize + hash
   const { blob, hash } = quantizeAndHash(clamped, trackPointCount);
 
   const meta: NormalizationMeta = {
@@ -174,5 +234,6 @@ export async function generateTrackBucket(
     point_count: trackPointCount,
     normalization_meta: meta,
     track_hash: hash,
+    difficulty,
   };
 }
