@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Verification Script — MagicBlock ER Oracle Decode
+// Verification Script  MagicBlock ER Oracle Decode
 // ---------------------------------------------------------------------------
 // Fetches the SOL oracle account, decodes the price at offset 73,
 // and prints raw + decoded values for manual verification.
