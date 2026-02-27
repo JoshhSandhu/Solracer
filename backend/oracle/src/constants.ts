@@ -46,3 +46,22 @@ export const TRACK_GEN_BUFFER_MINUTES = 2;
  * One hour in milliseconds  avoids magic numbers in time arithmetic.
  */
 export const ONE_HOUR_MS = 60 * 60 * 1000;
+
+// ---------------------------------------------------------------------------
+// Difficulty Classification
+// ---------------------------------------------------------------------------
+
+/** Easy track — minimal elevation change. */
+export const DIFFICULTY_EASY = 0;
+
+/** Medium track — moderate elevation change. */
+export const DIFFICULTY_MEDIUM = 1;
+
+/** Hard track — high elevation change. */
+export const DIFFICULTY_HARD = 2;
+
+/** Score below this threshold → Easy. */
+export const DIFFICULTY_THRESHOLD_EASY = 0.08;
+
+/** Score above this threshold → Hard. Below → Medium. */
+export const DIFFICULTY_THRESHOLD_HARD = 0.16;
