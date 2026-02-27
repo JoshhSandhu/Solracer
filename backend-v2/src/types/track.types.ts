@@ -9,6 +9,7 @@ export interface TrackMetadata {
   trackVersion: string;
   pointCount: number;
   trackHash: string;
+  difficulty: number;
 }
 
 /** Full track detail returned by GET /tracks/:tokenMint/:hourStartUTC */
@@ -20,6 +21,7 @@ export interface TrackDetail extends TrackMetadata {
 export interface LatestTrack {
   hourStartUTC: string;
   trackHash: string;
+  difficulty: number;
 }
 
 /** Health check response */
