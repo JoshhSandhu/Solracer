@@ -103,17 +103,22 @@ export async function storeTrackBucket(
   pool: Pool,
   data: TrackBucketInput,
 ): Promise<void> {
+  // Validate difficulty is 0, 1, or 2 before insert
+  const difficulty = (data.difficulty >= 0 && data.difficulty <= 2) ? data.difficulty : 1;
+
   const sql = `
     INSERT INTO track_buckets
       (token_mint, track_hour_start_utc, track_version,
-       normalized_points_blob, point_count, normalization_meta, track_hash)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+       normalized_points_blob, point_count, normalization_meta, track_hash,
+       difficulty)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     ON CONFLICT (token_mint, track_hour_start_utc, track_version)
     DO UPDATE SET
       normalized_points_blob = EXCLUDED.normalized_points_blob,
       point_count            = EXCLUDED.point_count,
       normalization_meta     = EXCLUDED.normalization_meta,
-      track_hash             = EXCLUDED.track_hash
+      track_hash             = EXCLUDED.track_hash,
+      difficulty             = EXCLUDED.difficulty
   `;
 
   await pool.query(sql, [
@@ -124,6 +129,7 @@ export async function storeTrackBucket(
     data.point_count,
     JSON.stringify(data.normalization_meta),
     data.track_hash,
+    difficulty,
   ]);
 }
 
@@ -179,7 +185,8 @@ export async function getPlayableTrackBuckets(
            w.point_count,
            w.track_hash,
            w.normalized_points_blob,
-           w.normalization_meta
+           w.normalization_meta,
+           w.difficulty
     FROM valid_window w, bounds b
     WHERE w.track_hour_start_utc > b.oldest
       AND w.track_hour_start_utc < b.newest
@@ -196,6 +203,7 @@ export async function getPlayableTrackBuckets(
     track_hash: row.track_hash as string,
     normalized_points_blob: row.normalized_points_blob as Buffer,
     normalization_meta: row.normalization_meta as NormalizationMeta,
+    difficulty: (row.difficulty as number) ?? 1,
   }));
 }
 
