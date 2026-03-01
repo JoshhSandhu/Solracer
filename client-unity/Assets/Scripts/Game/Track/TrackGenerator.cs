@@ -63,8 +63,8 @@ namespace Solracer.Game
         [SerializeField] private int seed = 42;
 
         [Header("Smoothing")]
-        [Tooltip("Smooth the track points (reduces sharp edges)")]
-        [SerializeField] private bool smoothTrack = true;
+        [Tooltip("Oracle tracks are pre-smoothed. Disable smoothing for production oracle tracks. Mock tracks may use smoothing.")]
+        [SerializeField] private bool smoothTrack = false;
 
         [Tooltip("Smoothing factor (higher = smoother)")]
         [SerializeField] [Range(0f, 1f)] private float smoothingFactor = 0.5f;
@@ -113,73 +113,82 @@ namespace Solracer.Game
             }
         }
 
-        private async void Start()
+        private void Start()
         {
-            await GenerateTrackAsync();
+            Debug.Log("[TrackGenerator] Waiting for TrackLoader");
         }
 
         /// <summary>
-        /// Async wrapper for GenerateTrack
+        /// Sets normalized track height data. Called by TrackLoader.
         /// </summary>
+        public void SetTrackData(float[] normalizedHeights)
+        {
+            if (normalizedHeights == null || normalizedHeights.Length < 2)
+            {
+                Debug.LogError("[TrackGenerator] Invalid track data");
+                return;
+            }
+            trackData = normalizedHeights;
+        }
+
+        /// <summary>
+        /// Generates track geometry from the provided height data.
+        /// Calls GenerateWorldPoints, optional smoothing, SetupLineRenderer, SetupEdgeCollider.
+        /// Called by TrackLoader after SetTrackData.
+        /// </summary>
+        public void GenerateTrackFromData(float[] heights)
+        {
+            if (heights == null || heights.Length == 0 || trackData == null)
+            {
+                Debug.LogError("[TrackGenerator] GenerateTrackFromData called with null or empty data");
+                return;
+            }
+
+            trackData = heights;
+
+            // Generate world space points
+            trackPoints = GenerateWorldPoints(trackData);
+
+            // Apply smoothing if enabled
+            if (smoothTrack && smoothingFactor > 0f)
+            {
+                smoothedPoints = SmoothPoints(trackPoints, smoothingFactor);
+            }
+            else
+            {
+                smoothedPoints = trackPoints;
+            }
+
+            SetupLineRenderer();
+            SetupEdgeCollider();
+
+            Debug.Log($"[TrackGenerator] Generated track with {trackPoints.Length} points (from {trackData.Length} data points), length: {trackLength}");
+        }
+
+        #region Legacy Methods (Obsolete  use TrackLoader + GenerateTrackFromData instead)
+
+        /// <summary>
+        /// Async wrapper for GenerateTrack. Obsolete  use TrackLoader instead.
+        /// </summary>
+        [System.Obsolete("Use TrackLoader + GenerateTrackFromData instead.")]
         private async Task GenerateTrackAsync()
         {
             await GenerateTrack();
         }
 
-        //generates the track from mock data or API
+        /// <summary>
+        /// Generates the track from mock data or API. Obsolete  use TrackLoader instead.
+        /// </summary>
+        [System.Obsolete("Use TrackLoader + GenerateTrackFromData instead.")]
         public async Task GenerateTrack()
         {
-            // In competitive mode, try to fetch from API first
-            if (GameModeData.IsCompetitive)
-            {
-                // Get token mint address from selected coin
-                CoinType selectedCoin = CoinSelectionData.SelectedCoin;
-                string tokenMint = CoinSelectionData.GetCoinMintAddress(selectedCoin);
-                
-                if (!string.IsNullOrEmpty(tokenMint))
-                {
-                    // Try to fetch real track data from backend
-                    var trackApiClient = TrackAPIClient.Instance;
-                    if (trackApiClient != null)
-                    {
-                        int? seedValue = useSeed ? (int?)seed : null;
-                        var apiResponse = await trackApiClient.GetTrackData(tokenMint, seedValue);
-                        
-                        if (apiResponse != null && apiResponse.samples != null && apiResponse.samples.Length > 0)
-                        {
-                            // Convert API response to float array
-                            trackData = new float[apiResponse.samples.Length];
-                            for (int i = 0; i < apiResponse.samples.Length; i++)
-                            {
-                                trackData[i] = apiResponse.samples[i].y; // y is normalized 0-1
-                            }
-                            
-                            Debug.Log($"[TrackGenerator] Using real track data from API. Token: {apiResponse.token_symbol}, Points: {trackData.Length}");
-                        }
-                        else
-                        {
-                            Debug.LogWarning("[TrackGenerator] Failed to fetch track data from API, falling back to mock data");
-                            // Fall through to mock data
-                        }
-                    }
-                }
-            }
-            
-            // Use mock data if:
-            // - Practice mode
-            // - API fetch failed
-            // - No token mint available
+            // Try API fetch first in competitive mode
+            trackData = await FetchTrackDataFromApiAsync();
+
+            // Fallback to mock data if API unavailable
             if (trackData == null || trackData.Length == 0)
             {
-                if (useSeed)
-                {
-                    trackData = TrackDataProvider.GetMockTrackDataWithSeed(seed);
-                }
-                else
-                {
-                    trackData = TrackDataProvider.GetMockTrackData();
-                }
-                Debug.Log($"[TrackGenerator] Using mock track data (Mode: {GameModeData.CurrentMode})");
+                trackData = GetFallbackTrackData();
             }
 
             //generate world space points
@@ -199,6 +208,61 @@ namespace Solracer.Game
             SetupEdgeCollider();
 
             Debug.Log($"TrackGenerator: Generated track with {trackPoints.Length} points (from {trackData.Length} data points), length: {trackLength}");
+        }
+
+        /// <summary>
+        /// Fetches track data from the legacy Python backend API.
+        /// Returns normalized float[] or null on failure.
+        /// </summary>
+        private async Task<float[]> FetchTrackDataFromApiAsync()
+        {
+            if (!GameModeData.IsCompetitive)
+                return null;
+
+            CoinType selectedCoin = CoinSelectionData.SelectedCoin;
+            string tokenMint = CoinSelectionData.GetCoinMintAddress(selectedCoin);
+
+            if (string.IsNullOrEmpty(tokenMint))
+                return null;
+
+            var trackApiClient = TrackAPIClient.Instance;
+            if (trackApiClient == null)
+                return null;
+
+            int? seedValue = useSeed ? (int?)seed : null;
+            var apiResponse = await trackApiClient.GetTrackData(tokenMint, seedValue);
+
+            if (apiResponse != null && apiResponse.samples != null && apiResponse.samples.Length > 0)
+            {
+                float[] data = new float[apiResponse.samples.Length];
+                for (int i = 0; i < apiResponse.samples.Length; i++)
+                {
+                    data[i] = apiResponse.samples[i].y; // y is normalized 0-1
+                }
+                Debug.Log($"[TrackGenerator] Using real track data from API. Token: {apiResponse.token_symbol}, Points: {data.Length}");
+                return data;
+            }
+
+            Debug.LogWarning("[TrackGenerator] Failed to fetch track data from API, falling back to mock data");
+            return null;
+        }
+
+        /// <summary>
+        /// Returns fallback mock track data from TrackDataProvider.
+        /// </summary>
+        private float[] GetFallbackTrackData()
+        {
+            float[] data;
+            if (useSeed)
+            {
+                data = TrackDataProvider.GetMockTrackDataWithSeed(seed);
+            }
+            else
+            {
+                data = TrackDataProvider.GetMockTrackData();
+            }
+            Debug.Log($"[TrackGenerator] Using mock track data (Mode: {GameModeData.CurrentMode})");
+            return data;
         }
 
         //generate world space points from normalized track data.
@@ -549,11 +613,16 @@ namespace Solracer.Game
             return Vector2.up;
         }
 
-        //regenerates the track with current settings
+        /// <summary>
+        /// Regenerates the track with current settings. Obsolete  use TrackLoader instead.
+        /// </summary>
+        [System.Obsolete("Use TrackLoader + GenerateTrackFromData instead.")]
         public async void RegenerateTrack()
         {
             await GenerateTrack();
         }
+
+        #endregion
 
         //ensure valid parameter values
         private void OnValidate()

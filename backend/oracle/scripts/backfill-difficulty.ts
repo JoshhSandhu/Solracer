@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Backfill Script — Track Difficulty Classification
+// Backfill Script  Track Difficulty Classification
 // ---------------------------------------------------------------------------
 // Idempotent: only updates rows WHERE difficulty IS NULL or invalid.
 // Batched: fetches and processes BATCH_SIZE rows at a time (no full table load).
@@ -109,7 +109,7 @@ async function main(): Promise<void> {
         }
 
         if (totalProcessed === 0) {
-            console.log('Nothing to do — all rows already classified.\n');
+            console.log('Nothing to do  all rows already classified.\n');
             return;
         }
 

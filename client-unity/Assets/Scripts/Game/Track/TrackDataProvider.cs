@@ -4,8 +4,11 @@ using System.Collections.Generic;
 namespace Solracer.Game
 {
     /// <summary>
-    /// mock data provider for track generation
-    /// returns 1000 normalized points for track height data
+    /// Legacy mock track generator.
+    /// Used only as fallback when backend tracks are unavailable
+    /// or for practice mode.
+    /// Oracle tracks never use this generator.
+    /// Returns 1000 normalized points for track height data.
     /// </summary>
     public static class TrackDataProvider
     {

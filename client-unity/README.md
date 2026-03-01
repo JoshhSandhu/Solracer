@@ -212,6 +212,18 @@ _Note: Keep this section concise (2-3 sentences per feature). For detailed imple
 3. Install Android SDK & NDK Tools
 4. Restart Unity and rebuild
 
+### Known Minor Issues (Deferred)
+
+These were identified during the Phase 0/1 production audit. None are blocking, but should be addressed during a future polish pass.
+
+| Issue | File | Notes |
+|-------|------|-------|
+| Legacy obsolete methods still compile | `TrackGenerator.cs` | `#region Legacy Methods` references `TrackAPIClient`, `GameModeData`, `CoinSelectionData`. Marked `[Obsolete]` but still in the dependency graph. Remove once Backend-v2 is fully adopted. |
+| `SetTrackData` / `GenerateTrackFromData` both set `trackData` | `TrackGenerator.cs` | Redundant field assignment. Not harmful but confusing API surface  callers must call both. |
+| `DebugConsole.OnGUI` allocates unused GUIStyle objects | `DebugConsole.cs` | `activeStyle` and `inactiveStyle` are created but never read. Allocates per OnGUI frame when console is visible. |
+| `Shader.Find("Sprites/Default")` has no null check | `TrackGenerator.cs` | `SetupLineRenderer()` passes the result to `new Material()`. Can return null on stripped builds, which would throw. |
+| Mock track data cached for entire app lifetime | `TrackDataProvider.cs` | `cachedPoints` is static and never cleared. All practice races use the same track until app restart. `ResetCache()` exists but is never called. |
+
 ---
 
 ## Resources

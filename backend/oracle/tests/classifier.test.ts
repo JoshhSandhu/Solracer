@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Tests — Difficulty Classifier + Blob Decoder
+// Tests  Difficulty Classifier + Blob Decoder
 // ---------------------------------------------------------------------------
 
 import { describe, it, expect } from 'vitest';
@@ -72,7 +72,7 @@ describe('classifyDifficulty', () => {
         }
     });
 
-    it('is deterministic — same input always produces same output', () => {
+    it('is deterministic  same input always produces same output', () => {
         const track = Array.from({ length: 500 }, (_, i) =>
             0.5 + 0.15 * Math.sin((i / 500) * Math.PI * 6),
         );

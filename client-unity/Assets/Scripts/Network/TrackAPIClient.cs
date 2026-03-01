@@ -7,8 +7,12 @@ using Solracer.Config;
 
 namespace Solracer.Network
 {
+    #region Legacy Python Backend
+
     /// <summary>
-    /// API client for fetching track data from backend (24hr candles)
+    /// Legacy track API client.
+    /// Used by demo backend.
+    /// Will be replaced by Backend-v2 TrackAPIClientV2.
     /// </summary>
     public class TrackAPIClient : MonoBehaviour
     {
@@ -138,6 +142,8 @@ namespace Solracer.Network
         public float x;  // Index (0 to point_count-1)
         public float y;  // Normalized value (0-1)
     }
+
+    #endregion
 
     #endregion
 }

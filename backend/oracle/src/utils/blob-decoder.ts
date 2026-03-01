@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Oracle Pipeline — Blob Decoder Utility
+// Oracle Pipeline  Blob Decoder Utility
 // ---------------------------------------------------------------------------
 // Converts quantized Int16LE blobs back to normalized float arrays.
 // Used by backfill scripts, debugging, and backend-v2.

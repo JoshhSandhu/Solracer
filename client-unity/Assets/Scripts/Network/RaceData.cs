@@ -19,6 +19,11 @@ namespace Solracer.Network
         private static int playerCoinsCollected = 0;
         private static string playerInputHash = null;
 
+        // Track commitment data (set only in competitive mode)
+        private static string trackHash = null;
+        private static string trackHourStartUTC = null;
+        private static string trackTokenMint = null;
+
         public static string CurrentRaceId
         {
             get => currentRaceId;
@@ -89,6 +94,33 @@ namespace Solracer.Network
         }
 
         /// <summary>
+        /// Track hash for ER commitment. Only set in competitive mode.
+        /// </summary>
+        public static string TrackHash
+        {
+            get => trackHash;
+            set => trackHash = value;
+        }
+
+        /// <summary>
+        /// Track hour for ER commitment. Only set in competitive mode.
+        /// </summary>
+        public static string TrackHourStartUTC
+        {
+            get => trackHourStartUTC;
+            set => trackHourStartUTC = value;
+        }
+
+        /// <summary>
+        /// Token mint used for track. Only set in competitive mode.
+        /// </summary>
+        public static string TrackTokenMint
+        {
+            get => trackTokenMint;
+            set => trackTokenMint = value;
+        }
+
+        /// <summary>
         /// Mark the race as finished and store player results
         /// </summary>
         public static void SetRaceFinished(float finishTime, int coinsCollected, string inputHash)
@@ -123,6 +155,11 @@ namespace Solracer.Network
             playerFinishTime = 0f;
             playerCoinsCollected = 0;
             playerInputHash = null;
+            
+            // Clear track commitment
+            trackHash = null;
+            trackHourStartUTC = null;
+            trackTokenMint = null;
         }
 
         //check if race is currently active

@@ -13,6 +13,9 @@ namespace Solracer.Config
         private const string STAGING_URL = "https://staging-api.solracer.com";
         private const string LOCAL_URL = "https://localhost:8000";
         
+        // Backend-v2 track API URL
+        private const string TRACK_API_V2_URL = "https://api.lynxjosh.cyou";
+        
         // For local network testing (replace with your computer's IP address)
         // To find your IP: Windows: ipconfig, Mac/Linux: ifconfig or ip addr
         private const string LOCAL_NETWORK_URL = "https://192.168.29.123:8000";
@@ -101,6 +104,15 @@ namespace Solracer.Config
         public static string GetCurrentApiUrl()
         {
             return GetApiBaseUrl();
+        }
+
+        /// <summary>
+        /// Get the Backend-v2 track API base URL.
+        /// Used by TrackLoader / TrackAPIClientV2 for oracle track data.
+        /// </summary>
+        public static string GetTrackApiBaseUrl()
+        {
+            return TRACK_API_V2_URL;
         }
 
         /// <summary>

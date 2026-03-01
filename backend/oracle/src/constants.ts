@@ -51,13 +51,13 @@ export const ONE_HOUR_MS = 60 * 60 * 1000;
 // Difficulty Classification
 // ---------------------------------------------------------------------------
 
-/** Easy track — minimal elevation change. */
+/** Easy track  minimal elevation change. */
 export const DIFFICULTY_EASY = 0;
 
-/** Medium track — moderate elevation change. */
+/** Medium track  moderate elevation change. */
 export const DIFFICULTY_MEDIUM = 1;
 
-/** Hard track — high elevation change. */
+/** Hard track  high elevation change. */
 export const DIFFICULTY_HARD = 2;
 
 /** Score below this threshold → Easy. */
