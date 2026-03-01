@@ -11,8 +11,10 @@ namespace Solracer.Game
     /// 
     /// Responsibilities:
     ///   - Always fetch real oracle track data from Backend-v2
+    ///   - Retry once on failure (2s delay)
     ///   - Fall back to TrackDataProvider on any failure
-    ///   - Set RaceData.TrackHash/TrackHourStartUTC only in competitive mode
+    ///   - Set RaceData commitment fields only in competitive mode
+    ///   - Expose CurrentTrack (LoadedTrackData) for consumers
     ///   - Call TrackGenerator.SetTrackData() + GenerateTrackFromData()
     /// </summary>
     [DefaultExecutionOrder(-100)]
@@ -23,9 +25,9 @@ namespace Solracer.Game
         [SerializeField] private TrackGenerator trackGenerator;
 
         /// <summary>
-        /// Current track data stored for debugging.
+        /// Full context of the currently loaded track.
         /// </summary>
-        private float[] currentTrackData;
+        public LoadedTrackData CurrentTrack { get; private set; }
 
         private async void Start()
         {
@@ -52,9 +54,7 @@ namespace Solracer.Game
 
                 try
                 {
-                    var fallback = TrackDataProvider.GetMockTrackData();
-                    trackGenerator.SetTrackData(fallback);
-                    trackGenerator.GenerateTrackFromData(fallback);
+                    LoadMockTrack();
                     Debug.LogWarning("[TrackLoader] Recovered with fallback mock track after fatal error");
                 }
                 catch (Exception fallbackEx)
@@ -66,11 +66,20 @@ namespace Solracer.Game
 
         /// <summary>
         /// Loads track data from the appropriate source and injects it
-        /// into TrackGenerator.
+        /// into TrackGenerator. Includes offline detection and retry logic.
         /// </summary>
         private async Task LoadTrackAsync()
         {
             string modeName = GameModeData.IsCompetitive ? "Competitive" : "Practice";
+
+            // Phase 4: Offline detection (non-blocking optimization)
+            if (Application.internetReachability == NetworkReachability.NotReachable)
+            {
+                Debug.Log($"[TrackLoader] No internet detected, using fallback track ({modeName})");
+                LoadMockTrack();
+                return;
+            }
+
             float[] trackData = null;
             TrackDetailResponse trackDetail = null;
 
@@ -80,17 +89,50 @@ namespace Solracer.Game
 
             if (!string.IsNullOrEmpty(tokenMint))
             {
+                // First attempt
                 (trackData, trackDetail) = await FetchFromBackendV2Async(tokenMint);
+
+                // Phase 4: Retry once after 2s on failure
+                if (trackData == null || trackData.Length == 0)
+                {
+                    Debug.LogWarning($"[TrackLoader] Backend request failed, retrying... ({modeName})");
+                    await Task.Delay(2000);
+                    (trackData, trackDetail) = await FetchFromBackendV2Async(tokenMint);
+
+                    if (trackData == null || trackData.Length == 0)
+                    {
+                        Debug.LogWarning($"[TrackLoader] Retry failed, using fallback track ({modeName})");
+                    }
+                }
+            }
+
+            // Phase 4: Blob validation after decode
+            if (trackData != null && trackData.Length < 2)
+            {
+                Debug.LogWarning("[TrackLoader] Invalid blob data (less than 2 points), using fallback");
+                trackData = null;
+                trackDetail = null;
             }
 
             // Fallback to mock data on any failure
             if (trackData == null || trackData.Length == 0)
             {
-                trackData = GetFallbackTrackData();
+                LoadMockTrack();
                 Debug.Log($"[TrackLoader] Backend-v2 unavailable, using mock track ({modeName})");
+                return;
             }
 
-            currentTrackData = trackData;
+            // Build LoadedTrackData for oracle track
+            CurrentTrack = new LoadedTrackData
+            {
+                NormalizedHeights = trackData,
+                TrackHash = trackDetail?.trackHash,
+                HourStartUTC = trackDetail?.hourStartUTC,
+                TokenMint = tokenMint,
+                PointCount = trackData.Length,
+                Difficulty = trackDetail?.difficulty ?? 0,
+                IsMockData = false
+            };
 
             // Set RaceData track commitment  only in competitive mode
             if (GameModeData.IsCompetitive && trackDetail != null)
@@ -109,6 +151,34 @@ namespace Solracer.Game
             // Inject into TrackGenerator
             trackGenerator.SetTrackData(trackData);
             trackGenerator.GenerateTrackFromData(trackData);
+        }
+
+        /// <summary>
+        /// Loads mock track data as fallback. Sets CurrentTrack with IsMockData = true.
+        /// Always produces a playable track.
+        /// </summary>
+        private void LoadMockTrack()
+        {
+            float[] mockData = TrackDataProvider.GetMockTrackData();
+
+            CurrentTrack = new LoadedTrackData
+            {
+                NormalizedHeights = mockData,
+                TrackHash = null,
+                HourStartUTC = null,
+                TokenMint = null,
+                PointCount = mockData.Length,
+                Difficulty = 0,
+                IsMockData = true
+            };
+
+            // Clear RaceData commitment
+            RaceData.TrackHash = null;
+            RaceData.TrackHourStartUTC = null;
+            RaceData.TrackTokenMint = null;
+
+            trackGenerator.SetTrackData(mockData);
+            trackGenerator.GenerateTrackFromData(mockData);
         }
 
         /// <summary>
@@ -150,16 +220,21 @@ namespace Solracer.Game
                 return (null, null);
             }
 
+            // Phase 4: Validate decoded data
+            if (heights.Length != detail.pointCount)
+            {
+                Debug.LogError($"[TrackLoader] Decoded point count mismatch: expected {detail.pointCount}, got {heights.Length}");
+                return (null, null);
+            }
+
+            if (detail.pointCount < 2)
+            {
+                Debug.LogError($"[TrackLoader] Invalid blob data: pointCount={detail.pointCount}");
+                return (null, null);
+            }
+
             Debug.Log($"[TrackLoader] Loaded oracle track ({modeName}): Token={detail.tokenMint}, Points={detail.pointCount}, Difficulty={detail.difficulty}, Hour={detail.hourStartUTC}");
             return (heights, detail);
-        }
-
-        /// <summary>
-        /// Returns fallback mock track data from TrackDataProvider.
-        /// </summary>
-        private float[] GetFallbackTrackData()
-        {
-            return TrackDataProvider.GetMockTrackData();
         }
     }
 }

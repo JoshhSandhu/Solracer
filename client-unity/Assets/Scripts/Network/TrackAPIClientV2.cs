@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.Networking;
@@ -10,6 +11,7 @@ namespace Solracer.Network
     /// <summary>
     /// Backend-v2 API client for fetching oracle track data.
     /// Uses APIConfig.GetTrackApiBaseUrl() for the base URL.
+    /// Includes in-memory session cache for track details.
     /// </summary>
     public class TrackAPIClientV2 : MonoBehaviour
     {
@@ -29,6 +31,12 @@ namespace Solracer.Network
         }
 
         private string apiBaseUrl;
+
+        /// <summary>
+        /// In-memory session cache for track detail responses.
+        /// Key: "tokenMint:hourStartUTC"
+        /// </summary>
+        private static readonly Dictionary<string, TrackDetailResponse> trackCache = new Dictionary<string, TrackDetailResponse>();
 
         private void Awake()
         {
@@ -94,9 +102,18 @@ namespace Solracer.Network
         /// <summary>
         /// Fetch full track detail including blob.
         /// GET /tracks/:tokenMint/:hourStartUTC
+        /// Returns cached response if available for the same (token, hour) pair.
         /// </summary>
         public async Task<TrackDetailResponse> GetTrackDetailAsync(string tokenMint, string hourStartUTC)
         {
+            // Check cache first
+            string cacheKey = $"{tokenMint}:{hourStartUTC}";
+            if (trackCache.TryGetValue(cacheKey, out TrackDetailResponse cached))
+            {
+                Debug.Log($"[TrackAPIClientV2] Using cached track: {cacheKey}");
+                return cached;
+            }
+
             try
             {
                 string url = $"{apiBaseUrl}/tracks/{Uri.EscapeDataString(tokenMint)}/{Uri.EscapeDataString(hourStartUTC)}";
@@ -119,6 +136,13 @@ namespace Solracer.Network
                         string responseText = webRequest.downloadHandler.text;
                         TrackDetailResponse response = JsonConvert.DeserializeObject<TrackDetailResponse>(responseText);
                         Debug.Log($"[TrackAPIClientV2] Track detail: token={response?.tokenMint}, hour={response?.hourStartUTC}, points={response?.pointCount}");
+
+                        // Store in cache
+                        if (response != null)
+                        {
+                            trackCache[cacheKey] = response;
+                        }
+
                         return response;
                     }
                     else
@@ -136,3 +160,4 @@ namespace Solracer.Network
         }
     }
 }
+
