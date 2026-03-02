@@ -71,10 +71,12 @@ namespace Solracer.Network
 
                 using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
                 {
-                    // Add certificate handler for self-signed certs (development only)
-                    #if !UNITY_EDITOR
+                    webRequest.timeout = 15;
+
+                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
-                    #endif
+                    }
 
                     var operation = webRequest.SendWebRequest();
 

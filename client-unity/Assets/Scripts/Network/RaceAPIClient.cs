@@ -74,16 +74,11 @@ namespace Solracer.Network
                     webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
                     webRequest.downloadHandler = new DownloadHandlerBuffer();
                     webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.timeout = 15;
 
-                    // Bypass certificate validation for local development URLs
                     if (APIConfig.IsLocalUrl(apiBaseUrl))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
-                        Debug.Log($"[RaceAPIClient] Certificate bypass enabled for local URL: {apiBaseUrl}");
-                    }
-                    else
-                    {
-                        Debug.Log($"[RaceAPIClient] Using standard SSL validation for URL: {apiBaseUrl}");
                     }
 
                     var operation = webRequest.SendWebRequest();
@@ -97,18 +92,12 @@ namespace Solracer.Network
                     {
                         string responseText = webRequest.downloadHandler.text;
                         RaceResponse response = JsonConvert.DeserializeObject<RaceResponse>(responseText);
-                        Debug.Log($"[RaceAPIClient] Race created: {response.race_id}, Private: {response.is_private}, Code: {response.join_code}");
+                        Debug.Log($"[RaceAPIClient] Race created: {response.race_id}");
                         return response;
                     }
                     else
                     {
-                        Debug.LogError($"[RaceAPIClient] Error creating race: {webRequest.error}");
-                        Debug.LogError($"[RaceAPIClient] Request URL was: {url}");
-                        Debug.LogError($"[RaceAPIClient] Response code: {webRequest.responseCode}");
-                        if (webRequest.downloadHandler != null)
-                        {
-                            Debug.LogError($"[RaceAPIClient] Response: {webRequest.downloadHandler.text}");
-                        }
+                        Debug.LogError($"[RaceAPIClient] Error creating race: {webRequest.error} (HTTP {webRequest.responseCode})");
                         return null;
                     }
                 }
@@ -138,15 +127,11 @@ namespace Solracer.Network
                     webRequest.downloadHandler = new DownloadHandlerBuffer();
                     webRequest.SetRequestHeader("Content-Type", "application/json");
 
-                    // Bypass certificate validation for local development URLs
+                    webRequest.timeout = 15;
+
                     if (APIConfig.IsLocalUrl(apiBaseUrl))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
-                        Debug.Log($"[RaceAPIClient] Certificate bypass enabled for local URL: {apiBaseUrl}");
-                    }
-                    else
-                    {
-                        Debug.Log($"[RaceAPIClient] Using standard SSL validation for URL: {apiBaseUrl}");
                     }
 
                     var operation = webRequest.SendWebRequest();
@@ -199,15 +184,11 @@ namespace Solracer.Network
                     webRequest.downloadHandler = new DownloadHandlerBuffer();
                     webRequest.SetRequestHeader("Content-Type", "application/json");
 
-                    // Bypass certificate validation for local development URLs
+                    webRequest.timeout = 15;
+
                     if (APIConfig.IsLocalUrl(apiBaseUrl))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
-                        Debug.Log($"[RaceAPIClient] Certificate bypass enabled for local URL: {apiBaseUrl}");
-                    }
-                    else
-                    {
-                        Debug.Log($"[RaceAPIClient] Using standard SSL validation for URL: {apiBaseUrl}");
                     }
 
                     var operation = webRequest.SendWebRequest();
@@ -266,15 +247,11 @@ namespace Solracer.Network
 
                 using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
                 {
-                    // Bypass certificate validation for local development URLs
+                    webRequest.timeout = 15;
+
                     if (APIConfig.IsLocalUrl(apiBaseUrl))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
-                        Debug.Log($"[RaceAPIClient] Certificate bypass enabled for local URL: {apiBaseUrl}");
-                    }
-                    else
-                    {
-                        Debug.Log($"[RaceAPIClient] Using standard SSL validation for URL: {apiBaseUrl}");
                     }
 
                     var operation = webRequest.SendWebRequest();
@@ -316,15 +293,11 @@ namespace Solracer.Network
 
                 using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
                 {
-                    // Bypass certificate validation for local development URLs
+                    webRequest.timeout = 15;
+
                     if (APIConfig.IsLocalUrl(apiBaseUrl))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
-                        Debug.Log($"[RaceAPIClient] Certificate bypass enabled for local URL: {apiBaseUrl}");
-                    }
-                    else
-                    {
-                        Debug.Log($"[RaceAPIClient] Using standard SSL validation for URL: {apiBaseUrl}");
                     }
 
                     var operation = webRequest.SendWebRequest();
@@ -372,15 +345,11 @@ namespace Solracer.Network
                     webRequest.downloadHandler = new DownloadHandlerBuffer();
                     webRequest.SetRequestHeader("Content-Type", "application/json");
 
-                    // Bypass certificate validation for local development URLs
+                    webRequest.timeout = 15;
+
                     if (APIConfig.IsLocalUrl(apiBaseUrl))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
-                        Debug.Log($"[RaceAPIClient] Certificate bypass enabled for local URL: {apiBaseUrl}");
-                    }
-                    else
-                    {
-                        Debug.Log($"[RaceAPIClient] Using standard SSL validation for URL: {apiBaseUrl}");
                     }
 
                     var operation = webRequest.SendWebRequest();
@@ -420,15 +389,11 @@ namespace Solracer.Network
 
                 using (UnityWebRequest webRequest = UnityWebRequest.Delete(url))
                 {
-                    // Bypass certificate validation for local development URLs
+                    webRequest.timeout = 15;
+
                     if (APIConfig.IsLocalUrl(apiBaseUrl))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
-                        Debug.Log($"[RaceAPIClient] Certificate bypass enabled for local URL: {apiBaseUrl}");
-                    }
-                    else
-                    {
-                        Debug.Log($"[RaceAPIClient] Using standard SSL validation for URL: {apiBaseUrl}");
                     }
 
                     var operation = webRequest.SendWebRequest();

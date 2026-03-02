@@ -4,7 +4,9 @@ using UnityEngine.SceneManagement;
 using TMPro;
 using System.Threading.Tasks;
 using Solracer.Auth;
+using Solracer.Config;
 using Solracer.Game;
+using Solracer.Network;
 
 namespace Solracer.UI
 {
@@ -48,17 +50,17 @@ namespace Solracer.UI
 
         [Header("Scene Names")]
         [Tooltip("Scene to load for Practice mode")]
-        [SerializeField] private string practiceSceneName = "Race";
+        [SerializeField] private string practiceSceneName = SceneNames.Race;
 
         [Tooltip("Scene to load for Competitive mode (goes to Lobby)")]
-        [SerializeField] private string competitiveSceneName = "Lobby";
+        [SerializeField] private string competitiveSceneName = SceneNames.Lobby;
 
         [Tooltip("Scene to load when going back (Token Picker)")]
-        [SerializeField] private string tokenPickerSceneName = "TokenPicker";
+        [SerializeField] private string tokenPickerSceneName = SceneNames.TokenPicker;
 
         [Header("Settings")]
         [Tooltip("Enable debug logging")]
-        [SerializeField] private bool debugLogging = true;
+        [SerializeField] private bool debugLogging = false;
 
         [Header("Design System")]
         [Tooltip("Reference to SolracerColors asset (optional - will load from Resources if null)")]
@@ -160,8 +162,9 @@ namespace Solracer.UI
                 Debug.Log($"ModeSelectionScreen: Practice mode selected - Loading {practiceSceneName}");
             }
 
-            // Set mode to Practice
             GameModeData.CurrentMode = GameMode.Practice;
+            RaceData.ClearRaceData();
+            GameOverData.Reset();
             LoadScene(practiceSceneName);
         }
 
@@ -186,10 +189,9 @@ namespace Solracer.UI
                 Debug.Log("ModeSelectionScreen: Competitive mode approved - Loading Lobby");
             }
 
-            // Set mode to Competitive
             GameModeData.CurrentMode = GameMode.Competitive;
-            
-            // Load Lobby scene for race creation/joining
+            RaceData.ClearRaceData();
+            GameOverData.Reset();
             LoadScene(competitiveSceneName);
         }
 

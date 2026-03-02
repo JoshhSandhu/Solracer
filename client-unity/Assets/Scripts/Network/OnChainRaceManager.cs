@@ -496,20 +496,19 @@ namespace Solracer.Network
             }
         }
 
+        private static readonly int SIGNING_MODAL_TIMEOUT_MS = 60000;
+
         private static async Task<bool> ShowTransactionSigningModal(string title, string description, Action<string, float> onProgressUpdate)
         {
-            // For MWA wallets, skip the in-game modal - MWA provides its own bottom sheet UI
             if (AuthenticationData.IsMWAWallet)
             {
                 Debug.Log("[OnChainRaceManager] MWA wallet detected - skipping in-game modal (wallet will show bottom sheet)");
                 return true;
             }
 
-            // For Privy wallets, show the in-game modal (Privy is headless)
             var modal = GetSigningModal();
             if (modal == null)
             {
-                // No modal found, proceed without UI (for testing)
                 Debug.LogWarning("[OnChainRaceManager] No TransactionSigningModal found. Proceeding without user confirmation.");
                 return true;
             }
@@ -523,13 +522,28 @@ namespace Solracer.Network
                 decisionMade = true;
             });
 
-            // Wait for user decision
-            while (!decisionMade)
+            var decisionTask = Task.Run(async () =>
             {
-                await Task.Delay(100);
+                while (!decisionMade)
+                {
+                    await Task.Delay(100);
+                }
+                return userDecision;
+            });
+
+            var timeoutTask = Task.Delay(SIGNING_MODAL_TIMEOUT_MS);
+            var completed = await Task.WhenAny(decisionTask, timeoutTask);
+
+            if (completed == timeoutTask)
+            {
+                Debug.LogWarning("[OnChainRaceManager] Transaction signing modal timed out after 60 seconds");
+                HideSigningModal();
+                return false;
             }
 
-            if (userDecision)
+            bool result = await decisionTask;
+
+            if (result)
             {
                 modal.SetLoading(true, "Signing...");
             }
@@ -538,7 +552,7 @@ namespace Solracer.Network
                 modal.HideModal();
             }
 
-            return userDecision;
+            return result;
         }
     }
 }

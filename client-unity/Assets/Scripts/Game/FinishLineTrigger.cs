@@ -36,20 +36,19 @@ namespace Solracer.Game
 
         private void OnTriggerEnter2D(Collider2D other)
         {
-            if (other.GetComponent<Rigidbody2D>() != null)
+            if (other.GetComponentInParent<ATVController>() == null) return;
+
+            if (!hasTriggered || !triggerOnce)
             {
-                if (!hasTriggered || !triggerOnce)
+                hasTriggered = true;
+                
+                if (raceManager != null)
                 {
-                    hasTriggered = true;
-                    
-                    if (raceManager != null)
-                    {
-                        raceManager.OnFinishLineCrossed();
-                    }
-                    else
-                    {
-                        Debug.LogWarning("FinishLineTrigger: RaceManager is null! Cannot trigger race complete.");
-                    }
+                    raceManager.OnFinishLineCrossed();
+                }
+                else
+                {
+                    Debug.LogWarning("FinishLineTrigger: RaceManager is null! Cannot trigger race complete.");
                 }
             }
         }

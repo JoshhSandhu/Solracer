@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using TMPro;
 
@@ -141,10 +142,15 @@ namespace Solracer.Game.Background
 
         private async void Start()
         {
-            // Wait a frame for track to generate
-            await System.Threading.Tasks.Task.Delay(100);
-            
-            Initialize();
+            try
+            {
+                await System.Threading.Tasks.Task.Delay(100);
+                Initialize();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[TradingTerminalBackground] Start error: {ex}");
+            }
         }
 
         private void Initialize()

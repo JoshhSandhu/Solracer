@@ -4,6 +4,7 @@ using UnityEngine.SceneManagement;
 using TMPro;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Solracer.Config;
 using Solracer.Game;
 using Solracer.Network;
 using Solracer.Auth;
@@ -63,13 +64,13 @@ namespace Solracer.UI
 
         [Header("Settings")]
         [Tooltip("Scene name for Mode Selection")]
-        [SerializeField] private string modeSelectionSceneName = "ModeSelection";
+        [SerializeField] private string modeSelectionSceneName = SceneNames.ModeSelection;
 
         [Tooltip("Scene name for Race")]
-        [SerializeField] private string raceSceneName = "Race";
+        [SerializeField] private string raceSceneName = SceneNames.Race;
 
         [Tooltip("Scene name for Login/Welcome Panel")]
-        [SerializeField] private string loginSceneName = "Login";
+        [SerializeField] private string loginSceneName = SceneNames.Login;
 
         [Tooltip("Enable debug logging")]
         [SerializeField] private bool debugLogging = true;
