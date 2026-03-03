@@ -35,8 +35,8 @@ namespace Solracer.UI
         [SerializeField] private TimerFormat timerFormat = TimerFormat.MMSSmmm;
 
         [Header("Timer Settings")]
-        [Tooltip("Start timer automatically on Start")]
-        [SerializeField] private bool autoStartTimer = true;
+        [Tooltip("Start timer automatically on Start (should be false RaceManager controls start)")]
+        [SerializeField] private bool autoStartTimer = false;
 
         [Tooltip("Pause timer when game is paused")]
         [SerializeField] private bool pauseWithTimeScale = true;

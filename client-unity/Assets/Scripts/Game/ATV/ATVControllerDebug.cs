@@ -9,7 +9,7 @@ namespace Solracer.Game
     public class ATVControllerDebug : MonoBehaviour
     {
         [SerializeField] private ATVController atvController;
-        [SerializeField] private bool showDebugGUI = true;
+        [SerializeField] private bool showDebugGUI = false;
         [SerializeField] private bool logInputEvents = false;
 
         private void Start()

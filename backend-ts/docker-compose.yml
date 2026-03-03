@@ -1,0 +1,12 @@
+services:
+  backend-ts:
+    build: .
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./certs:/app/certs:ro
+    environment:
+      USE_HTTPS: "true"
+      HOST: "0.0.0.0"
+      PORT: "8001"
+      CERTS_DIR: "/app/certs"

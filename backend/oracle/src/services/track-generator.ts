@@ -126,7 +126,7 @@ function quantizeAndHash(y: number[], pointCount: number): { blob: Buffer; hash:
 }
 
 // ---------------------------------------------------------------------------
-// Step 5 — Classify Difficulty (MUST run on normalized floats BEFORE quantize)
+// Step 5  Classify Difficulty (MUST run on normalized floats BEFORE quantize)
 // ---------------------------------------------------------------------------
 // Deterministic, O(N), zero-allocation classifier.
 // Uses vertical range, average slope, and max slope.
@@ -168,7 +168,7 @@ export function classifyDifficulty(heights: number[]): number {
 
   let score = 0.5 * verticalRange + 0.3 * avgSlope + 0.2 * maxSlope;
 
-  // Safety clamp — prevent pathological tracks from breaking thresholds
+  // Safety clamp  prevent pathological tracks from breaking thresholds
   if (score < 0) score = 0;
   if (score > 1) score = 1;
 

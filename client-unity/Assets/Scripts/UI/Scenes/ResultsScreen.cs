@@ -5,6 +5,7 @@ using TMPro;
 using Solracer.Game;
 using Solracer.Network;
 using Solracer.Auth;
+using Solracer.Config;
 using System.Threading.Tasks;
 using System;
 
@@ -188,13 +189,13 @@ namespace Solracer.UI
         /// </summary>
         private async void RetryResultSubmission()
         {
-            if (!RaceData.NeedsResultSubmission())
-                return;
-
-            ShowWaitingState("Submitting result...");
-
             try
             {
+                if (!RaceData.NeedsResultSubmission())
+                    return;
+
+                ShowWaitingState("Submitting result...");
+
                 string raceId = RaceData.CurrentRaceId;
                 float finishTime = RaceData.PlayerFinishTime;
                 int coinsCollected = RaceData.PlayerCoinsCollected;
@@ -227,6 +228,8 @@ namespace Solracer.UI
                         ShowWaitingState(message);
                     }
                 );
+
+                if (this == null) return;
 
                 RaceData.SetResultSubmitted(success);
 
@@ -668,13 +671,18 @@ namespace Solracer.UI
         public void OnPlayAgainClicked()
         {
             StopAllPolling();
-            SceneManager.LoadScene("Race");
+            RaceData.ClearRaceData();
+            GameOverData.Reset();
+            SceneManager.LoadScene(SceneNames.Race);
         }
 
         public void OnModeSelectionClicked()
         {
             StopAllPolling();
-            SceneManager.LoadScene("ModeSelection");
+            RaceData.ClearRaceData();
+            GameOverData.Reset();
+            GameModeData.Reset();
+            SceneManager.LoadScene(SceneNames.ModeSelection);
         }
 
         /// <summary>
@@ -682,11 +690,18 @@ namespace Solracer.UI
         /// </summary>
         public async void OnClaimPrizeClicked()
         {
-            if (isProcessingTransaction) return;
-            
-            // Determine method based on token type
-            string method = isSolToken ? "claim_prize" : "jupiter_swap";
-            await ProcessClaimPrize(method);
+            try
+            {
+                if (isProcessingTransaction) return;
+                
+                // Determine method based on token type
+                string method = isSolToken ? "claim_prize" : "jupiter_swap";
+                await ProcessClaimPrize(method);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ResultsScreen] Error: {ex}");
+            }
         }
 
         /// <summary>
@@ -694,21 +709,28 @@ namespace Solracer.UI
         /// </summary>
         public async void OnFallbackTxnClicked()
         {
-            if (isProcessingTransaction) return;
-            
-            // First check if we need to submit result
-            if (RaceData.NeedsResultSubmission())
+            try
             {
-                Debug.Log("[ResultsScreen] Fallback button: Retrying result submission...");
-                isProcessingTransaction = true;
-                SetButtonActive(fallbackTxnButton, false);
-                await RetryResultSubmissionAsync();
-                isProcessingTransaction = false;
-                return;
+                if (isProcessingTransaction) return;
+                
+                // First check if we need to submit result
+                if (RaceData.NeedsResultSubmission())
+                {
+                    Debug.Log("[ResultsScreen] Fallback button: Retrying result submission...");
+                    isProcessingTransaction = true;
+                    SetButtonActive(fallbackTxnButton, false);
+                    await RetryResultSubmissionAsync();
+                    isProcessingTransaction = false;
+                    return;
+                }
+                
+                // Otherwise, process as claim prize fallback
+                await ProcessClaimPrize("fallback_sol");
             }
-            
-            // Otherwise, process as claim prize fallback
-            await ProcessClaimPrize("fallback_sol");
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ResultsScreen] Error: {ex}");
+            }
         }
         
         /// <summary>

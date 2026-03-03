@@ -70,9 +70,9 @@ namespace Solracer.Network
                     webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
                     webRequest.downloadHandler = new DownloadHandlerBuffer();
                     webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.timeout = 15;
 
-                    // Bypass certificate validation for local development URLs
-                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    if (APIConfig.IsLocalUrl(apiBaseUrl) && apiBaseUrl.StartsWith("https://"))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
                     }
@@ -126,9 +126,9 @@ namespace Solracer.Network
                     webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
                     webRequest.downloadHandler = new DownloadHandlerBuffer();
                     webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.timeout = 15;
 
-                    // Bypass certificate validation for local development URLs
-                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    if (APIConfig.IsLocalUrl(apiBaseUrl) && apiBaseUrl.StartsWith("https://"))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
                     }

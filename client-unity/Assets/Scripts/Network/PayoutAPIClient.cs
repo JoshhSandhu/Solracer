@@ -63,7 +63,8 @@ namespace Solracer.Network
 
                 using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
                 {
-                    // Bypass certificate validation for local development URLs
+                    webRequest.timeout = 15;
+
                     if (APIConfig.IsLocalUrl(apiBaseUrl))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
@@ -120,7 +121,8 @@ namespace Solracer.Network
                 {
                     webRequest.SetRequestHeader("Content-Type", "application/json");
 
-                    // Bypass certificate validation for local development URLs
+                    webRequest.timeout = 15;
+
                     if (APIConfig.IsLocalUrl(apiBaseUrl))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
@@ -178,7 +180,8 @@ namespace Solracer.Network
 
                 using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
                 {
-                    // Bypass certificate validation for local development URLs
+                    webRequest.timeout = 15;
+
                     if (APIConfig.IsLocalUrl(apiBaseUrl))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
@@ -236,7 +239,8 @@ namespace Solracer.Network
                 {
                     webRequest.SetRequestHeader("Content-Type", "application/json");
 
-                    // Bypass certificate validation for local development URLs
+                    webRequest.timeout = 15;
+
                     if (APIConfig.IsLocalUrl(apiBaseUrl))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
