@@ -398,6 +398,7 @@ namespace Solracer.Network
 
         /// <summary>
         /// Claim prize for a race (winner only)
+        /// First settles the race on-chain, then claims the prize.
         /// </summary>
         public static async Task<bool> ClaimPrizeOnChainAsync(
             string raceId,
@@ -418,8 +419,79 @@ namespace Solracer.Network
 
                 string walletAddress = authManager.WalletAddress;
 
-                // Build transaction
-                onProgress?.Invoke("Building claim prize transaction...", 0.3f);
+                // === Step 1: Settle the race on-chain ===
+                onProgress?.Invoke("Settling race on-chain...", 0.1f);
+                var settleBuildRequest = new BuildTransactionRequest
+                {
+                    instruction_type = "settle_race",
+                    wallet_address = walletAddress,
+                    race_id = raceId
+                };
+
+                BuildTransactionResponse settleBuildResponse;
+                try
+                {
+                    settleBuildResponse = await apiClient.BuildTransactionAsync(settleBuildRequest);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[OnChainRaceManager] Failed to build settle_race transaction: {ex.Message}");
+                    onProgress?.Invoke("Failed to build settle transaction", 0f);
+                    return false;
+                }
+
+                if (settleBuildResponse == null || string.IsNullOrEmpty(settleBuildResponse.transaction_bytes))
+                {
+                    Debug.LogError("[OnChainRaceManager] Invalid transaction response for settle_race");
+                    onProgress?.Invoke("Failed to build settle transaction", 0f);
+                    return false;
+                }
+
+                // Sign settle_race
+                onProgress?.Invoke("Signing settle transaction...", 0.2f);
+                string signedSettle;
+                try
+                {
+                    signedSettle = await authManager.SignTransaction(settleBuildResponse.transaction_bytes);
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogError($"[OnChainRaceManager] Failed to sign settle_race: {ex.Message}");
+                    onProgress?.Invoke("Failed to sign settle transaction", 0f);
+                    return false;
+                }
+
+                if (string.IsNullOrEmpty(signedSettle))
+                {
+                    Debug.LogError("[OnChainRaceManager] settle_race signing returned empty");
+                    return false;
+                }
+
+                // Submit settle_race
+                onProgress?.Invoke("Submitting settle transaction...", 0.3f);
+                var settleSubmitRequest = new SubmitTransactionRequest
+                {
+                    signed_transaction_bytes = signedSettle,
+                    instruction_type = "settle_race",
+                    race_id = raceId,
+                    wallet_address = walletAddress
+                };
+
+                SubmitTransactionResponse settleSubmitResponse;
+                try
+                {
+                    settleSubmitResponse = await apiClient.SubmitTransactionAsync(settleSubmitRequest);
+                }
+                catch (Exception ex)
+                {
+                    // settle_race may already have been called — continue to claim_prize
+                    Debug.LogWarning($"[OnChainRaceManager] settle_race submit failed (may already be settled): {ex.Message}");
+                }
+
+                Debug.Log($"[OnChainRaceManager] Race settled on-chain (or was already settled)");
+
+                // === Step 2: Claim the prize ===
+                onProgress?.Invoke("Building claim prize transaction...", 0.5f);
                 var buildRequest = new BuildTransactionRequest
                 {
                     instruction_type = "claim_prize",
@@ -435,7 +507,7 @@ namespace Solracer.Network
                 catch (Exception ex)
                 {
                     Debug.LogError($"[OnChainRaceManager] Failed to build claim_prize transaction: {ex.Message}");
-                    onProgress?.Invoke("Failed to build transaction - race may not exist on-chain", 0f);
+                    onProgress?.Invoke("Failed to build claim transaction", 0f);
                     return false;
                 }
 
@@ -446,7 +518,7 @@ namespace Solracer.Network
                     return false;
                 }
 
-                // Show transaction signing modal and sign transaction
+                // Show transaction signing modal for prize claiming
                 onProgress?.Invoke("Waiting for transaction approval...", 0.6f);
                 bool userApproved = await ShowTransactionSigningModal(
                     "Claim Prize Transaction",
@@ -460,7 +532,7 @@ namespace Solracer.Network
                     return false;
                 }
 
-                onProgress?.Invoke("Signing transaction...", 0.65f);
+                onProgress?.Invoke("Signing transaction...", 0.7f);
                 string signedTransaction = await authManager.SignTransaction(buildResponse.transaction_bytes);
                 if (string.IsNullOrEmpty(signedTransaction))
                 {
@@ -468,8 +540,8 @@ namespace Solracer.Network
                     return false;
                 }
 
-                // Submit transaction
-                onProgress?.Invoke("Submitting transaction...", 0.8f);
+                // Submit claim_prize
+                onProgress?.Invoke("Submitting claim transaction...", 0.85f);
                 var submitRequest = new SubmitTransactionRequest
                 {
                     signed_transaction_bytes = signedTransaction,

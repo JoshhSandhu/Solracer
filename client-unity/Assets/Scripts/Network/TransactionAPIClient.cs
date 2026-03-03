@@ -72,7 +72,7 @@ namespace Solracer.Network
                     webRequest.SetRequestHeader("Content-Type", "application/json");
                     webRequest.timeout = 15;
 
-                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    if (APIConfig.IsLocalUrl(apiBaseUrl) && apiBaseUrl.StartsWith("https://"))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
                     }
@@ -128,7 +128,7 @@ namespace Solracer.Network
                     webRequest.SetRequestHeader("Content-Type", "application/json");
                     webRequest.timeout = 15;
 
-                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    if (APIConfig.IsLocalUrl(apiBaseUrl) && apiBaseUrl.StartsWith("https://"))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
                     }
