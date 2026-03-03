@@ -1,10 +1,3 @@
-/**
- * Solracer Backend-TS Types
- *
- * DERIVED EXACTLY from backend/golden/*.json
- * These types define the TypeScript migration contract.
- */
-
 // ---------------------------------------------------------------------------
 // Enums
 // ---------------------------------------------------------------------------

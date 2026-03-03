@@ -1,10 +1,3 @@
-/**
- * PDA (Program Derived Address) derivation — mirrors backend/app/services/pda_utils.py.
- *
- * Seeds (matching lib.rs):
- *   [b"race", race_id.as_bytes(), token_mint.as_ref(), &entry_fee_sol.to_le_bytes()]
- */
-
 import { PublicKey } from "@solana/web3.js";
 
 const DEFAULT_PROGRAM_ID = "5Qe7B4LEMjmfbWgt2ctKY8ZzesDobubBi79HwPABJFkQ";

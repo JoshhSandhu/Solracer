@@ -4,7 +4,7 @@ services:
     ports:
       - "8001:8001"
     volumes:
-      - ../backend/certs:/app/certs:ro
+      - ./certs:/app/certs:ro
     environment:
       USE_HTTPS: "true"
       HOST: "0.0.0.0"

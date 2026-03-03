@@ -1,10 +1,3 @@
-/**
- * Transaction building & serialisation — mirrors backend/app/services/transaction_builder.py.
- *
- * Produces the same wire-format bytes as Python's
- *   `bytes(Transaction.new_unsigned(Message.new_with_blockhash(...)))`.
- */
-
 import { Transaction, type TransactionInstruction, type PublicKey } from "@solana/web3.js";
 import { getConnection } from "./solana.js";
 

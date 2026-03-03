@@ -1,10 +1,3 @@
-/**
- * Instruction builders — mirrors backend/app/services/program_client.py.
- *
- * Discriminators, account order, and serialisation layout taken directly
- * from the IDL (backend/app/idl/solracer_program.json).
- */
-
 import { PublicKey, TransactionInstruction, SystemProgram } from "@solana/web3.js";
 import { getProgramId } from "./pda.js";
 

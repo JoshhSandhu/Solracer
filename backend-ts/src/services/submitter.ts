@@ -1,7 +1,3 @@
-/**
- * Transaction submission & confirmation — mirrors backend/app/services/transaction_submitter.py.
- */
-
 import { getConnection } from "./solana.js";
 
 export async function submitTransaction(

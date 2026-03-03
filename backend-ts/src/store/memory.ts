@@ -1,13 +1,3 @@
-/**
- * In-memory race store.
- *
- * Mirrors the Python backend behavior exactly:
- * - Races stored by race_id (32-char hex)
- * - Expiration: 5min public, 10min private
- * - Auto-cancel expired races on every read operation
- * - Hard-delete races older than 10 minutes
- */
-
 import { v4 as uuidv4 } from "uuid";
 import crypto from "node:crypto";
 import type {
