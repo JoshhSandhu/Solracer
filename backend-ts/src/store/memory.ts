@@ -535,6 +535,11 @@ export function registerRaceFromChain(
   return toRaceResponse(race);
 }
 
+/** Returns the raw internal Race record (not the response DTO). Used by ghost relay for participant validation. */
+export function getRaceRaw(raceId: string): Race | undefined {
+  return races.get(raceId);
+}
+
 export function listPublicRaces(
   tokenMint?: string,
   entryFee?: number

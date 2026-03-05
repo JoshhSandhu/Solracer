@@ -16,7 +16,9 @@ import { fileURLToPath } from "node:url";
 import { raceRoutes } from "./routes/races.js";
 import { transactionRoutes } from "./routes/transactions.js";
 import { payoutRoutes } from "./routes/payouts.js";
+import { ghostRoutes } from "./routes/ghost.js";
 import { startCleanupInterval, stopCleanupInterval } from "./store/memory.js";
+import { startGhostCleanup, stopGhostCleanup } from "./store/ghost.js";
 
 const rawPort = parseInt(process.env.PORT ?? "8001", 10);
 const PORT = isNaN(rawPort) ? 8001 : rawPort;
@@ -43,13 +45,23 @@ const fastifyOptions: any = {
 
 if (useHttps) {
   const certsDir = process.env.CERTS_DIR ?? path.resolve(__dirname, "../certs");
+  const pfxPath = path.join(certsDir, "cert.pfx");
   const keyPath = path.join(certsDir, "key.pem");
   const certPath = path.join(certsDir, "cert.pem");
 
-  fastifyOptions.https = {
-    key: fs.readFileSync(keyPath),
-    cert: fs.readFileSync(certPath),
-  };
+  if (fs.existsSync(pfxPath)) {
+    // Prefer .pfx — avoids OpenSSL 3 PEM format compatibility issues
+    fastifyOptions.https = {
+      pfx: fs.readFileSync(pfxPath),
+      passphrase: process.env.CERT_PFX_PASSWORD ?? "",
+    };
+  } else {
+    // Fallback to PEM pair
+    fastifyOptions.https = {
+      key: fs.readFileSync(keyPath),
+      cert: fs.readFileSync(certPath),
+    };
+  }
 }
 
 const app = Fastify(fastifyOptions);
@@ -89,10 +101,13 @@ async function main(): Promise<void> {
   await app.register(raceRoutes, { prefix: API_PREFIX });
   await app.register(transactionRoutes, { prefix: API_PREFIX });
   await app.register(payoutRoutes, { prefix: API_PREFIX });
+  await app.register(ghostRoutes, { prefix: API_PREFIX });
 
   // Background interval: clean up expired races every 60s even under no load.
   // Prevents unbounded memory growth when the server is idle.
   startCleanupInterval(60_000);
+  // Ghost positions expire after 30s; clean up every 10s.
+  startGhostCleanup();
 
   try {
     await app.listen({ port: PORT, host: HOST });
@@ -108,6 +123,7 @@ async function main(): Promise<void> {
 async function shutdown(): Promise<void> {
   app.log.info("Shutting down...");
   stopCleanupInterval();
+  stopGhostCleanup();
   await app.close();
   process.exit(0);
 }

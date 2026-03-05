@@ -10,3 +10,4 @@ services:
       HOST: "0.0.0.0"
       PORT: "8001"
       CERTS_DIR: "/app/certs"
+      CERT_PFX_PASSWORD: "AdminLynxJosh"

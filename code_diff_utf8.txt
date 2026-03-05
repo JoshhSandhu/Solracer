@@ -1,0 +1,450 @@
+﻿diff --git a/backend-ts/src/server.ts b/backend-ts/src/server.ts
+index dbdf590..372bcaf 100644
+--- a/backend-ts/src/server.ts
++++ b/backend-ts/src/server.ts
+@@ -16,7 +16,9 @@ import { fileURLToPath } from "node:url";
+ import { raceRoutes } from "./routes/races.js";
+ import { transactionRoutes } from "./routes/transactions.js";
+ import { payoutRoutes } from "./routes/payouts.js";
++import { ghostRoutes } from "./routes/ghost.js";
+ import { startCleanupInterval, stopCleanupInterval } from "./store/memory.js";
++import { startGhostCleanup, stopGhostCleanup } from "./store/ghost.js";
+ 
+ const rawPort = parseInt(process.env.PORT ?? "8001", 10);
+ const PORT = isNaN(rawPort) ? 8001 : rawPort;
+@@ -43,13 +45,23 @@ const fastifyOptions: any = {
+ 
+ if (useHttps) {
+   const certsDir = process.env.CERTS_DIR ?? path.resolve(__dirname, "../certs");
++  const pfxPath = path.join(certsDir, "cert.pfx");
+   const keyPath = path.join(certsDir, "key.pem");
+   const certPath = path.join(certsDir, "cert.pem");
+ 
+-  fastifyOptions.https = {
+-    key: fs.readFileSync(keyPath),
+-    cert: fs.readFileSync(certPath),
+-  };
++  if (fs.existsSync(pfxPath)) {
++    // Prefer .pfx ÔÇö avoids OpenSSL 3 PEM format compatibility issues
++    fastifyOptions.https = {
++      pfx: fs.readFileSync(pfxPath),
++      passphrase: process.env.CERT_PFX_PASSWORD ?? "",
++    };
++  } else {
++    // Fallback to PEM pair
++    fastifyOptions.https = {
++      key: fs.readFileSync(keyPath),
++      cert: fs.readFileSync(certPath),
++    };
++  }
+ }
+ 
+ const app = Fastify(fastifyOptions);
+@@ -89,10 +101,13 @@ async function main(): Promise<void> {
+   await app.register(raceRoutes, { prefix: API_PREFIX });
+   await app.register(transactionRoutes, { prefix: API_PREFIX });
+   await app.register(payoutRoutes, { prefix: API_PREFIX });
++  await app.register(ghostRoutes, { prefix: API_PREFIX });
+ 
+   // Background interval: clean up expired races every 60s even under no load.
+   // Prevents unbounded memory growth when the server is idle.
+   startCleanupInterval(60_000);
++  // Ghost positions expire after 30s; clean up every 10s.
++  startGhostCleanup();
+ 
+   try {
+     await app.listen({ port: PORT, host: HOST });
+@@ -108,6 +123,7 @@ async function main(): Promise<void> {
+ async function shutdown(): Promise<void> {
+   app.log.info("Shutting down...");
+   stopCleanupInterval();
++  stopGhostCleanup();
+   await app.close();
+   process.exit(0);
+ }
+diff --git a/backend-ts/src/store/memory.ts b/backend-ts/src/store/memory.ts
+index 05ed6d2..976be53 100644
+--- a/backend-ts/src/store/memory.ts
++++ b/backend-ts/src/store/memory.ts
+@@ -535,6 +535,11 @@ export function registerRaceFromChain(
+   return toRaceResponse(race);
+ }
+ 
++/** Returns the raw internal Race record (not the response DTO). Used by ghost relay for participant validation. */
++export function getRaceRaw(raceId: string): Race | undefined {
++  return races.get(raceId);
++}
++
+ export function listPublicRaces(
+   tokenMint?: string,
+   entryFee?: number
+diff --git a/client-unity/Assets/Scripts/Auth/AuthenticationFlowManager.cs b/client-unity/Assets/Scripts/Auth/AuthenticationFlowManager.cs
+index 50c84bb..272bcfb 100644
+--- a/client-unity/Assets/Scripts/Auth/AuthenticationFlowManager.cs
++++ b/client-unity/Assets/Scripts/Auth/AuthenticationFlowManager.cs
+@@ -1084,11 +1084,11 @@ namespace Solracer.Auth
+ 
+                 Debug.Log($"[SignTransactionWithPrivy] Transaction base64 length: {transactionBase64.Length}");
+ 
+-                // Step 1: Decode base64 to bytes
++                //Decode base64 to bytes
+                 byte[] transactionBytes = System.Convert.FromBase64String(transactionBase64);
+                 Debug.Log($"[SignTransactionWithPrivy] Decoded transaction: {transactionBytes.Length} bytes");
+ 
+-                // Step 2: Deserialize transaction using Solana Unity SDK
++                //Deserialize transaction using Solana Unity SDK
+                 Transaction transaction = null;
+                 try
+                 {
+@@ -1108,7 +1108,7 @@ namespace Solracer.Auth
+                     return null;
+                 }
+ 
+-                // Step 3: Get the transaction message to sign
++                //Get the transaction message to sign
+                 byte[] messageBytes = null;
+                 try
+                 {
+@@ -1127,7 +1127,7 @@ namespace Solracer.Auth
+                     return null;
+                 }
+ 
+-                // Step 4: Sign the message using Privy
++                //Sign the message using Privy
+                 string messageBase64 = System.Convert.ToBase64String(messageBytes);
+                 Debug.Log($"[SignTransactionWithPrivy] Signing transaction message ({messageBytes.Length} bytes)...");
+ 
+@@ -1150,13 +1150,12 @@ namespace Solracer.Auth
+                 byte[] signatureBytes = System.Convert.FromBase64String(signatureBase64);
+                 Debug.Log($"[SignTransactionWithPrivy] Received signature: {signatureBytes.Length} bytes");
+ 
+-                // Step 5: Add signature to transaction
++                //Add signature to transaction
+                 try
+                 {
+-                    // Get the signer's public key (first account in the transaction)
++                    // Get the signer's public key
+                     PublicKey signerPubKey = new PublicKey(WalletAddress);
+                     
+-                    // Find and update the signature in the transaction's Signatures list
+                     bool signatureAdded = false;
+                     if (transaction.Signatures != null && transaction.Signatures.Count > 0)
+                     {
+@@ -1218,7 +1217,7 @@ namespace Solracer.Auth
+                     return null;
+                 }
+ 
+-                // Step 6: Serialize the signed transaction
++                // Serialize the signed transaction
+                 byte[] signedTransactionBytes = null;
+                 try
+                 {
+@@ -1246,7 +1245,7 @@ namespace Solracer.Auth
+                     return null;
+                 }
+ 
+-                // Step 7: Return base64-encoded signed transaction
++                // Return base64-encoded signed transaction
+                 string signedTransactionBase64 = System.Convert.ToBase64String(signedTransactionBytes);
+                 Debug.Log($"[SignTransactionWithPrivy] Transaction signed successfully! Signed transaction: {signedTransactionBytes.Length} bytes (base64: {signedTransactionBase64.Length} chars)");
+                 return signedTransactionBase64;
+diff --git a/client-unity/Assets/Scripts/Auth/MWAWalletAdapter.cs b/client-unity/Assets/Scripts/Auth/MWAWalletAdapter.cs
+index 38e6b28..66a9c31 100644
+--- a/client-unity/Assets/Scripts/Auth/MWAWalletAdapter.cs
++++ b/client-unity/Assets/Scripts/Auth/MWAWalletAdapter.cs
+@@ -152,11 +152,10 @@ namespace Solracer.Auth
+         }
+ 
+         /// <summary>
+-        /// Sign in using MWA - same as connect for MWA (authorize flow)
++        /// Sign in using MWA
+         /// </summary>
+         public async Task<MWAConnectionResult> SignInAsync()
+         {
+-            // For MWA, SignIn is the same as Connect (authorize)
+             return await ConnectAsync();
+         }
+ 
+@@ -179,7 +178,7 @@ namespace Solracer.Auth
+ 
+                 Debug.Log($"[MWAWalletAdapter] Signing message ({message.Length} bytes)...");
+ 
+-                // Use SDK's SignMessage - this triggers MWA bottom sheet
++                // Use SDK's SignMessage
+                 byte[] signature = await _walletAdapter.SignMessage(message);
+ 
+                 if (signature != null && signature.Length > 0)
+@@ -214,8 +213,8 @@ namespace Solracer.Auth
+         }
+ 
+         /// <summary>
+-        /// Sign a Solana transaction using MWA wallet.
+-        /// Takes base64-encoded transaction bytes from backend, returns signed transaction base64.
++        /// Sign a Solana transaction using MWA wallet
++        /// Takes base64-encoded transaction bytes from backend, returns signed transaction base64
+         /// </summary>
+         public async Task<string> SignTransactionAsync(string transactionBase64)
+         {
+@@ -229,15 +228,15 @@ namespace Solracer.Auth
+ 
+                 Debug.Log($"[MWAWalletAdapter] Signing transaction (base64 length: {transactionBase64.Length})...");
+ 
+-                // Step 1: Decode base64 to bytes
++                //Decode base64 to bytes
+                 byte[] transactionBytes = Convert.FromBase64String(transactionBase64);
+                 Debug.Log($"[MWAWalletAdapter] Decoded transaction: {transactionBytes.Length} bytes");
+ 
+-                // Step 2: Deserialize transaction
++                //Deserialize transaction
+                 Transaction transaction = Transaction.Deserialize(transactionBytes);
+                 Debug.Log($"[MWAWalletAdapter] Deserialized transaction. Instructions: {transaction.Instructions?.Count ?? 0}");
+ 
+-                // Step 3: Sign transaction using MWA SDK - this triggers the wallet bottom sheet
++                //Sign transaction using MWA SDK - this triggers the wallet bottom sheet
+                 Transaction signedTransaction = await _walletAdapter.SignTransaction(transaction);
+ 
+                 if (signedTransaction == null)
+@@ -246,7 +245,7 @@ namespace Solracer.Auth
+                     return null;
+                 }
+ 
+-                // Step 4: Serialize the signed transaction
++                //Serialize the signed transaction
+                 byte[] signedTransactionBytes = signedTransaction.Serialize();
+                 Debug.Log($"[MWAWalletAdapter] Serialized signed transaction: {signedTransactionBytes.Length} bytes");
+ 
+@@ -257,7 +256,7 @@ namespace Solracer.Auth
+                     return null;
+                 }
+ 
+-                // Step 5: Return base64-encoded signed transaction
++                //Return base64-encoded signed transaction
+                 string signedTransactionBase64 = Convert.ToBase64String(signedTransactionBytes);
+                 Debug.Log($"[MWAWalletAdapter] Transaction signed successfully! ({signedTransactionBytes.Length} bytes)");
+ 
+@@ -294,7 +293,7 @@ namespace Solracer.Auth
+                     transactions[i] = Transaction.Deserialize(txBytes);
+                 }
+ 
+-                // Sign all transactions - this triggers the wallet bottom sheet once
++                // Sign all transactions
+                 Transaction[] signedTransactions = await _walletAdapter.SignAllTransactions(transactions);
+ 
+                 if (signedTransactions == null || signedTransactions.Length == 0)
+diff --git a/client-unity/Assets/Scripts/Game/ATV/ATVControllerDebug.cs b/client-unity/Assets/Scripts/Game/ATV/ATVControllerDebug.cs
+index f048ca8..4547e18 100644
+--- a/client-unity/Assets/Scripts/Game/ATV/ATVControllerDebug.cs
++++ b/client-unity/Assets/Scripts/Game/ATV/ATVControllerDebug.cs
+@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
+ namespace Solracer.Game
+ {
+     /// <summary>
+-    /// Debug helper for ATV controller - shows speed, input, and tire rotation.
++    /// Debug helper for ATV controller - shows speed, input, and tire rotation
+     /// </summary>
+     public class ATVControllerDebug : MonoBehaviour
+     {
+diff --git a/client-unity/Assets/Scripts/Game/RaceManager.cs b/client-unity/Assets/Scripts/Game/RaceManager.cs
+index c2e4b6f..7363f6b 100644
+--- a/client-unity/Assets/Scripts/Game/RaceManager.cs
++++ b/client-unity/Assets/Scripts/Game/RaceManager.cs
+@@ -54,6 +54,10 @@ namespace Solracer.Game
+         private InputTraceRecorder inputTraceRecorder;
+         private bool atvNullWarned = false;
+ 
++        private GhostRelayController _ghostRelay;
++        /// <summary>Expose for ghost car renderer to call GetExtrapolatedOpponentPosition().</summary>
++        public GhostRelayController GhostRelay => _ghostRelay;
++
+         public bool IsGameActive => isGameActive;
+         public bool HasReachedEnd => hasReachedEnd;
+         public bool IsUpsideDown => isUpsideDown;
+@@ -142,6 +146,7 @@ namespace Solracer.Game
+ 
+             if (bothReady)
+             {
++                StartGhostRelay();
+                 StartCoroutine(CountdownCoroutine());
+             }
+             else
+@@ -215,11 +220,19 @@ namespace Solracer.Game
+                 return;
+ 
+             CheckUpsideDown();
+-            
++
+             if (enableStuckDetection)
+             {
+                 CheckIfStuck();
+             }
++
++            // local player position to ghost relay every frame
++            if (_ghostRelay != null && atvController != null)
++            {
++                Vector2 pos2d = atvController.transform.root.position;
++                float spd = atvController.CurrentSpeed;
++                _ghostRelay.UpdateLocalState(pos2d, spd, 0);
++            }
+         }
+ 
+         private void CheckUpsideDown()
+@@ -404,6 +417,12 @@ namespace Solracer.Game
+                 isGameActive = false;
+                 Debug.Log($"RaceManager: {(isGameOver ? "Game Over" : "Race Complete")} - {reason}");
+ 
++                // Stop ghost relay
++                if (_ghostRelay != null)
++                {
++                    _ghostRelay.StopRelay();
++                }
++
+                 if (inputTraceRecorder != null)
+                 {
+                     inputTraceRecorder.StopRecording();
+@@ -524,6 +543,26 @@ namespace Solracer.Game
+             }
+         }
+ 
++        private void StartGhostRelay()
++        {
++            if (!GameModeData.IsCompetitive || !RaceData.HasActiveRace())
++                return;
++
++            string raceId       = RaceData.CurrentRaceId;
++            string myWallet     = AuthenticationData.WalletAddress;
++            string opponentWallet = RaceData.OpponentWalletAddress;
++
++            if (string.IsNullOrEmpty(raceId) || string.IsNullOrEmpty(myWallet))
++            {
++                Debug.LogWarning("[RaceManager] Cannot start ghost relay ÔÇö missing raceId or wallet");
++                return;
++            }
++
++            _ghostRelay = gameObject.AddComponent<GhostRelayController>();
++            _ghostRelay.StartRelay(raceId, myWallet, opponentWallet);
++            Debug.Log($"[RaceManager] Ghost relay started. race={raceId} me={myWallet} opp={opponentWallet}");
++        }
++
+         private int CalculateScore(float time, float speed)
+         {
+             if (time <= 0f)
+diff --git a/client-unity/Assets/Scripts/Network/RaceData.cs b/client-unity/Assets/Scripts/Network/RaceData.cs
+index 5b6f964..46a4146 100644
+--- a/client-unity/Assets/Scripts/Network/RaceData.cs
++++ b/client-unity/Assets/Scripts/Network/RaceData.cs
+@@ -11,6 +11,7 @@ namespace Solracer.Network
+         private static string currentRacePDA = null;
+         private static string currentTransactionSignature = null;
+         private static float entryFeeSol = 0.01f; //default entry fee
++        private static string opponentWalletAddress = null;
+ 
+         // Race completion flags
+         private static bool hasFinishedRace = false;
+@@ -120,6 +121,17 @@ namespace Solracer.Network
+             set => trackTokenMint = value;
+         }
+ 
++        /// <summary>
++        /// Wallet address of the opponent in a competitive race.
++        /// Set by the lobby/join flow when player2 joins.
++        /// Used by GhostRelayController to filter opponent ghost state.
++        /// </summary>
++        public static string OpponentWalletAddress
++        {
++            get => opponentWalletAddress;
++            set => opponentWalletAddress = value;
++        }
++
+         /// <summary>
+         /// Mark the race as finished and store player results
+         /// </summary>
+@@ -160,6 +172,9 @@ namespace Solracer.Network
+             trackHash = null;
+             trackHourStartUTC = null;
+             trackTokenMint = null;
++
++            // Clear ghost relay
++            opponentWalletAddress = null;
+         }
+ 
+         //check if race is currently active
+diff --git a/client-unity/Assets/Scripts/Network/TrackAPIClientV2.cs b/client-unity/Assets/Scripts/Network/TrackAPIClientV2.cs
+index f42b1bf..010363f 100644
+--- a/client-unity/Assets/Scripts/Network/TrackAPIClientV2.cs
++++ b/client-unity/Assets/Scripts/Network/TrackAPIClientV2.cs
+@@ -100,9 +100,9 @@ namespace Solracer.Network
+         }
+ 
+         /// <summary>
+-        /// Fetch full track detail including blob.
++        /// Fetch full track detail including blob
+         /// GET /tracks/:tokenMint/:hourStartUTC
+-        /// Returns cached response if available for the same (token, hour) pair.
++        /// Returns cached response if available for the same (token, hour) pair
+         /// </summary>
+         public async Task<TrackDetailResponse> GetTrackDetailAsync(string tokenMint, string hourStartUTC)
+         {
+diff --git a/client-unity/Assets/Scripts/Network/TrackBlobDecoder.cs b/client-unity/Assets/Scripts/Network/TrackBlobDecoder.cs
+index 0f1757b..aab51d6 100644
+--- a/client-unity/Assets/Scripts/Network/TrackBlobDecoder.cs
++++ b/client-unity/Assets/Scripts/Network/TrackBlobDecoder.cs
+@@ -4,15 +4,15 @@ using UnityEngine;
+ namespace Solracer.Network
+ {
+     /// <summary>
+-    /// Decodes Base64-encoded track blob from Backend-v2 into normalized float[].
+-    /// Blob format: each point = 2 bytes Int16LE, range 0ÔÇô32767.
+-    /// Normalized float = value / 32767f, clamped to [0, 1].
++    /// Decodes Base64-encoded track blob from Backend-v2 into normalized float array
++    /// Blob format: each point = 2 bytes Int16LE, range 0ÔÇô32767
++    /// Normalized float = value / 32767f, clamped to [0, 1]
+     /// </summary>
+     public static class TrackBlobDecoder
+     {
+         /// <summary>
+-        /// Decode a Base64-encoded blob into normalized float array.
+-        /// Returns null on failure.
++        /// Decode a Base64-encoded blob into normalized float array
++        /// Returns null on failure
+         /// </summary>
+         /// <param name="base64">Base64-encoded blob string</param>
+         /// <param name="pointCount">Expected number of points</param>
+diff --git a/client-unity/Assets/Scripts/Network/TrackModelsV2.cs b/client-unity/Assets/Scripts/Network/TrackModelsV2.cs
+index 0030d3d..521e883 100644
+--- a/client-unity/Assets/Scripts/Network/TrackModelsV2.cs
++++ b/client-unity/Assets/Scripts/Network/TrackModelsV2.cs
+@@ -5,7 +5,7 @@ namespace Solracer.Network
+ {
+     /// <summary>
+     /// Response from GET /tracks/:tokenMint/latest
+-    /// Returns metadata for the most recent playable track.
++    /// Returns metadata for the most recent playable track
+     /// </summary>
+     [Serializable]
+     public class LatestTrackResponse
+@@ -31,7 +31,7 @@ namespace Solracer.Network
+ 
+     /// <summary>
+     /// Response from GET /tracks/:tokenMint/:hourStartUTC
+-    /// Returns full track detail including the normalized points blob.
++    /// Returns full track detail including the normalized points blob
+     /// </summary>
+     [Serializable]
+     public class TrackDetailResponse
+diff --git a/client-unity/Assets/Scripts/UI/Scenes/LobbyScreen.cs b/client-unity/Assets/Scripts/UI/Scenes/LobbyScreen.cs
+index a4fe06c..add5830 100644
+--- a/client-unity/Assets/Scripts/UI/Scenes/LobbyScreen.cs
++++ b/client-unity/Assets/Scripts/UI/Scenes/LobbyScreen.cs
+@@ -908,7 +908,11 @@ namespace Solracer.UI
+                 if (status.player2_wallet != null)
+                 {
+                     waitingStatusText.text = "Opponent joined!";
+-                    
++
++                    // Store opponent wallet for ghost relay
++                    RaceData.OpponentWalletAddress = isPlayer1
++                        ? status.player2_wallet
++                        : status.player1_wallet;
+                     // Show ready button if not ready yet
+                     bool isReady = isPlayer1 ? status.player1_ready : status.player2_ready;
+                     if (readyButton != null)

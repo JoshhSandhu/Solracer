@@ -11,6 +11,7 @@ namespace Solracer.Network
         private static string currentRacePDA = null;
         private static string currentTransactionSignature = null;
         private static float entryFeeSol = 0.01f; //default entry fee
+        private static string opponentWalletAddress = null;
 
         // Race completion flags
         private static bool hasFinishedRace = false;
@@ -121,6 +122,17 @@ namespace Solracer.Network
         }
 
         /// <summary>
+        /// Wallet address of the opponent in a competitive race.
+        /// Set by the lobby/join flow when player2 joins.
+        /// Used by GhostRelayController to filter opponent ghost state.
+        /// </summary>
+        public static string OpponentWalletAddress
+        {
+            get => opponentWalletAddress;
+            set => opponentWalletAddress = value;
+        }
+
+        /// <summary>
         /// Mark the race as finished and store player results
         /// </summary>
         public static void SetRaceFinished(float finishTime, int coinsCollected, string inputHash)
@@ -160,6 +172,9 @@ namespace Solracer.Network
             trackHash = null;
             trackHourStartUTC = null;
             trackTokenMint = null;
+
+            // Clear ghost relay
+            opponentWalletAddress = null;
         }
 
         //check if race is currently active

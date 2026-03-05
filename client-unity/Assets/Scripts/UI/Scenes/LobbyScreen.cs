@@ -908,7 +908,11 @@ namespace Solracer.UI
                 if (status.player2_wallet != null)
                 {
                     waitingStatusText.text = "Opponent joined!";
-                    
+
+                    // Store opponent wallet for ghost relay
+                    RaceData.OpponentWalletAddress = isPlayer1
+                        ? status.player2_wallet
+                        : status.player1_wallet;
                     // Show ready button if not ready yet
                     bool isReady = isPlayer1 ? status.player1_ready : status.player2_ready;
                     if (readyButton != null)

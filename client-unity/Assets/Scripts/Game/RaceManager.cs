@@ -54,6 +54,10 @@ namespace Solracer.Game
         private InputTraceRecorder inputTraceRecorder;
         private bool atvNullWarned = false;
 
+        private GhostRelayController _ghostRelay;
+        /// <summary>Expose for ghost car renderer to call GetExtrapolatedOpponentPosition().</summary>
+        public GhostRelayController GhostRelay => _ghostRelay;
+
         public bool IsGameActive => isGameActive;
         public bool HasReachedEnd => hasReachedEnd;
         public bool IsUpsideDown => isUpsideDown;
@@ -142,6 +146,7 @@ namespace Solracer.Game
 
             if (bothReady)
             {
+                StartGhostRelay();
                 StartCoroutine(CountdownCoroutine());
             }
             else
@@ -215,10 +220,18 @@ namespace Solracer.Game
                 return;
 
             CheckUpsideDown();
-            
+
             if (enableStuckDetection)
             {
                 CheckIfStuck();
+            }
+
+            // local player position to ghost relay every frame
+            if (_ghostRelay != null && atvController != null)
+            {
+                Vector2 pos2d = atvController.transform.root.position;
+                float spd = atvController.CurrentSpeed;
+                _ghostRelay.UpdateLocalState(pos2d, spd, 0);
             }
         }
 
@@ -404,6 +417,12 @@ namespace Solracer.Game
                 isGameActive = false;
                 Debug.Log($"RaceManager: {(isGameOver ? "Game Over" : "Race Complete")} - {reason}");
 
+                // Stop ghost relay
+                if (_ghostRelay != null)
+                {
+                    _ghostRelay.StopRelay();
+                }
+
                 if (inputTraceRecorder != null)
                 {
                     inputTraceRecorder.StopRecording();
@@ -522,6 +541,26 @@ namespace Solracer.Game
                 Debug.LogError($"[RaceManager] Error submitting result on-chain: {ex.Message}");
                 return false;
             }
+        }
+
+        private void StartGhostRelay()
+        {
+            if (!GameModeData.IsCompetitive || !RaceData.HasActiveRace())
+                return;
+
+            string raceId       = RaceData.CurrentRaceId;
+            string myWallet     = AuthenticationData.WalletAddress;
+            string opponentWallet = RaceData.OpponentWalletAddress;
+
+            if (string.IsNullOrEmpty(raceId) || string.IsNullOrEmpty(myWallet))
+            {
+                Debug.LogWarning("[RaceManager] Cannot start ghost relay — missing raceId or wallet");
+                return;
+            }
+
+            _ghostRelay = gameObject.AddComponent<GhostRelayController>();
+            _ghostRelay.StartRelay(raceId, myWallet, opponentWallet);
+            Debug.Log($"[RaceManager] Ghost relay started. race={raceId} me={myWallet} opp={opponentWallet}");
         }
 
         private int CalculateScore(float time, float speed)

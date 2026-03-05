@@ -5,7 +5,7 @@ namespace Solracer.Network
 {
     /// <summary>
     /// Response from GET /tracks/:tokenMint/latest
-    /// Returns metadata for the most recent playable track.
+    /// Returns metadata for the most recent playable track
     /// </summary>
     [Serializable]
     public class LatestTrackResponse
@@ -31,7 +31,7 @@ namespace Solracer.Network
 
     /// <summary>
     /// Response from GET /tracks/:tokenMint/:hourStartUTC
-    /// Returns full track detail including the normalized points blob.
+    /// Returns full track detail including the normalized points blob
     /// </summary>
     [Serializable]
     public class TrackDetailResponse

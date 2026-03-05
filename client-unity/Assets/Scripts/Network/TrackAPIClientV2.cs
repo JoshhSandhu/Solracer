@@ -100,9 +100,9 @@ namespace Solracer.Network
         }
 
         /// <summary>
-        /// Fetch full track detail including blob.
+        /// Fetch full track detail including blob
         /// GET /tracks/:tokenMint/:hourStartUTC
-        /// Returns cached response if available for the same (token, hour) pair.
+        /// Returns cached response if available for the same (token, hour) pair
         /// </summary>
         public async Task<TrackDetailResponse> GetTrackDetailAsync(string tokenMint, string hourStartUTC)
         {

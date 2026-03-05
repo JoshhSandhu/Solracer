@@ -4,15 +4,15 @@ using UnityEngine;
 namespace Solracer.Network
 {
     /// <summary>
-    /// Decodes Base64-encoded track blob from Backend-v2 into normalized float[].
-    /// Blob format: each point = 2 bytes Int16LE, range 0–32767.
-    /// Normalized float = value / 32767f, clamped to [0, 1].
+    /// Decodes Base64-encoded track blob from Backend-v2 into normalized float array
+    /// Blob format: each point = 2 bytes Int16LE, range 0–32767
+    /// Normalized float = value / 32767f, clamped to [0, 1]
     /// </summary>
     public static class TrackBlobDecoder
     {
         /// <summary>
-        /// Decode a Base64-encoded blob into normalized float array.
-        /// Returns null on failure.
+        /// Decode a Base64-encoded blob into normalized float array
+        /// Returns null on failure
         /// </summary>
         /// <param name="base64">Base64-encoded blob string</param>
         /// <param name="pointCount">Expected number of points</param>
