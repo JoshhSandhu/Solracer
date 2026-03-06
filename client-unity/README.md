@@ -1,6 +1,6 @@
 # Solracer Unity Client
 
-> Unity game client for Solracer — a competitive racing game where players race on real-time Solana token price charts. Supports MWA wallet connection, on-chain race escrow, and oracle-driven deterministic tracks.
+> Unity game client for Solracer  a competitive racing game where players race on real-time Solana token price charts. Supports MWA wallet connection, on-chain race escrow, and oracle-driven deterministic tracks.
 
 **Tech Stack:** Unity 6000.2.6f2 · Solana Unity SDK · Privy SDK · C# · Android (Seeker)
 
@@ -8,13 +8,13 @@
 
 ## Features
 
-- **Oracle Track System** — tracks are generated from live token price data via Backend-v2
-- **Practice Mode** — use oracle tracks without wagering; mock fallback when offline
-- **Competitive Mode** — on-chain escrow via Solana program; SOL entry fees; Jupiter swap payouts
-- **MWA Wallet** — connects to Seeker wallet via Mobile Wallet Adapter (Solana Unity SDK)
-- **Privy Wallet** — email-based embedded Solana wallet for non-Seeker users
-- **Deterministic Replay** — fixed-timestep physics + input hash for anti-cheat verification
-- **DebugConsole** — on-screen runtime log overlay (toggle in top-right corner)
+- **Oracle Track System**  tracks are generated from live token price data via Backend-v2
+- **Practice Mode**  use oracle tracks without wagering; mock fallback when offline
+- **Competitive Mode**  on-chain escrow via Solana program; SOL entry fees; Jupiter swap payouts
+- **MWA Wallet**  connects to Seeker wallet via Mobile Wallet Adapter (Solana Unity SDK)
+- **Privy Wallet**  email-based embedded Solana wallet for non-Seeker users
+- **Deterministic Replay**  fixed-timestep physics + input hash for anti-cheat verification
+- **DebugConsole**  on-screen runtime log overlay (toggle in top-right corner)
 
 ---
 
@@ -34,7 +34,7 @@
 2. **Verify packages** in Package Manager:
    - Solana Unity SDK (`com.solana.unity_sdk`)
    - Privy SDK (under `Assets/Plugins/Privy/`)
-3. **Configure Privy** — open `Assets/Scripts/Auth/PrivyConfig.cs` or the asset and set your `appId` and `clientId`
+3. **Configure Privy**  open `Assets/Scripts/Auth/PrivyConfig.cs` or the asset and set your `appId` and `clientId`
 4. **Configure Build Settings** → Android platform:
    - Minimum API: 21, Target API: 33+
    - Scripting Backend: IL2CPP
@@ -108,7 +108,7 @@ Assets/Scripts/
 │   ├── TrackModelsV2.cs               # Response models for TrackAPIClientV2 ✅
 │   ├── RaceData.cs                    # Static race state: raceId, track commitment, results
 │   ├── CertificateHandlerBypass.cs    # Dev-only: bypass self-signed cert validation
-│   └── TrackAPIClient.cs              # ⚠ LEGACY — demo backend only, unused in production
+│   └── TrackAPIClient.cs              # ⚠ LEGACY  demo backend only, unused in production
 ├── UI/
 │   ├── Scenes/
 │   │   ├── LoginScreen.cs             # Wires Privy/MWA auth panels to AuthenticationFlowManager
@@ -146,10 +146,10 @@ Oracle (MagicBlock) → Backend-v2 → TrackLoader → TrackGenerator
 1. Backend-v2 ingests oracle price samples hourly and generates encoded height blobs.
 2. `TrackLoader` fetches the latest track for the selected token via `TrackAPIClientV2`.
 3. `TrackBlobDecoder` decodes the Base64 blob into normalized height values.
-4. `TrackGenerator` builds the mesh (LineRenderer + EdgeCollider2D) — no networking.
+4. `TrackGenerator` builds the mesh (LineRenderer + EdgeCollider2D)  no networking.
 5. If Backend-v2 fails or times out, `TrackDataProvider.GetMockTrackData()` is used as fallback. The game never blocks.
 
-**Practice mode** loads the same oracle track as competitive — just without wagering.  
+**Practice mode** loads the same oracle track as competitive  just without wagering.  
 **Competitive mode** additionally stores `TrackHash`, `TrackHourStartUTC`, and `TrackTokenMint` in `RaceData` for ER commitment verification.
 
 ### RaceData Track Commitment
@@ -190,11 +190,11 @@ Fixed timestep must remain at 0.0167 s across builds for replay consistency.
 
 ### DebugConsole
 
-On-screen log console — useful for debugging on physical Seeker devices where logs are not otherwise visible.
+On-screen log console  useful for debugging on physical Seeker devices where logs are not otherwise visible.
 
 - **Toggle:** Tap the `Log (XE XW)` button in the top-right corner of the screen
 - **Filters:** Log / Warn / Error filter buttons; Clear button
-- **Source:** `Assets/Scripts/Utils/DebugConsole.cs` — attach to a persistent root GameObject in the first loaded scene
+- **Source:** `Assets/Scripts/Utils/DebugConsole.cs`  attach to a persistent root GameObject in the first loaded scene
 
 ---
 
@@ -209,7 +209,7 @@ These static classes persist across scenes. They must be explicitly reset betwee
 | `AuthenticationData` | `Reset()` | On logout |
 | `CoinSelectionData` | Set properties directly | On token picker |
 | `GameOverData` | `SetGameOverData()` | Overwritten each race |
-| `TrackDataProvider` | `ResetCache()` | Not called — see Known Issues |
+| `TrackDataProvider` | `ResetCache()` | Not called  see Known Issues |
 
 ---
 
@@ -235,7 +235,7 @@ See `TECHNICAL-GUIDE.md` for full production audit details and architecture deep
 ## Common Issues
 
 ### "MWA wallet is not connected"
-1. MWA only works on physical Android (Seeker) — not emulator, not editor
+1. MWA only works on physical Android (Seeker)  not emulator, not editor
 2. Ensure Seeker wallet app is installed and running
 3. Check Unity logs via DebugConsole for the specific error
 
@@ -259,9 +259,9 @@ See `TECHNICAL-GUIDE.md` for full production audit details and architecture deep
 
 ## Documentation
 
-- **[TECHNICAL-GUIDE.md](TECHNICAL-GUIDE.md)** — Architecture, track pipeline, physics, and integration details
-- **[Root README](../README.md)** — App overview and screenshots
-- **[Backend README](../backend/README.md)** — API server documentation
+- **[TECHNICAL-GUIDE.md](TECHNICAL-GUIDE.md)**  Architecture, track pipeline, physics, and integration details
+- **[Root README](../README.md)**  App overview and screenshots
+- **[Backend README](../backend/README.md)**  API server documentation
 
 ---
 
@@ -276,4 +276,4 @@ See `TECHNICAL-GUIDE.md` for full production audit details and architecture deep
 
 ## License
 
-MIT License — see [LICENSE](../LICENSE)
+MIT License  see [LICENSE](../LICENSE)

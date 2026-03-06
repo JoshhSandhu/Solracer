@@ -6,7 +6,7 @@
 
 ---
 
-## SECTION 1 — Full System Architecture
+## SECTION 1  Full System Architecture
 
 ### Textual Architecture Diagram
 
@@ -14,7 +14,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                          CLIENT                                  │
 │   React + HTML5 Canvas                                           │
-│   App.tsx — monolithic game loop + state machine                 │
+│   App.tsx  monolithic game loop + state machine                 │
 │     - polls ER component accounts (getAccountInfo on RPC)        │
 │     - sends anchor transactions to ER endpoint (no WebSocket)    │
 │     - renders local player + all remote players from ER state    │
@@ -25,27 +25,27 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │              MAGICBLOCK EPHEMERAL ROLLUP (bolt_lang)             │
 │                                                                  │
-│   Entity Component System — on-chain programs                    │
+│   Entity Component System  on-chain programs                    │
 │                                                                  │
 │   COMPONENTS (ECS accounts, PDAs on ER):                         │
-│     Map       — game world state (delegated)                     │
-│     Player    — per-player state (delegated)                     │
-│     Section   — spatial food partitioning (delegated)            │
-│     Anteroom  — L1 financial config (NOT delegated to ER)        │
+│     Map        game world state (delegated)                     │
+│     Player     per-player state (delegated)                     │
+│     Section    spatial food partitioning (delegated)            │
+│     Anteroom   L1 financial config (NOT delegated to ER)        │
 │                                                                  │
 │   SYSTEMS (deployed programs on ER):                             │
-│     movement        — move player, consume mass on boost         │
-│     eat-food        — player absorbs food pellets                │
-│     eat-player      — collision + mass transfer between players  │
-│     spawn-player    — initialise player in world                 │
-│     spawn-food      — add food pellets to map section            │
-│     buy-in          — verify L1 deposit, set player authority    │
-│     cash-out        — verify ER state, release funds on L1       │
-│     init-map        — create Map component                       │
-│     init-anteroom   — create Anteroom component (L1)             │
-│     init-player     — create Player component PDA                │
-│     init-section    — create Section component                   │
-│     exit-game       — force-remove inactive player               │
+│     movement         move player, consume mass on boost         │
+│     eat-food         player absorbs food pellets                │
+│     eat-player       collision + mass transfer between players  │
+│     spawn-player     initialise player in world                 │
+│     spawn-food       add food pellets to map section            │
+│     buy-in           verify L1 deposit, set player authority    │
+│     cash-out         verify ER state, release funds on L1       │
+│     init-map         create Map component                       │
+│     init-anteroom    create Anteroom component (L1)             │
+│     init-player      create Player component PDA                │
+│     init-section     create Section component                   │
+│     exit-game        force-remove inactive player               │
 └─────────────────┬────────────────────────────────────────────────┘
                   │ ER commits state proofs to Solana L1
                   │ on cash-out/undelegation (not tick-by-tick)
@@ -74,8 +74,8 @@
 |---|---|
 | Solana L1 | SPL token vault, anteroom config, final settlement |
 | ER (BOLT) | All live game state: player positions, mass, score, food |
-| Client | Input only — sends transactions to ER; no authoritative state |
-| Leaderboard Backend | Advisory only — read-only score display |
+| Client | Input only  sends transactions to ER; no authoritative state |
+| Leaderboard Backend | Advisory only  read-only score display |
 
 ### Trust Boundaries
 
@@ -94,7 +94,7 @@
 
 ---
 
-## SECTION 2 — Multiplayer Mechanics
+## SECTION 2  Multiplayer Mechanics
 
 ### Session Creation Flow
 
@@ -115,15 +115,15 @@
 
 ### Player Matchmaking
 
-None. Supersize is a persistent lobby — anyone with a buy-in joins the live map immediately. No matchmaking queue. No session pairing. The Map component is the session.
+None. Supersize is a persistent lobby  anyone with a buy-in joins the live map immediately. No matchmaking queue. No session pairing. The Map component is the session.
 
 ### Input Capture System
 
 - Client reads mouse position (or touch) relative to canvas center
 - On each animation frame, client derives `target_x, target_y` (screen coords → world coords)
 - Client sends an Anchor transaction to ER calling `movement::execute` with `{x, y, boost}`
-- No batching of inputs on client — each frame is a potential transaction
-- **No client-side prediction of position** — position update is the ER transaction result
+- No batching of inputs on client  each frame is a potential transaction
+- **No client-side prediction of position**  position update is the ER transaction result
 
 ### Frame/Tick System
 
@@ -166,7 +166,7 @@ Player component PDA is persistent per map. After being eaten (mass=0, score=0, 
 
 ---
 
-## SECTION 3 — Ghost System
+## SECTION 3  Ghost System
 
 **There is no ghost system in Supersize.**
 
@@ -187,7 +187,7 @@ Remote players are rendered at their last polled position. No interpolation betw
 
 ---
 
-## SECTION 4 — ER Internals
+## SECTION 4  ER Internals
 
 ### How ER Sessions Are Instantiated
 
@@ -197,7 +197,7 @@ MagicBlock ER uses **account delegation**. Selected Solana accounts (PDAs) are "
 3. A copy is created on ER with full write access
 4. ER programs (systems) can now mutate the account at ER speed
 
-For Supersize: `Map` and [Player](file:///d:/mislanious/Unity/Uinty_projects/Solracer/backend-ts/src/types.ts#102-109) components are delegated. `Anteroom` is NOT — it stays on L1 because it holds vault config (immutable during game).
+For Supersize: `Map` and [Player](file:///d:/mislanious/Unity/Uinty_projects/Solracer/backend-ts/src/types.ts#102-109) components are delegated. `Anteroom` is NOT  it stays on L1 because it holds vault config (immutable during game).
 
 ### What Data Is Stored in ER State
 
@@ -232,14 +232,14 @@ Standard Borsh encoding matching Anchor account layout. Same as Solana L1. Clien
 ### How ER Submits to Solana
 
 On `cash-out`:
-1. Player calls cash-out system — this runs on **L1** (not ER)
+1. Player calls cash-out system  this runs on **L1** (not ER)
 2. Before it can run, the ER must have committed the Player PDA's final state back to L1 (undelegation)
 3. cash-out reads `player.score` (the ER-committed value) to determine payout amount
 4. Executes SPL token transfer from vault to player
 
 ### Whether ER Submits Full State, Diffs, or Commitments
 
-Full account state is submitted on undelegation. Not diffs. Not ZK commitments. The ER is a trusted validator extension — it does not produce cryptographic proofs. It relies on the MagicBlock validator's honest execution guarantee.
+Full account state is submitted on undelegation. Not diffs. Not ZK commitments. The ER is a trusted validator extension  it does not produce cryptographic proofs. It relies on the MagicBlock validator's honest execution guarantee.
 
 ### Rollback / Re-execution
 
@@ -248,14 +248,14 @@ Not implemented. If an ER transaction fails, the client retries. There is no cli
 ### How ER Enforces Correctness
 
 The BOLT framework enforces constraints inside system programs:
-- `require!(player.authority == Some(authority))` — only the authorized wallet can move their player
-- `require!(player.mass != 0)` — cannot interact if not in game
-- `require!(map.key() == player.map)` — cannot interact with wrong map
-- Collision detection is done inside `eat-player` system on-chain — no client verification
+- `require!(player.authority == Some(authority))`  only the authorized wallet can move their player
+- `require!(player.mass != 0)`  cannot interact if not in game
+- `require!(map.key() == player.map)`  cannot interact with wrong map
+- Collision detection is done inside `eat-player` system on-chain  no client verification
 
 ---
 
-## SECTION 5 — On-Chain Integration
+## SECTION 5  On-Chain Integration
 
 ### Program IDs
 
@@ -309,7 +309,7 @@ Solana nonce/slot-based transaction expiry inherently prevents replay. No custom
 ### Trust Model Summary
 
 ```
-Chain trusts ER:     YES — ER is a trusted validator extension, not a ZK system
+Chain trusts ER:     YES  ER is a trusted validator extension, not a ZK system
 Chain verifies:      player.score value at cash-out (reads delegated PDA after undelegation)
 Chain does NOT:      recompute game physics, verify movement paths, verify collision history
 Chain verifies:      vault ownership PDA derivation, token mint, player payout account
@@ -317,11 +317,11 @@ ER verifies:         authority signature on every system call
 ER does NOT:         prevent a player from sending fabricated {x, y} coordinates
 ```
 
-**Critical flaw**: `movement` accepts any `{target_x, target_y}` as input. A cheating client can teleport their target by sending arbitrary coordinates. The server-side physics just computes movement toward target. However, `eat-player` requires proximity — so teleporting target doesn't immediately let you eat someone; you still need your actual `player.x/y` to be near them, which updates only via physics step. This is weak anti-cheat but sufficient for a casual game.
+**Critical flaw**: `movement` accepts any `{target_x, target_y}` as input. A cheating client can teleport their target by sending arbitrary coordinates. The server-side physics just computes movement toward target. However, `eat-player` requires proximity  so teleporting target doesn't immediately let you eat someone; you still need your actual `player.x/y` to be near them, which updates only via physics step. This is weak anti-cheat but sufficient for a casual game.
 
 ---
 
-## SECTION 6 — Determinism Analysis
+## SECTION 6  Determinism Analysis
 
 ### Is the Simulation Deterministic?
 
@@ -338,7 +338,7 @@ Slot number is used as RNG seed, making RNG deterministic within each ER executi
 ### Physics Determinism
 
 - Movement uses `f64` floating point arithmetic on-chain (predictable within a single execution)
-- No cross-client physics — each client's view is independent
+- No cross-client physics  each client's view is independent
 - Mass/speed calculations use `f64` consistently, no integer physics
 
 ### Fixed Timestep
@@ -351,15 +351,15 @@ Not a concern. All physics runs on-chain (deterministic per execution), not acro
 
 ### How Correctness Is Preserved Without Full Determinism
 
-The ER is the single source of truth. Clients do not simulate — they read. There is no simulation to drift. Consistency is guaranteed by on-chain execution, not by client-side determinism.
+The ER is the single source of truth. Clients do not simulate  they read. There is no simulation to drift. Consistency is guaranteed by on-chain execution, not by client-side determinism.
 
 ---
 
-## SECTION 7 — Security Model
+## SECTION 7  Security Model
 
 | Threat | Mitigation | Strength |
 |---|---|---|
-| Client sends wrong player position | `movement` accepts target, not teleport — physics limits actual movement per tx | Weak — can rapid-fire txns |
+| Client sends wrong player position | `movement` accepts target, not teleport  physics limits actual movement per tx | Weak  can rapid-fire txns |
 | Player eats another without being close | `eat-player` verifies proximity via `player.x/y` on-chain | Strong |
 | Player cashes out more than earned | `cash-out` reads `player.score` from ER PDA | Strong (trusts ER) |
 | Player replays a cash-out | SPL transfer fails if vault insufficient; `player.score` is zeroed after cash-out | Strong |
@@ -367,14 +367,14 @@ The ER is the single source of truth. Clients do not simulate — they read. The
 | Fake buy-in without paying | `buy-in` requires actual SPL transfer via Anchor CPI | Strong |
 | ER operator tampers state | Trust model: MagicBlock validator is assumed honest | Weak (trusted ER) |
 | Client fabricates eat-player | `eat-player` checks mass ratio and proximity in on-chain program | Strong |
-| Spawn position manipulation | `spawn-player` uses `xorshift64(slot)` — slot not predictable by client | Moderate |
+| Spawn position manipulation | `spawn-player` uses `xorshift64(slot)`  slot not predictable by client | Moderate |
 | Force-exit griefing | `exit-game` requires `scheduled_removal_time` to be past | Moderate |
 
-**Overall security assessment**: Sufficient for a game where the stakes are small buy-ins. The ER trust model is the largest structural vulnerability — MagicBlock is not trustless. For high-value settlements this is a significant assumption.
+**Overall security assessment**: Sufficient for a game where the stakes are small buy-ins. The ER trust model is the largest structural vulnerability  MagicBlock is not trustless. For high-value settlements this is a significant assumption.
 
 ---
 
-## SECTION 8 — Adaptation to Solracer
+## SECTION 8  Adaptation to Solracer
 
 ### Context
 
@@ -390,7 +390,7 @@ Solracer's design:
 
 **Use the Supersize model directly: BOLT ECS + MagicBlock ER, but with commit-based settlement instead of score streaming.**
 
-For racing, game state during the race (position, speed, lap checkpoints) is advisory — it powers ghost rendering only. The **only authoritative fact** is the finish time, committed to the ER at the moment the player crosses the finish line via a [submit_result](file:///d:/mislanious/Unity/Uinty_projects/Solracer/backend/app/api/routes/solana_transactions.py#57-144) system call signed by the player.
+For racing, game state during the race (position, speed, lap checkpoints) is advisory  it powers ghost rendering only. The **only authoritative fact** is the finish time, committed to the ER at the moment the player crosses the finish line via a [submit_result](file:///d:/mislanious/Unity/Uinty_projects/Solracer/backend/app/api/routes/solana_transactions.py#57-144) system call signed by the player.
 
 ```
 ER Authority = race session state (checkpoint timestamps, finish events)
@@ -431,7 +431,7 @@ Between polls:
 
 The ghost is advisory. It has no effect on race outcome. Its smoothness depends on ER update frequency.
 
-The opponent commits their position every ~200-500ms via a lightweight `update_position` system call (not every physics frame — Unity runs at 60fps, ER cannot handle that).
+The opponent commits their position every ~200-500ms via a lightweight `update_position` system call (not every physics frame  Unity runs at 60fps, ER cannot handle that).
 
 ### What Must Change in Unity Simulation for Deterministic ER
 
@@ -451,16 +451,16 @@ BOLT programs (Rust, `bolt_lang`):
 ```
 programs-ecs/
   components/
-    race_session/       — race config + state
-    race_player/        — per-player race state  
+    race_session/        race config + state
+    race_player/         per-player race state  
   systems/
-    init_race/          — create race_session + race_player PDAs
-    join_race/          — player 2 joins (ER-side handshake)
-    update_position/    — ghost position update from Unity client
-    submit_result/      — player submits finish_time_ms + input_hash
-    settle_race/        — compare results, record winner
-    claim_prize/        — L1: transfer funds from vault to winner
-    force_timeout/      — handle disconnect / no-show
+    init_race/           create race_session + race_player PDAs
+    join_race/           player 2 joins (ER-side handshake)
+    update_position/     ghost position update from Unity client
+    submit_result/       player submits finish_time_ms + input_hash
+    settle_race/         compare results, record winner
+    claim_prize/         L1: transfer funds from vault to winner
+    force_timeout/       handle disconnect / no-show
 ```
 
 ### Shared Simulation Code
@@ -484,7 +484,7 @@ Solracer has no shared simulation between client and ER (unlike an FPS with serv
 ### Minimal Viable ER v1 Architecture
 
 ```
-Phase 1 (current): No ER — backend-ts memory store, no on-chain settlement
+Phase 1 (current): No ER  backend-ts memory store, no on-chain settlement
 Phase 2 (v1 ER):
   - BOLT components: RaceSession + RacePlayer
   - Systems: init_race, join_race, submit_result, settle_race, claim_prize
@@ -496,19 +496,19 @@ Phase 2 (v1 ER):
 
 ### 3-Phase ER Rollout Plan
 
-**Phase 1 — On-Chain Settlement Only (No ER)**
+**Phase 1  On-Chain Settlement Only (No ER)**
 - Keep backend-ts for matchmaking
 - Add [submit_result](file:///d:/mislanious/Unity/Uinty_projects/Solracer/backend/app/api/routes/solana_transactions.py#57-144) and [claim_prize](file:///d:/mislanious/Unity/Uinty_projects/Solracer/backend/app/services/program_client.py#229-263) to existing Solana program
-- No ER, no BOLT — direct L1 instructions
+- No ER, no BOLT  direct L1 instructions
 - Proves settlement flow works before adding ER complexity
 
-**Phase 2 — ER-Backed Session State**
+**Phase 2  ER-Backed Session State**
 - Deploy BOLT components (RaceSession, RacePlayer) on MagicBlock ER
 - Move session lifecycle to ER: init_race, join_race, submit_result, settle_race
 - L1: init_race (create vault), claim_prize (release funds from vault after ER commits result)
 - Add ghost system: Unity sends update_position to ER every 500ms
 
-**Phase 3 — Ghost Smoothing + Anti-Cheat Layer**
+**Phase 3  Ghost Smoothing + Anti-Cheat Layer**
 - Increase ghost update frequency (200ms target)
 - Add client-side dead-reckoning interpolation in Unity
 - Add input_hash commitment at submit_result
@@ -524,13 +524,13 @@ Phase 2 (v1 ER):
 | Unity non-determinism breaks input replay | High | Medium | Use commitment model only; don't rely on replay |
 | Ghost position lag ruins UX | Medium | Medium | Dead-reckoning + 200ms update interval minimises visible lag |
 | Player submits fake finish time | Medium | High | Input hash + human review; future: ZK proof of execution |
-| Both players submit conflicting results | Always | — | settle_race picks lower finish_time (winner = faster) |
+| Both players submit conflicting results | Always |  | settle_race picks lower finish_time (winner = faster) |
 | ER account delegation fails | Low | Medium | Retry delegation; keep L1 fallback for result storage |
 | Settlement transaction blocked on L1 | Low | High | Use priority fees; retry logic in Unity client |
 
 ---
 
-## SECTION 9 — Implementation Blueprint
+## SECTION 9  Implementation Blueprint
 
 ### Folder Structure for ER Module
 
@@ -539,9 +539,9 @@ solracer-er/
 ├── programs-ecs/
 │   ├── components/
 │   │   ├── race_session/
-│   │   │   └── src/lib.rs       — RaceSession component
+│   │   │   └── src/lib.rs        RaceSession component
 │   │   └── race_player/
-│   │       └── src/lib.rs       — RacePlayer component
+│   │       └── src/lib.rs        RacePlayer component
 │   └── systems/
 │       ├── init_race/src/lib.rs
 │       ├── join_race/src/lib.rs
@@ -647,15 +647,15 @@ When both `RacePlayer` accounts have `finish_time_ms = Some(...)`, the [settle_r
 ### On-Chain Settlement Instruction Format (claim_prize)
 
 ```rust
-// claim_prize system — runs on L1 after undelegation
+// claim_prize system  runs on L1 after undelegation
 // Accounts:
-//   race_session       — RaceSession PDA (undelegated, now on L1)
-//   race_player        — winner's RacePlayer PDA (undelegated)
-//   vault              — SPL token vault (owned by token_account_owner_pda)
-//   winner_token_acct  — winner's ATA for the race token
-//   platform_token_acct— platform fee recipient ATA
-//   token_account_owner_pda — signer PDA for vault
-//   token_program      — SPL Token program
+//   race_session        RaceSession PDA (undelegated, now on L1)
+//   race_player         winner's RacePlayer PDA (undelegated)
+//   vault               SPL token vault (owned by token_account_owner_pda)
+//   winner_token_acct   winner's ATA for the race token
+//   platform_token_acct platform fee recipient ATA
+//   token_account_owner_pda  signer PDA for vault
+//   token_program       SPL Token program
 
 // Logic:
 // 1. Verify race_session.status == 2 (settled)

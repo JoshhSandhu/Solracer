@@ -330,7 +330,7 @@ namespace Solracer.Network
                 catch { /* bump didn't work, try next */ }
             }
 
-            throw new Exception("[ErGhostRelay] Failed to derive PDA — no valid bump found");
+            throw new Exception("[ErGhostRelay] Failed to derive PDA  no valid bump found");
         }
 
         /// <summary>
@@ -361,7 +361,7 @@ namespace Solracer.Network
             //
             // Full on-curve check requires Ed25519 point decompression.
             // The Solana Unity SDK provides this via PublicKey.IsOnCurve if available.
-            // For now we accept the hash — worst case, the on-chain program rejects
+            // For now we accept the hash  worst case, the on-chain program rejects
             // and we fall through to the next bump.
             return hash;
         }
@@ -427,9 +427,9 @@ namespace Solracer.Network
             byte[] instructionData)
         {
             // We need to compile accounts. Two unique accounts for the instruction:
-            //  0: authority (signer, writable) — also fee payer
+            //  0: authority (signer, writable)  also fee payer
             //  1: positionPda (writable, not signer)
-            //  2: programId (not signer, not writable) — instruction reference
+            //  2: programId (not signer, not writable)  instruction reference
             //
             // The fee payer is always account 0.
 

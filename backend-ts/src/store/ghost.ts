@@ -1,5 +1,5 @@
 /**
- * Ghost position store — Phase 2a ER simulator.
+ * Ghost position store  Phase 2a ER simulator.
  *
  * Stores the last known position of each player keyed by (race_id + wallet).
  * Enforces:

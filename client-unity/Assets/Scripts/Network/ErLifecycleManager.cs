@@ -143,7 +143,7 @@ namespace Solracer.Network
             Func<string, Task<string>> signAndSendCallback)
         {
             // TODO: Build close_position_pda transaction and sign via callback
-            Debug.Log("[ErLifecycleManager] ClosePositionPda — to be connected to wallet signing");
+            Debug.Log("[ErLifecycleManager] ClosePositionPda  to be connected to wallet signing");
         }
 
         // -----------------------------------------------------------------------

@@ -50,7 +50,7 @@ if (useHttps) {
   const certPath = path.join(certsDir, "cert.pem");
 
   if (fs.existsSync(pfxPath)) {
-    // Prefer .pfx — avoids OpenSSL 3 PEM format compatibility issues
+    // Prefer .pfx  avoids OpenSSL 3 PEM format compatibility issues
     fastifyOptions.https = {
       pfx: fs.readFileSync(pfxPath),
       passphrase: process.env.CERT_PFX_PASSWORD ?? "",

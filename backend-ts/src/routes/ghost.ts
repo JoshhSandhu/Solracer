@@ -1,5 +1,5 @@
 /**
- * Ghost relay routes — Phase 2a ER simulator.
+ * Ghost relay routes  Phase 2a ER simulator.
  *
  * POST /ghost/update        → accept a position update from a race participant
  * GET  /ghost/:race_id      → return all live ghost states for the race
@@ -70,7 +70,7 @@ export async function ghostRoutes(app: FastifyInstance): Promise<void> {
       const result = updateGhost(race_id, wallet_address, x, y, speed, checkpoint_index, seq);
 
       if (!result.accepted) {
-        // Not an error — just a no-op. Return 200 so Unity doesn't retry
+        // Not an error  just a no-op. Return 200 so Unity doesn't retry
         return { status: "ignored", reason: result.reason };
       }
 

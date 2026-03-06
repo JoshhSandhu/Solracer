@@ -6,7 +6,7 @@ namespace Solracer.Network
     public class GhostCarRenderer : MonoBehaviour
     {
         [Header("References")]
-        [Tooltip("The RaceManager in the scene — provides access to GhostRelay.")]
+        [Tooltip("The RaceManager in the scene  provides access to GhostRelay.")]
         [SerializeField] private RaceManager raceManager;
 
         [Header("Smoothing")]

@@ -558,7 +558,7 @@ namespace Solracer.Game
 
             if (string.IsNullOrEmpty(raceId) || string.IsNullOrEmpty(myWallet))
             {
-                Debug.LogWarning("[RaceManager] Cannot start ghost relay — missing raceId or wallet");
+                Debug.LogWarning("[RaceManager] Cannot start ghost relay  missing raceId or wallet");
                 return;
             }
 

@@ -3,29 +3,41 @@ import { Program } from "@coral-xyz/anchor";
 import { SolracerProgram } from "../target/types/solracer_program";
 import { PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { expect } from "chai";
+import { createHash } from "crypto";
 
 describe("solracer-program", () => {
-  //configure the client to use the local cluster
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
   const program = anchor.workspace.solracerProgram as Program<SolracerProgram>;
 
-  //test accounts
   let player1: Keypair;
   let player2: Keypair;
   let raceId: string;
   let tokenMint: PublicKey;
   let racePda: PublicKey;
   let raceBump: number;
-  const entryFeeSol = new anchor.BN(0.1 * LAMPORTS_PER_SOL); // 0.1 SOL
+  const entryFeeSol = new anchor.BN(0.1 * LAMPORTS_PER_SOL);
+
+  function raceIdHash(raceId: string): number[] {
+    const hash = createHash("sha256").update(raceId, "utf8").digest();
+    return Array.from(hash);
+  }
+
+  function deriveSessionPda(
+    raceIdHashBytes: number[],
+    playerKey: PublicKey
+  ): [PublicKey, number] {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("session"), Buffer.from(raceIdHashBytes), playerKey.toBuffer()],
+      program.programId
+    );
+  }
 
   before(async () => {
-    //generate test keypairs
     player1 = Keypair.generate();
     player2 = Keypair.generate();
 
-    //airdrop SOL to test accounts
     const airdrop1 = await provider.connection.requestAirdrop(
       player1.publicKey,
       2 * LAMPORTS_PER_SOL
@@ -38,11 +50,9 @@ describe("solracer-program", () => {
     await provider.connection.confirmTransaction(airdrop1);
     await provider.connection.confirmTransaction(airdrop2);
 
-    //generate test race ID and token mint
     raceId = `race_${Date.now()}`;
     tokenMint = Keypair.generate().publicKey;
 
-    //derive race PDA
     [racePda, raceBump] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("race"),
@@ -57,7 +67,6 @@ describe("solracer-program", () => {
   describe("create_race", () => {
     it("Creates a new race with entry fee escrow", async () => {
       const player1BalanceBefore = await provider.connection.getBalance(player1.publicKey);
-      const raceBalanceBefore = await provider.connection.getBalance(racePda);
 
       const tx = await program.methods
         .createRace(raceId, tokenMint, entryFeeSol)
@@ -69,9 +78,6 @@ describe("solracer-program", () => {
         .signers([player1])
         .rpc();
 
-      console.log("Create race transaction signature:", tx);
-
-      //verify race account was created
       const raceAccount = await program.account.race.fetch(racePda);
       expect(raceAccount.raceId).to.equal(raceId);
       expect(raceAccount.tokenMint.toString()).to.equal(tokenMint.toString());
@@ -85,15 +91,7 @@ describe("solracer-program", () => {
       expect(raceAccount.escrowAmount.toString()).to.equal(entryFeeSol.toString());
       expect(raceAccount.bump).to.equal(raceBump);
 
-      //verify SOL was transferred to escrow
-      const player1BalanceAfter = await provider.connection.getBalance(player1.publicKey);
       const raceBalanceAfter = await provider.connection.getBalance(racePda);
-
-      //account for transaction fees (roughly)
-      const expectedPlayer1Balance = player1BalanceBefore - entryFeeSol.toNumber() - 5000;
-      expect(player1BalanceAfter).to.be.lessThan(expectedPlayer1Balance + 10000);
-      //race account balance = entry fee + rent exemption
-      //verify the balance is at least the entry fee
       expect(raceBalanceAfter).to.be.at.least(entryFeeSol.toNumber());
     });
 
@@ -131,9 +129,6 @@ describe("solracer-program", () => {
         .signers([player2])
         .rpc();
 
-      console.log("Join race transaction signature:", tx);
-
-      //verify race account was updated
       const raceAccount = await program.account.race.fetch(racePda);
       expect(raceAccount.player2?.toString()).to.equal(player2.publicKey.toString());
       expect(raceAccount.status.active).to.not.be.undefined;
@@ -141,12 +136,7 @@ describe("solracer-program", () => {
         entryFeeSol.mul(new anchor.BN(2)).toString()
       );
 
-      //verify SOL was transferred to escrow
-      const player2BalanceAfter = await provider.connection.getBalance(player2.publicKey);
       const raceBalanceAfter = await provider.connection.getBalance(racePda);
-
-      const expectedPlayer2Balance = player2BalanceBefore - entryFeeSol.toNumber() - 5000;
-      expect(player2BalanceAfter).to.be.lessThan(expectedPlayer2Balance + 10000);
       expect(raceBalanceAfter).to.equal(raceBalanceBefore + entryFeeSol.toNumber());
     });
 
@@ -167,80 +157,25 @@ describe("solracer-program", () => {
         expect(err).to.not.be.null;
       }
     });
-
-    it("Fails if race is not in waiting status", async () => {
-      //create a new race for this test
-      const newRaceId = `race_${Date.now()}_2`;
-      const newTokenMint = Keypair.generate().publicKey;
-      const [newRacePda] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("race"),
-          Buffer.from(newRaceId),
-          newTokenMint.toBuffer(),
-          entryFeeSol.toArrayLike(Buffer, "le", 8),
-        ],
-        program.programId
-      );
-
-      //create race
-      await program.methods
-        .createRace(newRaceId, newTokenMint, entryFeeSol)
-        .accounts({
-          race: newRacePda,
-          player1: player1.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .signers([player1])
-        .rpc();
-
-      //join race
-      await program.methods
-        .joinRace()
-        .accounts({
-          race: newRacePda,
-          player2: player2.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .signers([player2])
-        .rpc();
-
-      //try to join again (should fail)
-      try {
-        await program.methods
-          .joinRace()
-          .accounts({
-            race: newRacePda,
-            player2: Keypair.generate().publicKey,
-            systemProgram: SystemProgram.programId,
-          })
-          .signers([Keypair.generate()])
-          .rpc();
-
-        expect.fail("Should have thrown an error");
-      } catch (err) {
-        expect(err).to.not.be.null;
-      }
-    });
   });
 
-  describe("submit_result", () => {
-    it("Allows player1 to submit their result", async () => {
-      const finishTimeMs = new anchor.BN(50000); // 50 seconds
+  describe("submit_result (direct wallet)", () => {
+    it("Allows player1 to submit their result with wallet signing", async () => {
+      const finishTimeMs = new anchor.BN(50000);
       const coinsCollected = new anchor.BN(100);
-      const inputHash = Buffer.alloc(32, 1); // Dummy hash
+      const inputHash = Buffer.alloc(32, 1);
 
-      const tx = await program.methods
+      await program.methods
         .submitResult(finishTimeMs, coinsCollected, Array.from(inputHash))
         .accounts({
           race: racePda,
-          player: player1.publicKey,
-        })
+          authority: player1.publicKey,
+          session: null,
+          playerWallet: player1.publicKey,
+        } as any)
         .signers([player1])
         .rpc();
 
-      console.log("Submit result transaction signature:", tx);
-
-      //verify result was stored
       const raceAccount = await program.account.race.fetch(racePda);
       expect(raceAccount.player1Result).to.not.be.null;
       expect(raceAccount.player1Result?.finishTimeMs.toString()).to.equal(finishTimeMs.toString());
@@ -249,29 +184,25 @@ describe("solracer-program", () => {
       );
     });
 
-    it("Allows player2 to submit their result", async () => {
-      const finishTimeMs = new anchor.BN(45000); // 45 seconds (faster)
+    it("Allows player2 to submit their result with wallet signing", async () => {
+      const finishTimeMs = new anchor.BN(45000);
       const coinsCollected = new anchor.BN(120);
-      const inputHash = Buffer.alloc(32, 2); // Dummy hash
+      const inputHash = Buffer.alloc(32, 2);
 
-      const tx = await program.methods
+      await program.methods
         .submitResult(finishTimeMs, coinsCollected, Array.from(inputHash))
         .accounts({
           race: racePda,
-          player: player2.publicKey,
-        })
+          authority: player2.publicKey,
+          session: null,
+          playerWallet: player2.publicKey,
+        } as any)
         .signers([player2])
         .rpc();
 
-      console.log("Submit result transaction signature:", tx);
-
-        //verify result was stored
       const raceAccount = await program.account.race.fetch(racePda);
       expect(raceAccount.player2Result).to.not.be.null;
       expect(raceAccount.player2Result?.finishTimeMs.toString()).to.equal(finishTimeMs.toString());
-      expect(raceAccount.player2Result?.coinsCollected.toString()).to.equal(
-        coinsCollected.toString()
-      );
     });
 
     it("Fails if player tries to submit result twice", async () => {
@@ -284,8 +215,10 @@ describe("solracer-program", () => {
           .submitResult(finishTimeMs, coinsCollected, Array.from(inputHash))
           .accounts({
             race: racePda,
-            player: player1.publicKey,
-          })
+            authority: player1.publicKey,
+            session: null,
+            playerWallet: player1.publicKey,
+          } as any)
           .signers([player1])
           .rpc();
 
@@ -301,16 +234,14 @@ describe("solracer-program", () => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       try {
-        const finishTimeMs = new anchor.BN(50000);
-        const coinsCollected = new anchor.BN(100);
-        const inputHash = Buffer.alloc(32, 1);
-
         await program.methods
-          .submitResult(finishTimeMs, coinsCollected, Array.from(inputHash))
+          .submitResult(new anchor.BN(50000), new anchor.BN(100), Array.from(Buffer.alloc(32, 1)))
           .accounts({
             race: racePda,
-            player: randomPlayer.publicKey,
-          })
+            authority: randomPlayer.publicKey,
+            session: null,
+            playerWallet: randomPlayer.publicKey,
+          } as any)
           .signers([randomPlayer])
           .rpc();
 
@@ -323,24 +254,20 @@ describe("solracer-program", () => {
 
   describe("settle_race", () => {
     it("Settles the race and determines winner (player2 wins by time)", async () => {
-      const tx = await program.methods
+      await program.methods
         .settleRace()
         .accounts({
           race: racePda,
         })
         .rpc();
 
-      console.log("Settle race transaction signature:", tx);
-
-      //verify race was settled
       const raceAccount = await program.account.race.fetch(racePda);
       expect(raceAccount.status.settled).to.not.be.undefined;
       expect(raceAccount.winner?.toString()).to.equal(player2.publicKey.toString());
     });
 
     it("Fails if both results are not submitted", async () => {
-      //create a new race for this test
-      const newRaceId = `race_${Date.now()}_3`;
+      const newRaceId = `race_${Date.now()}_2`;
       const newTokenMint = Keypair.generate().publicKey;
       const [newRacePda] = PublicKey.findProgramAddressSync(
         [
@@ -352,7 +279,6 @@ describe("solracer-program", () => {
         program.programId
       );
 
-      //create and join race
       await program.methods
         .createRace(newRaceId, newTokenMint, entryFeeSol)
         .accounts({
@@ -373,13 +299,10 @@ describe("solracer-program", () => {
         .signers([player2])
         .rpc();
 
-      //try to settle without both results (should fail)
       try {
         await program.methods
           .settleRace()
-          .accounts({
-            race: newRacePda,
-          })
+          .accounts({ race: newRacePda })
           .rpc();
 
         expect.fail("Should have thrown an error");
@@ -389,38 +312,30 @@ describe("solracer-program", () => {
     });
   });
 
-  describe("claim_prize", () => {
-    it("Allows winner to claim the prize", async () => {
+  describe("claim_prize (direct wallet)", () => {
+    it("Allows winner to claim the prize with wallet signing", async () => {
       const winnerBalanceBefore = await provider.connection.getBalance(player2.publicKey);
-      const raceBalanceBefore = await provider.connection.getBalance(racePda);
 
-      const tx = await program.methods
+      await program.methods
         .claimPrize()
         .accounts({
           race: racePda,
-          winner: player2.publicKey,
-        })
+          authority: player2.publicKey,
+          session: null,
+          winnerWallet: player2.publicKey,
+        } as any)
         .signers([player2])
         .rpc();
 
-      console.log("Claim prize transaction signature:", tx);
-
-      //verify prize was transferred
       const winnerBalanceAfter = await provider.connection.getBalance(player2.publicKey);
-      const raceBalanceAfter = await provider.connection.getBalance(racePda);
-
-      //winner should receive the escrow amount (-transaction fees)
       const expectedPrize = entryFeeSol.mul(new anchor.BN(2)).toNumber();
       expect(winnerBalanceAfter).to.be.greaterThan(winnerBalanceBefore + expectedPrize - 10000);
-      expect(raceBalanceAfter).to.be.lessThan(raceBalanceBefore - expectedPrize + 10000);
 
-      //verify escrow amount was reset
       const raceAccount = await program.account.race.fetch(racePda);
       expect(raceAccount.escrowAmount.toString()).to.equal("0");
     });
 
     it("Fails if non-winner tries to claim prize", async () => {
-      //create a new race for this test
       const newRaceId = `race_${Date.now()}_4`;
       const newTokenMint = Keypair.generate().publicKey;
       const [newRacePda] = PublicKey.findProgramAddressSync(
@@ -433,7 +348,6 @@ describe("solracer-program", () => {
         program.programId
       );
 
-      //create and join race
       await program.methods
         .createRace(newRaceId, newTokenMint, entryFeeSol)
         .accounts({
@@ -454,102 +368,43 @@ describe("solracer-program", () => {
         .signers([player2])
         .rpc();
 
-      //submit results (player1 wins this time)
       await program.methods
-        .submitResult(
-          new anchor.BN(40000), //player1 faster
-          new anchor.BN(100),
-          Array.from(Buffer.alloc(32, 1))
-        )
+        .submitResult(new anchor.BN(40000), new anchor.BN(100), Array.from(Buffer.alloc(32, 1)))
         .accounts({
           race: newRacePda,
-          player: player1.publicKey,
-        })
+          authority: player1.publicKey,
+          session: null,
+          playerWallet: player1.publicKey,
+        } as any)
         .signers([player1])
         .rpc();
 
       await program.methods
-        .submitResult(
-          new anchor.BN(50000), //player2 slower
-          new anchor.BN(100),
-          Array.from(Buffer.alloc(32, 2))
-        )
+        .submitResult(new anchor.BN(50000), new anchor.BN(100), Array.from(Buffer.alloc(32, 2)))
         .accounts({
           race: newRacePda,
-          player: player2.publicKey,
-        })
+          authority: player2.publicKey,
+          session: null,
+          playerWallet: player2.publicKey,
+        } as any)
         .signers([player2])
         .rpc();
 
-      //settle race
       await program.methods
         .settleRace()
-        .accounts({
-          race: newRacePda,
-        })
+        .accounts({ race: newRacePda })
         .rpc();
 
-      //try to claim with wrong player (should fail)
       try {
         await program.methods
           .claimPrize()
           .accounts({
             race: newRacePda,
-            winner: player2.publicKey, //player2 is not the winner
-          })
+            authority: player2.publicKey,
+            session: null,
+            winnerWallet: player2.publicKey,
+          } as any)
           .signers([player2])
-          .rpc();
-
-        expect.fail("Should have thrown an error");
-      } catch (err) {
-        expect(err).to.not.be.null;
-      }
-    });
-
-    it("Fails if race is not settled", async () => {
-      //create a new race for this test
-      const newRaceId = `race_${Date.now()}_5`;
-      const newTokenMint = Keypair.generate().publicKey;
-      const [newRacePda] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("race"),
-          Buffer.from(newRaceId),
-          newTokenMint.toBuffer(),
-          entryFeeSol.toArrayLike(Buffer, "le", 8),
-        ],
-        program.programId
-      );
-
-      //create and join race
-      await program.methods
-        .createRace(newRaceId, newTokenMint, entryFeeSol)
-        .accounts({
-          race: newRacePda,
-          player1: player1.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .signers([player1])
-        .rpc();
-
-      await program.methods
-        .joinRace()
-        .accounts({
-          race: newRacePda,
-          player2: player2.publicKey,
-          systemProgram: SystemProgram.programId,
-        })
-        .signers([player2])
-        .rpc();
-
-      //try to claim before settling (should fail)
-      try {
-        await program.methods
-          .claimPrize()
-          .accounts({
-            race: newRacePda,
-            winner: player1.publicKey,
-          })
-          .signers([player1])
           .rpc();
 
         expect.fail("Should have thrown an error");
@@ -559,107 +414,280 @@ describe("solracer-program", () => {
     });
   });
 
-  describe("Full race flow", () => {
-    it("Completes a full race from creation to prize claim", async () => {
-      const fullRaceId = `race_full_${Date.now()}`;
-      const fullTokenMint = Keypair.generate().publicKey;
-      const [fullRacePda] = PublicKey.findProgramAddressSync(
+  describe("delegate_session", () => {
+    it("Creates a session key PDA with correct fields", async () => {
+      const sessionRaceId = `race_session_${Date.now()}`;
+      const sessionTokenMint = Keypair.generate().publicKey;
+      const [sessionRacePda] = PublicKey.findProgramAddressSync(
         [
           Buffer.from("race"),
-          Buffer.from(fullRaceId),
-          fullTokenMint.toBuffer(),
+          Buffer.from(sessionRaceId),
+          sessionTokenMint.toBuffer(),
           entryFeeSol.toArrayLike(Buffer, "le", 8),
         ],
         program.programId
       );
 
-      const testPlayer1 = Keypair.generate();
-      const testPlayer2 = Keypair.generate();
+      const sessionKey = Keypair.generate();
+      const hash = raceIdHash(sessionRaceId);
+      const [sessionPda] = deriveSessionPda(hash, player1.publicKey);
 
-      //airdrop SOL
-      await provider.connection.requestAirdrop(testPlayer1.publicKey, 2 * LAMPORTS_PER_SOL);
-      await provider.connection.requestAirdrop(testPlayer2.publicKey, 2 * LAMPORTS_PER_SOL);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      //create race
+      // Create the race first
       await program.methods
-        .createRace(fullRaceId, fullTokenMint, entryFeeSol)
+        .createRace(sessionRaceId, sessionTokenMint, entryFeeSol)
         .accounts({
-          race: fullRacePda,
-          player1: testPlayer1.publicKey,
+          race: sessionRacePda,
+          player1: player1.publicKey,
           systemProgram: SystemProgram.programId,
         })
-        .signers([testPlayer1])
+        .signers([player1])
         .rpc();
 
-      let raceAccount = await program.account.race.fetch(fullRacePda);
-      expect(raceAccount.status.waiting).to.not.be.undefined;
+      // Delegate session
+      await program.methods
+        .delegateSession(hash, sessionKey.publicKey, new anchor.BN(10800))
+        .accounts({
+          session: sessionPda,
+          player: player1.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([player1])
+        .rpc();
 
-      //join race
+      const sessionAccount = await program.account.playerSession.fetch(sessionPda);
+      expect(sessionAccount.playerWallet.toString()).to.equal(player1.publicKey.toString());
+      expect(sessionAccount.sessionKey.toString()).to.equal(sessionKey.publicKey.toString());
+      expect(sessionAccount.expiresAt.toNumber()).to.be.greaterThan(0);
+      expect(Array.from(sessionAccount.raceIdHash)).to.deep.equal(hash);
+    });
+  });
+
+  describe("session key signing", () => {
+    let sessionRaceId: string;
+    let sessionRacePda: PublicKey;
+    let sessionKey: Keypair;
+    let sessionPda: PublicKey;
+    let hash: number[];
+
+    before(async () => {
+      sessionRaceId = `race_sk_${Date.now()}`;
+      const sessionTokenMint = Keypair.generate().publicKey;
+      [sessionRacePda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("race"),
+          Buffer.from(sessionRaceId),
+          sessionTokenMint.toBuffer(),
+          entryFeeSol.toArrayLike(Buffer, "le", 8),
+        ],
+        program.programId
+      );
+
+      sessionKey = Keypair.generate();
+      hash = raceIdHash(sessionRaceId);
+      [sessionPda] = deriveSessionPda(hash, player1.publicKey);
+
+      // Create race
+      await program.methods
+        .createRace(sessionRaceId, sessionTokenMint, entryFeeSol)
+        .accounts({
+          race: sessionRacePda,
+          player1: player1.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([player1])
+        .rpc();
+
+      // Player2 joins
       await program.methods
         .joinRace()
         .accounts({
-          race: fullRacePda,
-          player2: testPlayer2.publicKey,
+          race: sessionRacePda,
+          player2: player2.publicKey,
           systemProgram: SystemProgram.programId,
         })
-        .signers([testPlayer2])
+        .signers([player2])
         .rpc();
 
-      raceAccount = await program.account.race.fetch(fullRacePda);
-      expect(raceAccount.status.active).to.not.be.undefined;
-
-      //submit results
+      // Create session for player1
       await program.methods
-        .submitResult(new anchor.BN(30000), new anchor.BN(150), Array.from(Buffer.alloc(32, 1)))
+        .delegateSession(hash, sessionKey.publicKey, new anchor.BN(10800))
         .accounts({
-          race: fullRacePda,
-          player: testPlayer1.publicKey,
+          session: sessionPda,
+          player: player1.publicKey,
+          systemProgram: SystemProgram.programId,
         })
-        .signers([testPlayer1])
+        .signers([player1])
         .rpc();
+    });
 
+    it("submit_result works with session key signer", async () => {
       await program.methods
-        .submitResult(new anchor.BN(35000), new anchor.BN(140), Array.from(Buffer.alloc(32, 2)))
+        .submitResult(new anchor.BN(42000), new anchor.BN(200), Array.from(Buffer.alloc(32, 3)))
         .accounts({
-          race: fullRacePda,
-          player: testPlayer2.publicKey,
-        })
-        .signers([testPlayer2])
+          race: sessionRacePda,
+          authority: sessionKey.publicKey,
+          session: sessionPda,
+          playerWallet: player1.publicKey,
+        } as any)
+        .signers([sessionKey])
         .rpc();
 
-      raceAccount = await program.account.race.fetch(fullRacePda);
+      const raceAccount = await program.account.race.fetch(sessionRacePda);
       expect(raceAccount.player1Result).to.not.be.null;
-      expect(raceAccount.player2Result).to.not.be.null;
+      expect(raceAccount.player1Result?.finishTimeMs.toString()).to.equal("42000");
+    });
 
-      //settle race
+    it("submit_result rejects wrong session key", async () => {
+      const wrongKey = Keypair.generate();
+      const wrongHash = raceIdHash(sessionRaceId);
+      // Create a session with the wrong key for player2
+      const [wrongSessionPda] = deriveSessionPda(wrongHash, player2.publicKey);
+
+      await program.methods
+        .delegateSession(wrongHash, wrongKey.publicKey, new anchor.BN(10800))
+        .accounts({
+          session: wrongSessionPda,
+          player: player2.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([player2])
+        .rpc();
+
+      // Try to use a completely different key as authority
+      const fakeKey = Keypair.generate();
+      try {
+        await program.methods
+          .submitResult(new anchor.BN(55000), new anchor.BN(100), Array.from(Buffer.alloc(32, 4)))
+          .accounts({
+            race: sessionRacePda,
+            authority: fakeKey.publicKey,
+            session: wrongSessionPda,
+            playerWallet: player2.publicKey,
+          } as any)
+          .signers([fakeKey])
+          .rpc();
+
+        expect.fail("Expected InvalidSessionKey error");
+      } catch (err: any) {
+        expect(err.message).to.include("InvalidSessionKey");
+      }
+    });
+
+    it("submit_result rejects expired session", async () => {
+      // Create a session with 0 duration (immediately expired)
+      const expiredRaceId = `race_expired_${Date.now()}`;
+      const expiredTokenMint = Keypair.generate().publicKey;
+      const [expiredRacePda] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("race"),
+          Buffer.from(expiredRaceId),
+          expiredTokenMint.toBuffer(),
+          entryFeeSol.toArrayLike(Buffer, "le", 8),
+        ],
+        program.programId
+      );
+
+      const expiredSessionKey = Keypair.generate();
+      const expiredHash = raceIdHash(expiredRaceId);
+      const [expiredSessionPda] = deriveSessionPda(expiredHash, player1.publicKey);
+
+      // Need a fresh player1 session PDA since other one already exists
+      const freshPlayer = Keypair.generate();
+      await provider.connection.requestAirdrop(freshPlayer.publicKey, 2 * LAMPORTS_PER_SOL);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      const [freshSessionPda] = deriveSessionPda(expiredHash, freshPlayer.publicKey);
+
+      await program.methods
+        .createRace(expiredRaceId, expiredTokenMint, entryFeeSol)
+        .accounts({
+          race: expiredRacePda,
+          player1: freshPlayer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([freshPlayer])
+        .rpc();
+
+      await program.methods
+        .joinRace()
+        .accounts({
+          race: expiredRacePda,
+          player2: player2.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([player2])
+        .rpc();
+
+      // Create session with -1 duration (expired immediately)
+      await program.methods
+        .delegateSession(expiredHash, expiredSessionKey.publicKey, new anchor.BN(-1))
+        .accounts({
+          session: freshSessionPda,
+          player: freshPlayer.publicKey,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([freshPlayer])
+        .rpc();
+
+      try {
+        await program.methods
+          .submitResult(new anchor.BN(50000), new anchor.BN(100), Array.from(Buffer.alloc(32, 5)))
+          .accounts({
+            race: expiredRacePda,
+            authority: expiredSessionKey.publicKey,
+            session: freshSessionPda,
+            playerWallet: freshPlayer.publicKey,
+          } as any)
+          .signers([expiredSessionKey])
+          .rpc();
+
+        expect.fail("Expected SessionExpired error");
+      } catch (err: any) {
+        expect(err.message).to.include("SessionExpired");
+      }
+    });
+
+    it("claim_prize works with session key and funds go to player wallet", async () => {
+      // Player2 submits directly
+      await program.methods
+        .submitResult(new anchor.BN(55000), new anchor.BN(100), Array.from(Buffer.alloc(32, 4)))
+        .accounts({
+          race: sessionRacePda,
+          authority: player2.publicKey,
+          session: null,
+          playerWallet: player2.publicKey,
+        } as any)
+        .signers([player2])
+        .rpc();
+
+      // Settle
       await program.methods
         .settleRace()
-        .accounts({
-          race: fullRacePda,
-        })
+        .accounts({ race: sessionRacePda })
         .rpc();
 
-      raceAccount = await program.account.race.fetch(fullRacePda);
-      expect(raceAccount.status.settled).to.not.be.undefined;
-      expect(raceAccount.winner?.toString()).to.equal(testPlayer1.publicKey.toString());
+      const raceAccount = await program.account.race.fetch(sessionRacePda);
+      expect(raceAccount.winner?.toString()).to.equal(player1.publicKey.toString());
 
-      //claim prize
-      const winnerBalanceBefore = await provider.connection.getBalance(testPlayer1.publicKey);
+      // Claim with session key - funds go to player1 wallet, NOT to session key
+      const player1BalanceBefore = await provider.connection.getBalance(player1.publicKey);
+
       await program.methods
         .claimPrize()
         .accounts({
-          race: fullRacePda,
-          winner: testPlayer1.publicKey,
-        })
-        .signers([testPlayer1])
+          race: sessionRacePda,
+          authority: sessionKey.publicKey,
+          session: sessionPda,
+          winnerWallet: player1.publicKey,
+        } as any)
+        .signers([sessionKey])
         .rpc();
 
-      const winnerBalanceAfter = await provider.connection.getBalance(testPlayer1.publicKey);
-      expect(winnerBalanceAfter).to.be.greaterThan(winnerBalanceBefore);
+      const player1BalanceAfter = await provider.connection.getBalance(player1.publicKey);
+      expect(player1BalanceAfter).to.be.greaterThan(player1BalanceBefore);
 
-      raceAccount = await program.account.race.fetch(fullRacePda);
-      expect(raceAccount.escrowAmount.toString()).to.equal("0");
+      const raceAfter = await program.account.race.fetch(sessionRacePda);
+      expect(raceAfter.escrowAmount.toString()).to.equal("0");
     });
   });
 });

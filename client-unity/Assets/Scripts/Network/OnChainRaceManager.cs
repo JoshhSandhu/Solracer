@@ -484,7 +484,7 @@ namespace Solracer.Network
                 }
                 catch (Exception ex)
                 {
-                    // settle_race may already have been called — continue to claim_prize
+                    // settle_race may already have been called  continue to claim_prize
                     Debug.LogWarning($"[OnChainRaceManager] settle_race submit failed (may already be settled): {ex.Message}");
                 }
 

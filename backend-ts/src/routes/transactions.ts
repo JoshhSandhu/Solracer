@@ -1,5 +1,5 @@
 /**
- * Transaction routes — drop-in replacement for the Python
+ * Transaction routes  drop-in replacement for the Python
  * backend/app/api/routes/solana_transactions.py endpoints.
  *
  * POST /transactions/build   → build unsigned Solana TX (base64)
