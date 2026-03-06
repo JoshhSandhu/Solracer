@@ -543,6 +543,10 @@ namespace Solracer.Game
             }
         }
 
+        [Header("Ghost Relay")]
+        [Tooltip("When true, use on-chain MagicBlock ER relay instead of HTTP backend")]
+        [SerializeField] private bool useErRelay = false;
+
         private void StartGhostRelay()
         {
             if (!GameModeData.IsCompetitive || !RaceData.HasActiveRace())
@@ -559,8 +563,49 @@ namespace Solracer.Game
             }
 
             _ghostRelay = gameObject.AddComponent<GhostRelayController>();
-            _ghostRelay.StartRelay(raceId, myWallet, opponentWallet);
-            Debug.Log($"[RaceManager] Ghost relay started. race={raceId} me={myWallet} opp={opponentWallet}");
+
+            if (useErRelay)
+            {
+                StartErGhostRelayAsync(raceId, myWallet, opponentWallet).FireAndForget();
+            }
+            else
+            {
+                _ghostRelay.StartRelay(raceId, myWallet, opponentWallet);
+                Debug.Log($"[RaceManager] HTTP ghost relay started. race={raceId}");
+            }
+        }
+
+        private async Task StartErGhostRelayAsync(string raceId, string myWallet, string opponentWallet)
+        {
+            try
+            {
+                Debug.Log("[RaceManager] Initializing ER ghost relay...");
+
+                // Init + delegate on base devnet, get session keypair
+                var initResult = await ErLifecycleManager.InitAndDelegateAsync(
+                    raceId,
+                    myWallet,
+                    signAndSendCallback: null // TODO: connect to wallet signing
+                );
+
+                if (this == null) return; // destroyed during await
+
+                var erRelay = new ErGhostRelay(
+                    raceId,
+                    myWallet,
+                    opponentWallet,
+                    initResult.SessionPrivateKey,
+                    initResult.SessionPublicKey
+                );
+
+                _ghostRelay.StartRelay(raceId, myWallet, opponentWallet, erRelay);
+                Debug.Log($"[RaceManager] ER ghost relay started. race={raceId} pda={initResult.PositionPdaBase58}");
+            }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[RaceManager] ER ghost relay init failed: {ex.Message}. Falling back to HTTP.");
+                _ghostRelay.StartRelay(raceId, myWallet, opponentWallet);
+            }
         }
 
         private int CalculateScore(float time, float speed)

@@ -15,8 +15,11 @@ namespace Solracer.Network
         // -----------------------------------------------------------------------
 
         [Header("Relay Settings")]
-        [Tooltip("ms between each send/poll cycle")]
-        [SerializeField] private int pollIntervalMs = 200;
+        [Tooltip("ms between each poll cycle (reading opponent state)")]
+        [SerializeField] private int pollIntervalMs = 100;
+
+        [Tooltip("ms between each send cycle (writing local state)")]
+        [SerializeField] private int sendIntervalMs = 300;
 
         // -----------------------------------------------------------------------
         // Public state
@@ -128,40 +131,48 @@ namespace Solracer.Network
 
         private async Task RelayLoop(CancellationToken ct)
         {
+            float sendAccumulator = 0f;
+            float lastLoopTime = Time.time;
+
             while (_running && !ct.IsCancellationRequested)
             {
-                // 1. Send my current position
-                var update = new PositionUpdate
-                {
-                    race_id          = _raceId,
-                    wallet_address   = _myWallet,
-                    x                = _localPosition.x,
-                    y                = _localPosition.y,
-                    speed            = _localSpeed,
-                    checkpoint_index = _localCheckpoint,
-                    seq              = ++_seq,
-                };
-                _ = _relay.SendPosition(update); // fire-and-forget; don't block the poll
+                float now = Time.time;
+                sendAccumulator += (now - lastLoopTime) * 1000f; // ms
+                lastLoopTime = now;
 
-                // 2. Fetch opponent positions
+                // 1. Send my current position (on slower cadence)
+                if (sendAccumulator >= sendIntervalMs)
+                {
+                    sendAccumulator = 0f;
+                    var update = new PositionUpdate
+                    {
+                        race_id          = _raceId,
+                        wallet_address   = _myWallet,
+                        x                = _localPosition.x,
+                        y                = _localPosition.y,
+                        speed            = _localSpeed,
+                        checkpoint_index = _localCheckpoint,
+                        seq              = ++_seq,
+                    };
+                    _ = _relay.SendPosition(update); // fire-and-forget
+                }
+
+                // 2. Fetch opponent positions (every poll tick)
                 var state = await _relay.GetOpponentPositions(_raceId);
                 if (state?.players != null)
                 {
                     foreach (var p in state.players)
                     {
-                        if (p.wallet == _myWallet) continue; // skip self
+                        if (p.wallet == _myWallet) continue;
 
                         var newPos = new Vector2(p.x, p.y);
 
-                        // Compute velocity direction for dead-reckoning
                         if (HasOpponentData)
                         {
                             var delta = newPos - _opponentLastKnownPos;
-                            // 0.01 threshold ignores float noise when opponent is still
                             if (delta.sqrMagnitude > 0.01f)
                                 _opponentVelocityDir = delta.normalized;
 
-                            // Stop extrapolating entirely when opponent is parked
                             if (p.speed < 0.5f)
                                 _opponentVelocityDir = Vector2.zero;
                         }
@@ -172,7 +183,7 @@ namespace Solracer.Network
                         OpponentCheckpoint       = p.checkpoint_index;
                         _opponentLastUpdateTime  = Time.time;
                         HasOpponentData          = true;
-                        break; // head-to-head: only one opponent
+                        break;
                     }
                 }
 

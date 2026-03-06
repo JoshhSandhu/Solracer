@@ -1832,7 +1832,7 @@ MonoBehaviour:
   raceManager: {fileID: 2054209000}
   positionLerpSpeed: 8
   rotationLerpSpeed: 6
-  positionOffset: {x: 0, y: 4}
+  positionOffset: {x: 0, y: 0}
   ghostAlpha: 0.8
   ghostTint: {r: 0.94716984, g: 0.17692411, b: 0.17692411, a: 1}
 --- !u!114 &592805721
@@ -4378,6 +4378,7 @@ GameObject:
   - component: {fileID: 2054209001}
   - component: {fileID: 2054209000}
   - component: {fileID: 2054209002}
+  - component: {fileID: 2054209003}
   m_Layer: 0
   m_Name: Race Manager
   m_TagString: Untagged
@@ -4441,6 +4442,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Solracer.Game.InputTraceRecorder
   recordingInterval: 0.0167
   inputActionsAsset: {fileID: -944628639613478452, guid: a32a7b06c04bf9548806a9afacefc05c, type: 3}
+--- !u!114 &2054209003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2054208999}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d4a1d20fadffbf42b7ef8524663e0a4, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Solracer.Network.GhostRelayController
+  pollIntervalMs: 200
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

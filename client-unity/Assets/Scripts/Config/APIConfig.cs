@@ -115,6 +115,18 @@ namespace Solracer.Config
         }
 
         /// <summary>
+        /// MagicBlock Ephemeral Rollup RPC endpoint (devnet).
+        /// Used by ErGhostRelay for sending/reading ghost positions on-chain.
+        /// </summary>
+        public static string GetErRpcUrl() => "https://devnet.magicblock.app";
+
+        /// <summary>
+        /// Base Solana devnet RPC endpoint.
+        /// Used by ErLifecycleManager for init_position_pda / delegate_position_pda.
+        /// </summary>
+        public static string GetBaseDevnetUrl() => "https://api.devnet.solana.com";
+
+        /// <summary>
         /// Check if the API URL is a local development URL (requires certificate bypass)
         /// </summary>
         public static bool IsLocalUrl(string url)
