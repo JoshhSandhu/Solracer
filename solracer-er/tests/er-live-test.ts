@@ -3,19 +3,37 @@ import { Program, Idl } from "@coral-xyz/anchor";
 import { SolracerEr } from "../target/types/solracer_er";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { createHash } from "crypto";
+import {
+    delegateBufferPdaFromDelegatedAccountAndOwnerProgram,
+    delegationRecordPdaFromDelegatedAccount,
+    delegationMetadataPdaFromDelegatedAccount,
+    DELEGATION_PROGRAM_ID,
+} from "@magicblock-labs/ephemeral-rollups-sdk";
 
 function raceIdHash(raceId: string): number[] {
-    const hash = createHash("sha256").update(raceId, "utf8").digest();
-    return Array.from(hash);
+    return Array.from(createHash("sha256").update(raceId, "utf8").digest());
+}
+
+/** Poll until the tx is confirmed on-chain (up to 60s) */
+async function waitForTx(connection: Connection, sig: string): Promise<void> {
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline) {
+        const status = await connection.getSignatureStatus(sig);
+        const conf = status?.value?.confirmationStatus;
+        if (conf === "confirmed" || conf === "finalized") return;
+        await new Promise(r => setTimeout(r, 2000));
+    }
+    throw new Error(`Timed out waiting for tx ${sig}`);
 }
 
 async function main() {
     console.log("=== Solracer MagicBlock ER Live Integration Test ===");
 
-    const fs = require('fs');
+    const fs = require("fs");
     const secret = JSON.parse(fs.readFileSync(`${process.env.HOME}/.config/solana/id.json`));
     const walletKeypair = Keypair.fromSecretKey(new Uint8Array(secret));
     const wallet = new anchor.Wallet(walletKeypair);
+
     const baseConnection = new Connection("https://api.devnet.solana.com", "confirmed");
     const mbConnection = new Connection("https://devnet.magicblock.app", "confirmed");
 
@@ -25,6 +43,7 @@ async function main() {
     anchor.setProvider(baseProvider);
     const baseProgram = anchor.workspace.SolracerEr as Program<SolracerEr>;
     const mbProgram = new Program<SolracerEr>(baseProgram.idl as Idl, mbProvider) as unknown as Program<SolracerEr>;
+    const programId = baseProgram.programId;
 
     const raceId = `live-test-race-${Date.now()}`;
     const sessionKey = Keypair.generate();
@@ -32,13 +51,14 @@ async function main() {
 
     const [positionPda] = PublicKey.findProgramAddressSync(
         [Buffer.from("position"), Buffer.from(hash), wallet.publicKey.toBuffer()],
-        baseProgram.programId
+        programId
     );
 
-    console.log(`Race ID: ${raceId}`);
+    console.log(`Race ID:            ${raceId}`);
     console.log(`PlayerPosition PDA: ${positionPda.toBase58()}`);
+    console.log(`Session key:        ${sessionKey.publicKey.toBase58()}`);
 
-    // Step 1: Init on Base Devnet
+    // ── Step 1: Init on Base Devnet ──────────────────────────────────────────
     console.log("\n[1] Initializing PDA on Base Devnet...");
     const initTx = await baseProgram.methods
         .initPositionPda(hash, sessionKey.publicKey)
@@ -47,43 +67,50 @@ async function main() {
             player: wallet.publicKey,
             systemProgram: SystemProgram.programId,
         } as any)
-        .rpc();
-    console.log(`Init Tx: ${initTx}`);
+        .rpc({ commitment: "confirmed" });
+    console.log(`    Init Tx: ${initTx}`);
+    await waitForTx(baseConnection, initTx);
 
-    // Step 2: Delegate to MagicBlock
+    const acct = await baseConnection.getAccountInfo(positionPda, "confirmed");
+    if (!acct) throw new Error("Position PDA not found after init — RPC lag?");
+    console.log(`    Account: ${acct.data.length} bytes, owner ${acct.owner.toBase58()} ✔`);
+
+    // ── Step 2: Delegate to MagicBlock ──────────────────────────────────────
     console.log("\n[2] Delegating PDA to MagicBlock ER...");
-    const {
-        delegationRecordPdaFromDelegatedAccount,
-        delegationMetadataPdaFromDelegatedAccount,
-        delegateBufferPdaFromDelegatedAccountAndOwnerProgram,
-        DELEGATION_PROGRAM_ID,
-    } = require("@magicblock-labs/ephemeral-rollups-sdk");
-
-    const delegateBuffer = delegateBufferPdaFromDelegatedAccountAndOwnerProgram(positionPda, baseProgram.programId);
-    const delegationRecord = delegationRecordPdaFromDelegatedAccount(positionPda);
-    const delegationMetadata = delegationMetadataPdaFromDelegatedAccount(positionPda);
-
     const delegateSig = await baseProgram.methods
         .delegatePositionPda()
         .accounts({
             player: wallet.publicKey,
             position: positionPda,
-            buffer: delegateBuffer,
-            delegationRecord: delegationRecord,
-            delegationMetadata: delegationMetadata,
+            buffer: delegateBufferPdaFromDelegatedAccountAndOwnerProgram(positionPda, programId),
+            delegationRecord: delegationRecordPdaFromDelegatedAccount(positionPda),
+            delegationMetadata: delegationMetadataPdaFromDelegatedAccount(positionPda),
             delegationProgram: DELEGATION_PROGRAM_ID,
-            program: baseProgram.programId,
+            program: programId,
             systemProgram: SystemProgram.programId,
         } as any)
-        .rpc({ skipPreflight: true });
+        .rpc({ skipPreflight: true, commitment: "confirmed" });
+    console.log(`    Delegate Tx: ${delegateSig}`);
+    await waitForTx(baseConnection, delegateSig);
 
-    console.log(`Delegate Tx: ${delegateSig}`);
+    const delegateTxInfo = await baseConnection.getTransaction(delegateSig, {
+        maxSupportedTransactionVersion: 0,
+        commitment: "confirmed",
+    });
+    if (delegateTxInfo?.meta?.err) {
+        console.error("❌ Delegate tx failed on-chain:", JSON.stringify(delegateTxInfo.meta.err));
+        console.error("   Logs:\n  ", delegateTxInfo.meta.logMessages?.join("\n   "));
+        process.exit(1);
+    }
+    const logs = delegateTxInfo?.meta?.logMessages ?? [];
+    console.log(`    On-chain logs:\n   `, logs.join("\n    "));
+    console.log("    Delegation confirmed ✔");
 
-    console.log("Waiting 3 seconds for ER sequencer to sync...");
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    console.log("\n    Waiting 4s for ER sequencer sync...");
+    await new Promise(r => setTimeout(r, 4000));
 
-    // Step 3: Update on MagicBlock
-    console.log("\n[3] Sending position updates to MagicBlock Devnet...");
+    // ── Step 3: Update on MagicBlock ER ─────────────────────────────────────
+    console.log("\n[3] Sending position updates to MagicBlock ER devnet...");
     for (let i = 1; i <= 3; i++) {
         const updateTx = await mbProgram.methods
             .updatePosition(hash, 10.0 * i, 20.0 * i, 50.0, i, i)
@@ -93,16 +120,17 @@ async function main() {
             } as any)
             .signers([sessionKey])
             .rpc();
-        console.log(`Update ${i} (ER Tx): ${updateTx}`);
+        console.log(`    Update ${i} Tx: ${updateTx}`);
     }
 
     const erAccount = await mbProgram.account.playerPosition.fetch(positionPda, "confirmed");
-    console.log(`ER State -> X: ${erAccount.x}, Y: ${erAccount.y}, Seq: ${erAccount.seq}`);
+    console.log(`\nER State → X: ${erAccount.x}, Y: ${erAccount.y}, Seq: ${erAccount.seq}`);
+    if (erAccount.seq !== 3) throw new Error(`Expected seq=3, got ${erAccount.seq}`);
 
-    console.log("\nINTEGRATION TEST SUCCESSFUL: Ghost state delegated and updated on MagicBlock ER.");
+    console.log("\n✅ INTEGRATION TEST SUCCESSFUL");
 }
 
 main().catch(err => {
-    console.error(err);
+    console.error("\n❌ TEST FAILED:", err?.message ?? err);
     process.exit(1);
 });
