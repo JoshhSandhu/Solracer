@@ -4135,12 +4135,14 @@ MonoBehaviour:
   finishLineSize: {x: 10, y: 100}
   startAreaPrefab: {fileID: 3837616697628545765, guid: b819bbe78a0451f4483a2e3e019df4cd, type: 3}
   finishAreaPrefab: {fileID: 1676159461904866722, guid: 5f30930d28689964193c1d377305e830, type: 3}
+  startAreaWidth: 10
+  finishAreaWidth: 10
   playerSpawnOffset: 3
   defaultEntryFeeSol: 0.01
   countdownText: {fileID: 161417843}
   countdownPanel: {fileID: 1553245405}
   countdownInterval: 1
-  useErRelay: 0
+  useErRelay: 1
 --- !u!4 &2054209001
 Transform:
   m_ObjectHideFlags: 0

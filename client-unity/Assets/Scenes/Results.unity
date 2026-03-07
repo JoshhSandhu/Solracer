@@ -1259,7 +1259,7 @@ MonoBehaviour:
   practiceTimeText: {fileID: 1165647980}
   practiceScoreText: {fileID: 686614921}
   practiceCoinsText: {fileID: 1319621336}
-  modeSelectionButton: {fileID: 1033773851}
+  modeSelectionButton: {fileID: 1844468702}
   playAgainButton: {fileID: 60479587}
   claimPrizeButton: {fileID: 178279048}
   fallbackTxnButton: {fileID: 1230825551}

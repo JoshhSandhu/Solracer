@@ -19,7 +19,7 @@ namespace Solracer.Network
         [SerializeField] private int pollIntervalMs = 100;
 
         [Tooltip("ms between each send cycle (writing local state)")]
-        [SerializeField] private int sendIntervalMs = 300;
+        [SerializeField] private int sendIntervalMs = 150;
 
         // -----------------------------------------------------------------------
         // Public state

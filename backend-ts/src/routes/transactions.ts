@@ -9,7 +9,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
 import crypto from "node:crypto";
-import { deriveRacePda, deriveSessionPda } from "../services/pda.js";
+import { deriveRacePda, deriveSessionPda, derivePlayerPositionPda } from "../services/pda.js";
+import { buildInitPositionPdaIx, buildDelegatePositionPdaIx } from "../services/er_program.js";
 import {
   buildCreateRaceIx,
   buildJoinRaceIx,
@@ -160,7 +161,12 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
                   lamports: SESSION_GAS_LAMPORTS,
                 }),
               );
-              app.log.info(`[TXBUILD] bundled delegate_session + ${SESSION_GAS_LAMPORTS} lamports gas for create_race, sessionPda=${sessionPda.toBase58()}`);
+
+              // Bundle ER ghost position PDA init + delegate (one popup covers all)
+              const positionPda = derivePlayerPositionPda(raceId, walletPubkey);
+              instructions.push(buildInitPositionPdaIx(positionPda, walletPubkey, raceId, sessionPk));
+              instructions.push(buildDelegatePositionPdaIx(positionPda, walletPubkey));
+              app.log.info(`[TXBUILD] bundled delegate_session + gas + ER init+delegate for create_race, pos=${positionPda.toBase58()}`);
             } catch (e) {
               app.log.warn(`[TXBUILD] Invalid session_key for create_race: ${e}`);
             }
@@ -221,7 +227,12 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
                   lamports: SESSION_GAS_LAMPORTS,
                 }),
               );
-              app.log.info(`[TXBUILD] bundled delegate_session + ${SESSION_GAS_LAMPORTS} lamports gas for join_race, sessionPda=${sessionPda.toBase58()}`);
+
+              // Bundle ER ghost position PDA init + delegate (one popup covers all)
+              const positionPda = derivePlayerPositionPda(race_id, walletPubkey);
+              instructions.push(buildInitPositionPdaIx(positionPda, walletPubkey, race_id, sessionPk));
+              instructions.push(buildDelegatePositionPdaIx(positionPda, walletPubkey));
+              app.log.info(`[TXBUILD] bundled delegate_session + gas + ER init+delegate for join_race, pos=${positionPda.toBase58()}`);
             } catch (e) {
               app.log.warn(`[TXBUILD] Invalid session_key for join_race: ${e}`);
             }
