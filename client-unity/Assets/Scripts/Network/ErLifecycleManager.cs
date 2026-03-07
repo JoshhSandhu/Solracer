@@ -13,7 +13,7 @@ namespace Solracer.Network
 {
     /// <summary>
     /// Manages the on-chain lifecycle for the ghost position PDA:
-    ///   1. Generate an ephemeral session keypair
+    ///   1. Retrieve session keypair from SessionKeyStore (shared with L1 race manager)
     ///   2. init_position_pda on base devnet
     ///   3. delegate_position_pda to MagicBlock ER
     ///   4. Wait for ER sync
@@ -40,11 +40,9 @@ namespace Solracer.Network
         /// Initialize and delegate a PlayerPosition PDA for this race.
         /// Must be called BEFORE starting the ErGhostRelay.
         ///
-        /// Flow:
-        ///   1. Generate session keypair
-        ///   2. Send init_position_pda to base devnet (signed by player wallet)
-        ///   3. Send delegate_position_pda to base devnet (signed by player wallet)
-        ///   4. Wait 3s for ER sync
+        /// Uses the session keypair from SessionKeyStore (already generated
+        /// during create_race / join_race) so both the L1 race manager and
+        /// the ER ghost relay share the same session identity.
         /// </summary>
         /// <param name="raceId">Human-readable race ID</param>
         /// <param name="playerWalletBase58">Player's wallet pubkey</param>
@@ -60,13 +58,20 @@ namespace Solracer.Network
         {
             Debug.Log($"[ErLifecycleManager] Starting init+delegate for race={raceId}");
 
-            // 1. Generate ephemeral session keypair
-            byte[] seed = new byte[32];
-            using (var rng = RandomNumberGenerator.Create())
-                rng.GetBytes(seed);
+            // 1. Retrieve session keypair from SessionKeyStore (shared with OnChainRaceManager)
+            byte[] sessionPrivate = SessionKeyStore.GetPrivateKey(raceId);
+            byte[] sessionPublic  = SessionKeyStore.GetPublicKey(raceId);
 
-            // Ed25519 keypair from seed using Chaos.NaCl
-            Chaos.NaCl.Ed25519.KeyPairFromSeed(out byte[] sessionPublic, out byte[] sessionPrivate, seed);
+            if (sessionPrivate == null || sessionPublic == null)
+            {
+                // Fallback: generate a fresh keypair if SessionKeyStore doesn't have one
+                // (e.g. useErRelay is enabled but session key delegation was skipped)
+                Debug.LogWarning("[ErLifecycleManager] No session key in SessionKeyStore, generating fresh keypair");
+                byte[] seed = new byte[32];
+                using (var rng = RandomNumberGenerator.Create())
+                    rng.GetBytes(seed);
+                Chaos.NaCl.Ed25519.KeyPairFromSeed(out sessionPublic, out sessionPrivate, seed);
+            }
 
             Debug.Log($"[ErLifecycleManager] Session key: {ErGhostRelay.Base58Encode(sessionPublic)}");
 

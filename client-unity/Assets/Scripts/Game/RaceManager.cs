@@ -32,6 +32,18 @@ namespace Solracer.Game
         [SerializeField] private bool autoCreateFinishLine = true;
         [SerializeField] private Vector2 finishLineSize = new Vector2(2f, 10f);
 
+        [Header("Start / Finish Area Prefabs")]
+        [Tooltip("Prefab to instantiate at the first track point (start line visual)")]
+        [SerializeField] private GameObject startAreaPrefab;
+        [Tooltip("Prefab to instantiate at the last track point (finish line visual)")]
+        [SerializeField] private GameObject finishAreaPrefab;
+        [Tooltip("Width of the start area prefab (used to align right edge with track start)")]
+        [SerializeField] private float startAreaWidth = 10f;
+        [Tooltip("Width of the finish area prefab (used to align left edge with track end)")]
+        [SerializeField] private float finishAreaWidth = 10f;
+        [Tooltip("Height above track surface to spawn the player")]
+        [SerializeField] private float playerSpawnOffset = 3f;
+
         [Header("On-Chain Race Settings")]
         [SerializeField] private float defaultEntryFeeSol = 0.01f;
 
@@ -53,6 +65,7 @@ namespace Solracer.Game
 
         private InputTraceRecorder inputTraceRecorder;
         private bool atvNullWarned = false;
+        private bool startAreaPlaced = false;
 
         private GhostRelayController _ghostRelay;
         /// <summary>Expose for ghost car renderer to call GetExtrapolatedOpponentPosition().</summary>
@@ -207,12 +220,20 @@ namespace Solracer.Game
 
         private void Update()
         {
-            if (autoCreateFinishLine && finishLine == null && trackGenerator != null)
+            // Once track points are available, set up start/finish areas and reposition player
+            if (trackGenerator != null)
             {
                 Vector2[] trackPoints = trackGenerator.TrackPoints;
                 if (trackPoints != null && trackPoints.Length > 0)
                 {
-                    CreateFinishLine();
+                    if (autoCreateFinishLine && finishLine == null)
+                    {
+                        CreateFinishLine();
+                    }
+                    if (!startAreaPlaced)
+                    {
+                        PositionPlayerAndStartArea();
+                    }
                 }
             }
             
@@ -369,17 +390,90 @@ namespace Solracer.Game
 
             Vector2 trackEnd = trackPoints[trackPoints.Length - 1];
 
-            finishLine = new GameObject("FinishLine");
-            finishLine.tag = "Finish";
-            finishLine.transform.position = new Vector3(trackEnd.x, trackEnd.y, 0f);
-            BoxCollider2D collider = finishLine.AddComponent<BoxCollider2D>();
-            collider.isTrigger = true;
-            collider.size = finishLineSize;
+            // Use the finishArea prefab if assigned, otherwise fall back to a blank trigger
+            if (finishAreaPrefab != null)
+            {
+                // Place prefab so its LEFT edge aligns with the last track point
+                float halfW = finishAreaWidth * 0.5f;
+                finishLine = Instantiate(finishAreaPrefab,
+                    new Vector3(trackEnd.x + halfW, trackEnd.y, 0f), Quaternion.identity);
+                finishLine.name = "FinishArea";
+            }
+            else
+            {
+                finishLine = new GameObject("FinishLine");
+                finishLine.transform.position = new Vector3(trackEnd.x, trackEnd.y, 0f);
+            }
 
-            FinishLineTrigger trigger = finishLine.AddComponent<FinishLineTrigger>();
+            finishLine.tag = "Finish";
+
+            // Ensure a trigger collider exists (prefab may already have one)
+            BoxCollider2D collider = finishLine.GetComponent<BoxCollider2D>();
+            if (collider == null)
+            {
+                collider = finishLine.AddComponent<BoxCollider2D>();
+                collider.size = finishLineSize;
+            }
+            collider.isTrigger = true;
+
+            // Ensure FinishLineTrigger component exists
+            FinishLineTrigger trigger = finishLine.GetComponent<FinishLineTrigger>();
+            if (trigger == null)
+            {
+                trigger = finishLine.AddComponent<FinishLineTrigger>();
+            }
             trigger.SetRaceManager(this);
 
-            Debug.Log($"RaceManager: Created FinishLine at track end ({trackEnd.x:F2}, {trackEnd.y:F2})");
+            Debug.Log($"RaceManager: Created FinishArea at ({finishLine.transform.position.x:F2}, {finishLine.transform.position.y:F2}), track end=({trackEnd.x:F2}, {trackEnd.y:F2})");
+        }
+
+        /// <summary>
+        /// Positions the player and start-area prefab at the first track point.
+        /// Called once from Update when track points become available.
+        /// </summary>
+        private void PositionPlayerAndStartArea()
+        {
+            startAreaPlaced = true;
+
+            Vector2[] trackPoints = trackGenerator.TrackPoints;
+            if (trackPoints == null || trackPoints.Length == 0)
+                return;
+
+            Vector2 trackStart = trackPoints[0];
+            float halfW = startAreaWidth * 0.5f;
+
+            // Instantiate start area prefab so its RIGHT edge aligns with the first track point
+            if (startAreaPrefab != null)
+            {
+                GameObject startArea = Instantiate(startAreaPrefab,
+                    new Vector3(trackStart.x - halfW, trackStart.y, 0f), Quaternion.identity);
+                startArea.name = "StartArea";
+                Debug.Log($"RaceManager: Placed StartArea at ({startArea.transform.position.x:F2}, {startArea.transform.position.y:F2}), track start=({trackStart.x:F2}, {trackStart.y:F2})");
+            }
+
+            // Move the player (ATV) onto the start area (centred on the area)
+            if (atvController != null)
+            {
+                float playerX = startAreaPrefab != null
+                    ? trackStart.x - halfW   // centre of start area
+                    : trackStart.x;
+                Vector3 spawnPos = new Vector3(playerX, trackStart.y + playerSpawnOffset, 0f);
+                Transform atvTransform = atvController.transform;
+
+                // Reset velocity before repositioning
+                Rigidbody2D rb = atvController.GetComponent<Rigidbody2D>();
+                if (rb != null)
+                {
+                    rb.linearVelocity = Vector2.zero;
+                    rb.angularVelocity = 0f;
+                }
+
+                atvTransform.position = spawnPos;
+                atvTransform.rotation = Quaternion.identity;
+
+                lastPosition = spawnPos;
+                Debug.Log($"RaceManager: Moved player to start area ({spawnPos.x:F2}, {spawnPos.y:F2})");
+            }
         }
 
         public void OnFinishLineCrossed()

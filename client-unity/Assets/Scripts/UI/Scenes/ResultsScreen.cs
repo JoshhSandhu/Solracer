@@ -671,6 +671,7 @@ namespace Solracer.UI
         public void OnPlayAgainClicked()
         {
             StopAllPolling();
+            SessionKeyStore.Clear();
             RaceData.ClearRaceData();
             GameOverData.Reset();
             SceneManager.LoadScene(SceneNames.Race);
@@ -679,6 +680,7 @@ namespace Solracer.UI
         public void OnModeSelectionClicked()
         {
             StopAllPolling();
+            SessionKeyStore.Clear();
             RaceData.ClearRaceData();
             GameOverData.Reset();
             GameModeData.Reset();

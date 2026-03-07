@@ -58,13 +58,21 @@ namespace Solracer.Network
 
                 //build transaction
                 onProgress?.Invoke("Building transaction...", 0.2f);
+
+                // Generate session keypair upfront. The backend will include the
+                // delegate_session instruction in the same tx (one wallet popup covers both).
+                // The keypair is re-stored under the real raceId after the backend responds.
+                string sessionPubKey = SessionKeyStore.GenerateAndSave("__pending__", walletAddress);
+
                 var buildRequest = new BuildTransactionRequest
                 {
                     instruction_type = "create_race",
                     wallet_address = walletAddress,
                     token_mint = tokenMint,
-                    entry_fee_sol = entryFeeSol
+                    entry_fee_sol = entryFeeSol,
+                    session_key = sessionPubKey,
                 };
+
 
                 BuildTransactionResponse buildResponse;
                 try
@@ -153,6 +161,12 @@ namespace Solracer.Network
                     return null;
                 }
 
+                // Re-register session key under the real raceId now that we have it
+                if (!string.IsNullOrEmpty(buildResponse.race_id))
+                {
+                    SessionKeyStore.ReRegister(buildResponse.race_id);
+                }
+
                 //wait for confirmation
                 HideSigningModal();
                 onProgress?.Invoke("Confirming transaction...", 0.9f);
@@ -202,11 +216,16 @@ namespace Solracer.Network
 
                 //build transaction
                 onProgress?.Invoke("Building join transaction...", 0.3f);
+
+                // Generate session key  backend bundles delegate_session into join_race tx
+                string joinSessionKey = SessionKeyStore.GenerateAndSave(raceId, walletAddress);
+
                 var buildRequest = new BuildTransactionRequest
                 {
                     instruction_type = "join_race",
                     wallet_address = walletAddress,
-                    race_id = raceId
+                    race_id = raceId,
+                    session_key = joinSessionKey,
                 };
 
                 var buildResponse = await apiClient.BuildTransactionAsync(buildRequest);
@@ -292,6 +311,11 @@ namespace Solracer.Network
 
                 //build transaction
                 onProgress?.Invoke("Building result submission...", 0.3f);
+
+                // Use session key if available  no wallet popup needed
+                string sessionPubKeyForSubmit = SessionKeyStore.GetPublicKeyBase58(raceId);
+                bool hasSession = !string.IsNullOrEmpty(sessionPubKeyForSubmit);
+
                 var buildRequest = new BuildTransactionRequest
                 {
                     instruction_type = "submit_result",
@@ -299,7 +323,8 @@ namespace Solracer.Network
                     race_id = raceId,
                     finish_time_ms = finishTimeMs,
                     coins_collected = coinsCollected,
-                    input_hash = inputHash
+                    input_hash = inputHash,
+                    session_key = sessionPubKeyForSubmit, // null = wallet signing, set = session signing
                 };
 
                 BuildTransactionResponse buildResponse;
@@ -321,26 +346,60 @@ namespace Solracer.Network
                     return false;
                 }
 
-                // Show transaction signing modal and sign transaction
-                onProgress?.Invoke("Waiting for transaction approval...", 0.6f);
-                bool userApproved = await ShowTransactionSigningModal(
-                    "Submit Result Transaction",
-                    "Please approve the transaction to submit your race result on-chain.",
-                    onProgress
-                );
-
-                if (!userApproved)
+                // Sign and submit  use session key silently, or fall back to wallet popup
+                string signedTransaction;
+                if (hasSession)
                 {
-                    Debug.LogWarning("[OnChainRaceManager] User rejected transaction signing.");
-                    return false;
+                    // Silent path: sign with session key (Ed25519 via Chaos.NaCl)
+                    onProgress?.Invoke("Signing with session key...", 0.7f);
+                    try
+                    {
+                        byte[] txBytes = System.Convert.FromBase64String(buildResponse.transaction_bytes);
+
+                        // Solana serialized tx format: [compact-u16 numSigs][64-byte empty sig(s)][message]
+                        // For 1 signer: byte[0]=1, bytes[1..64]=empty sig, bytes[65..]=message
+                        int numSigs = txBytes[0]; // compact-u16 encoding (1 byte for values < 128)
+                        int messageOffset = 1 + (numSigs * 64);
+                        byte[] messageBytes = new byte[txBytes.Length - messageOffset];
+                        Array.Copy(txBytes, messageOffset, messageBytes, 0, messageBytes.Length);
+
+                        // Sign the MESSAGE (not the full tx)
+                        byte[] sessionSig = SessionKeyStore.Sign(raceId, messageBytes);
+
+                        // Write signature into the first empty slot (offset 1)
+                        Array.Copy(sessionSig, 0, txBytes, 1, 64);
+                        signedTransaction = System.Convert.ToBase64String(txBytes);
+                        Debug.Log("[OnChainRaceManager] submit_result signed with session key (silent)");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[OnChainRaceManager] Session signing failed, falling back to wallet: {ex.Message}");
+                        signedTransaction = await authManager.SignTransaction(buildResponse.transaction_bytes);
+                    }
                 }
-
-                onProgress?.Invoke("Signing transaction...", 0.65f);
-                string signedTransaction = await authManager.SignTransaction(buildResponse.transaction_bytes);
-                if (string.IsNullOrEmpty(signedTransaction))
+                else
                 {
-                    HideSigningModal();
-                    return false;
+                    // Wallet popup path (fallback when no session key)
+                    onProgress?.Invoke("Waiting for transaction approval...", 0.6f);
+                    bool userApproved = await ShowTransactionSigningModal(
+                        "Submit Result Transaction",
+                        "Please approve the transaction to submit your race result on-chain.",
+                        onProgress
+                    );
+
+                    if (!userApproved)
+                    {
+                        Debug.LogWarning("[OnChainRaceManager] User rejected transaction signing.");
+                        return false;
+                    }
+
+                    onProgress?.Invoke("Signing transaction...", 0.65f);
+                    signedTransaction = await authManager.SignTransaction(buildResponse.transaction_bytes);
+                    if (string.IsNullOrEmpty(signedTransaction))
+                    {
+                        HideSigningModal();
+                        return false;
+                    }
                 }
 
                 //submit transaction with result data for database storage
@@ -492,11 +551,17 @@ namespace Solracer.Network
 
                 // === Step 2: Claim the prize ===
                 onProgress?.Invoke("Building claim prize transaction...", 0.5f);
+
+                // Use session key for silent claim
+                string claimSessionKey = SessionKeyStore.GetPublicKeyBase58(raceId);
+                bool hasClaimSession = !string.IsNullOrEmpty(claimSessionKey);
+
                 var buildRequest = new BuildTransactionRequest
                 {
                     instruction_type = "claim_prize",
                     wallet_address = walletAddress,
-                    race_id = raceId
+                    race_id = raceId,
+                    session_key = claimSessionKey,
                 };
 
                 BuildTransactionResponse buildResponse;
@@ -518,26 +583,55 @@ namespace Solracer.Network
                     return false;
                 }
 
-                // Show transaction signing modal for prize claiming
-                onProgress?.Invoke("Waiting for transaction approval...", 0.6f);
-                bool userApproved = await ShowTransactionSigningModal(
-                    "Claim Prize Transaction",
-                    "Please approve the transaction to claim your prize.",
-                    onProgress
-                );
-
-                if (!userApproved)
+                // Sign  session key (silent) or wallet popup
+                string signedTransaction;
+                if (hasClaimSession)
                 {
-                    Debug.LogWarning("[OnChainRaceManager] User rejected transaction signing.");
-                    return false;
+                    onProgress?.Invoke("Claiming prize with session key...", 0.7f);
+                    try
+                    {
+                        byte[] txBytes = System.Convert.FromBase64String(buildResponse.transaction_bytes);
+
+                        // Extract message from serialized tx and sign it
+                        int numSigs = txBytes[0];
+                        int messageOffset = 1 + (numSigs * 64);
+                        byte[] messageBytes = new byte[txBytes.Length - messageOffset];
+                        Array.Copy(txBytes, messageOffset, messageBytes, 0, messageBytes.Length);
+
+                        byte[] sessionSig = SessionKeyStore.Sign(raceId, messageBytes);
+                        Array.Copy(sessionSig, 0, txBytes, 1, 64);
+                        signedTransaction = System.Convert.ToBase64String(txBytes);
+                        Debug.Log("[OnChainRaceManager] claim_prize signed with session key (silent)");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.LogWarning($"[OnChainRaceManager] Session signing failed for claim, falling back to wallet: {ex.Message}");
+                        signedTransaction = await authManager.SignTransaction(buildResponse.transaction_bytes);
+                    }
                 }
-
-                onProgress?.Invoke("Signing transaction...", 0.7f);
-                string signedTransaction = await authManager.SignTransaction(buildResponse.transaction_bytes);
-                if (string.IsNullOrEmpty(signedTransaction))
+                else
                 {
-                    HideSigningModal();
-                    return false;
+                    // Show transaction signing modal for prize claiming
+                    onProgress?.Invoke("Waiting for transaction approval...", 0.6f);
+                    bool userApproved = await ShowTransactionSigningModal(
+                        "Claim Prize Transaction",
+                        "Please approve the transaction to claim your prize.",
+                        onProgress
+                    );
+
+                    if (!userApproved)
+                    {
+                        Debug.LogWarning("[OnChainRaceManager] User rejected transaction signing.");
+                        return false;
+                    }
+
+                    onProgress?.Invoke("Signing transaction...", 0.7f);
+                    signedTransaction = await authManager.SignTransaction(buildResponse.transaction_bytes);
+                    if (string.IsNullOrEmpty(signedTransaction))
+                    {
+                        HideSigningModal();
+                        return false;
+                    }
                 }
 
                 // Submit claim_prize

@@ -60,15 +60,16 @@ namespace Solracer.Config
             #endif
 
             // Priority 3: Editor uses backend-ts; builds use production
-            #if UNITY_EDITOR
-                string url = LOCAL_BACKEND_TS_URL;
-                Debug.Log($"[APIConfig] Using API base URL: {url}");
-                return url;
-            #else
-                string url = LOCAL_BACKEND_TS_URL;
-                Debug.Log($"[APIConfig] Using API base URL: {url}");
-                return url;
-            #endif
+        #if UNITY_EDITOR
+            // To use local backend during development, set PlayerPrefs or change this to LOCAL_BACKEND_TS_URL
+            string url = PRODUCTION_URL;
+            Debug.Log($"[APIConfig] Using API base URL: {url}");
+            return url;
+        #else
+            string url = PRODUCTION_URL;
+            Debug.Log($"[APIConfig] Using API base URL: {url}");
+            return url;
+        #endif
         }
 
         /// <summary>

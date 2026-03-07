@@ -7,12 +7,13 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { PublicKey } from "@solana/web3.js";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
 import crypto from "node:crypto";
-import { deriveRacePda } from "../services/pda.js";
+import { deriveRacePda, deriveSessionPda } from "../services/pda.js";
 import {
   buildCreateRaceIx,
   buildJoinRaceIx,
+  buildDelegateSessionIx,
   buildSubmitResultIx,
   buildSettleRaceIx,
   buildClaimPrizeIx,
@@ -39,6 +40,9 @@ interface BuildBody {
   finish_time_ms?: number;
   coins_collected?: number;
   input_hash?: string;
+  /** Base58 ephemeral session public key  when provided, delegate_session is
+   *  bundled into create_race / join_race (one popup covers both). */
+  session_key?: string;
 }
 
 interface SubmitBody {
@@ -120,7 +124,7 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
 
         // --- create_race ---------------------------------------------------
         if (instruction_type === "create_race") {
-          const { token_mint, entry_fee_sol } = body;
+          const { token_mint, entry_fee_sol, session_key } = body;
 
           if (!token_mint || !entry_fee_sol) {
             return reply.status(400).send({
@@ -135,8 +139,35 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
           const [racePda] = deriveRacePda(raceId, tokenMintPk, lamports);
           const ix = buildCreateRaceIx(racePda, walletPubkey, raceId, tokenMintPk, lamports);
 
+          const instructions = [ix];
+
+          // Bundle delegate_session if a session key is provided (one popup = zero gameplay popups)
+          if (session_key) {
+            try {
+              const sessionPk = new PublicKey(session_key);
+              const sessionPda = deriveSessionPda(raceId, walletPubkey);
+              const delegateIx = buildDelegateSessionIx(
+                sessionPda, walletPubkey, raceId, sessionPk,
+              );
+              instructions.push(delegateIx);
+
+              // Fund session key with SOL for gas (submit_result + claim_prize fees)
+              const SESSION_GAS_LAMPORTS = 5_000_000; // 0.005 SOL
+              instructions.push(
+                SystemProgram.transfer({
+                  fromPubkey: walletPubkey,
+                  toPubkey: sessionPk,
+                  lamports: SESSION_GAS_LAMPORTS,
+                }),
+              );
+              app.log.info(`[TXBUILD] bundled delegate_session + ${SESSION_GAS_LAMPORTS} lamports gas for create_race, sessionPda=${sessionPda.toBase58()}`);
+            } catch (e) {
+              app.log.warn(`[TXBUILD] Invalid session_key for create_race: ${e}`);
+            }
+          }
+
           const recentBlockhash = await getRecentBlockhash();
-          const tx = await buildTransaction([ix], walletPubkey, recentBlockhash);
+          const tx = await buildTransaction(instructions, walletPubkey, recentBlockhash);
           const txBase64 = serializeTransaction(tx).toString("base64");
 
           setRaceMeta(raceId, { token_mint, entry_fee_sol });
@@ -154,7 +185,7 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
 
         // --- join_race -----------------------------------------------------
         if (instruction_type === "join_race") {
-          const { race_id } = body;
+          const { race_id, session_key } = body;
           if (!race_id) {
             return reply.status(400).send({ detail: "race_id required for join_race" });
           }
@@ -169,9 +200,35 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
           const [racePda] = deriveRacePda(race_id, tokenMintPk, lamports);
 
           const ix = buildJoinRaceIx(racePda, walletPubkey);
+          const instructions = [ix];
+
+          // Bundle delegate_session if a session key is provided
+          if (session_key) {
+            try {
+              const sessionPk = new PublicKey(session_key);
+              const sessionPda = deriveSessionPda(race_id, walletPubkey);
+              const delegateIx = buildDelegateSessionIx(
+                sessionPda, walletPubkey, race_id, sessionPk,
+              );
+              instructions.push(delegateIx);
+
+              // Fund session key with SOL for gas (submit_result + claim_prize fees)
+              const SESSION_GAS_LAMPORTS = 5_000_000; // 0.005 SOL
+              instructions.push(
+                SystemProgram.transfer({
+                  fromPubkey: walletPubkey,
+                  toPubkey: sessionPk,
+                  lamports: SESSION_GAS_LAMPORTS,
+                }),
+              );
+              app.log.info(`[TXBUILD] bundled delegate_session + ${SESSION_GAS_LAMPORTS} lamports gas for join_race, sessionPda=${sessionPda.toBase58()}`);
+            } catch (e) {
+              app.log.warn(`[TXBUILD] Invalid session_key for join_race: ${e}`);
+            }
+          }
 
           const recentBlockhash = await getRecentBlockhash();
-          const tx = await buildTransaction([ix], walletPubkey, recentBlockhash);
+          const tx = await buildTransaction(instructions, walletPubkey, recentBlockhash);
           const txBase64 = serializeTransaction(tx).toString("base64");
 
           app.log.info(`[TXBUILD] join_race raceId=${race_id} pda=${racePda.toBase58()}`);
@@ -187,7 +244,7 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
 
         // --- submit_result -------------------------------------------------
         if (instruction_type === "submit_result") {
-          const { race_id, finish_time_ms, input_hash } = body;
+          const { race_id, finish_time_ms, input_hash, session_key } = body;
 
           if (!race_id || finish_time_ms == null || !input_hash) {
             return reply.status(400).send({
@@ -211,19 +268,35 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
               .send({ detail: "input_hash must be 32 bytes (64 hex characters)" });
           }
 
+          // Determine authority: session key (silent) or player wallet (popup)
+          let authority = walletPubkey;
+          let sessionPda: PublicKey | null = null;
+          if (session_key) {
+            try {
+              authority = new PublicKey(session_key);
+              sessionPda = deriveSessionPda(race_id, walletPubkey);
+            } catch (e) {
+              app.log.warn(`[TXBUILD] Invalid session_key for submit_result: ${e}`);
+            }
+          }
+
           const ix = buildSubmitResultIx(
             racePda,
+            authority,
             walletPubkey,
+            sessionPda,
             BigInt(finish_time_ms),
             BigInt(body.coins_collected ?? 0),
             inputHashBytes,
           );
 
+          // Fee payer for session-signed txs = session key (it pays gas, not wallet)
+          const feePayer = authority;
           const recentBlockhash = await getRecentBlockhash();
-          const tx = await buildTransaction([ix], walletPubkey, recentBlockhash);
+          const tx = await buildTransaction([ix], feePayer, recentBlockhash);
           const txBase64 = serializeTransaction(tx).toString("base64");
 
-          app.log.info(`[TXBUILD] submit_result raceId=${race_id} pda=${racePda.toBase58()}`);
+          app.log.info(`[TXBUILD] submit_result raceId=${race_id} authority=${authority.toBase58()} session=${!!sessionPda}`);
 
           return {
             transaction_bytes: txBase64,
@@ -269,7 +342,7 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
 
         // --- claim_prize ---------------------------------------------------
         if (instruction_type === "claim_prize") {
-          const { race_id } = body;
+          const { race_id, session_key } = body;
           if (!race_id) {
             return reply.status(400).send({ detail: "race_id required for claim_prize" });
           }
@@ -283,13 +356,26 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
           const lamports = BigInt(Math.round(meta.entryFeeSol * 1_000_000_000));
           const [racePda] = deriveRacePda(race_id, tokenMintPk, lamports);
 
-          const ix = buildClaimPrizeIx(racePda, walletPubkey);
+          // Determine authority: session key (silent) or winner wallet (popup)
+          let authority = walletPubkey;
+          let sessionPda: PublicKey | null = null;
+          if (session_key) {
+            try {
+              authority = new PublicKey(session_key);
+              sessionPda = deriveSessionPda(race_id, walletPubkey);
+            } catch (e) {
+              app.log.warn(`[TXBUILD] Invalid session_key for claim_prize: ${e}`);
+            }
+          }
 
+          const ix = buildClaimPrizeIx(racePda, authority, walletPubkey, sessionPda);
+
+          const feePayer = authority;
           const recentBlockhash = await getRecentBlockhash();
-          const tx = await buildTransaction([ix], walletPubkey, recentBlockhash);
+          const tx = await buildTransaction([ix], feePayer, recentBlockhash);
           const txBase64 = serializeTransaction(tx).toString("base64");
 
-          app.log.info(`[TXBUILD] claim_prize raceId=${race_id} pda=${racePda.toBase58()}`);
+          app.log.info(`[TXBUILD] claim_prize raceId=${race_id} authority=${authority.toBase58()} session=${!!sessionPda}`);
 
           return {
             transaction_bytes: txBase64,

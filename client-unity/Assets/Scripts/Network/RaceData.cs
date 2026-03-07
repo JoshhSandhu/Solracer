@@ -175,6 +175,9 @@ namespace Solracer.Network
 
             // Clear ghost relay
             opponentWalletAddress = null;
+
+            // Clear session key so next race gets a fresh one
+            SessionKeyStore.Clear();
         }
 
         //check if race is currently active
