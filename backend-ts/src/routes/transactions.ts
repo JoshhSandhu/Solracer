@@ -153,7 +153,7 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
               instructions.push(delegateIx);
 
               // Fund session key with SOL for gas (submit_result + claim_prize fees)
-              const SESSION_GAS_LAMPORTS = 5_000_000; // 0.005 SOL
+              const SESSION_GAS_LAMPORTS = 15_000_000; // 0.015 SOL (covers ~1500 txns at 60ms intervals)
               instructions.push(
                 SystemProgram.transfer({
                   fromPubkey: walletPubkey,
@@ -219,7 +219,7 @@ export async function transactionRoutes(app: FastifyInstance): Promise<void> {
               instructions.push(delegateIx);
 
               // Fund session key with SOL for gas (submit_result + claim_prize fees)
-              const SESSION_GAS_LAMPORTS = 5_000_000; // 0.005 SOL
+              const SESSION_GAS_LAMPORTS = 15_000_000; // 0.015 SOL (covers ~1500 txns at 60ms intervals)
               instructions.push(
                 SystemProgram.transfer({
                   fromPubkey: walletPubkey,

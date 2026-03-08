@@ -16,10 +16,10 @@ namespace Solracer.Network
 
         [Header("Relay Settings")]
         [Tooltip("ms between each poll cycle (reading opponent state)")]
-        [SerializeField] private int pollIntervalMs = 100;
+        [SerializeField] private int pollIntervalMs = 70;
 
         [Tooltip("ms between each send cycle (writing local state)")]
-        [SerializeField] private int sendIntervalMs = 150;
+        [SerializeField] private int sendIntervalMs = 60;
 
         // -----------------------------------------------------------------------
         // Public state
