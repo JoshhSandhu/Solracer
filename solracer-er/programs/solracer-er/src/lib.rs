@@ -9,7 +9,9 @@ declare_id!("3BhDmsVJYASHEUE2DJAJr2FHjRWUCF1nwn6SraKJgoEG");
 pub mod solracer_er {
     use super::*;
 
-    /// Create a PlayerPosition PDA on base devnet.
+    /// Set up a ghost position account for a player entering a race
+    /// `race_id_hash` is SHA-256(race_id_utf8) computed client-side and used as a PDA seed
+    /// `session_key` is a throwaway keypair generated in Unity that signs all in-race position updates
     pub fn init_position_pda(
         ctx: Context<InitPositionPda>,
         race_id_hash: [u8; 32],
@@ -34,8 +36,8 @@ pub mod solracer_er {
         Ok(())
     }
 
-    /// Delegate the PlayerPosition PDA to the MagicBlock Ephemeral Rollup.
-    /// Must be called before any updates can be sent to the ER devnet.
+    /// Delegates the PlayerPosition PDA to the MagicBlock er so it can receive low-latency updates
+    /// this is called once per race, right after init the PDA can't be written on the er until it's delegated
     pub fn delegate_position_pda(ctx: Context<DelegatePositionPda>) -> Result<()> {
         let pda_signer_seeds: &[&[u8]] = &[
             b"position",
@@ -60,11 +62,11 @@ pub mod solracer_er {
             DelegateConfig::default(),
         )?;
 
-        msg!("PlayerPosition PDA delegated to MagicBlock ER");
+        msg!("PlayerPosition PDA delegated to MagicBlock er");
         Ok(())
     }
 
-    /// Write position update to the ER. Called every ~300ms by the session key.
+    /// Updates the position snapshot to the er ~300ms
     pub fn update_position(
         ctx: Context<UpdatePosition>,
         expected_race_id_hash: [u8; 32],
@@ -98,8 +100,8 @@ pub mod solracer_er {
         Ok(())
     }
 
-    /// Close the PlayerPosition PDA and reclaim rent.
-    /// Only the original player (has_one = player) can close their own PDA.
+    /// Closes the position account and returns rent to the player
+    /// Called after the race ends and undelegation has settled the final state back to base
     pub fn close_position_pda(_ctx: Context<ClosePositionPda>) -> Result<()> {
         msg!("PlayerPosition PDA closed, rent returned to player");
         Ok(())
@@ -153,7 +155,7 @@ pub struct DelegatePositionPda<'info> {
     #[account(executable)]
     pub delegation_program: AccountInfo<'info>,
 
-    /// CHECK: This program ID
+    /// CHECK: this program's own ID, used as the owner_program in the delegation CPI
     #[account(address = crate::ID)]
     pub program: AccountInfo<'info>,
 
