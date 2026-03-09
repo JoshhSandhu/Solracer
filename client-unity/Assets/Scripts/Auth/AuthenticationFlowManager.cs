@@ -1084,11 +1084,11 @@ namespace Solracer.Auth
 
                 Debug.Log($"[SignTransactionWithPrivy] Transaction base64 length: {transactionBase64.Length}");
 
-                // Step 1: Decode base64 to bytes
+                //Decode base64 to bytes
                 byte[] transactionBytes = System.Convert.FromBase64String(transactionBase64);
                 Debug.Log($"[SignTransactionWithPrivy] Decoded transaction: {transactionBytes.Length} bytes");
 
-                // Step 2: Deserialize transaction using Solana Unity SDK
+                //Deserialize transaction using Solana Unity SDK
                 Transaction transaction = null;
                 try
                 {
@@ -1108,7 +1108,7 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                // Step 3: Get the transaction message to sign
+                //Get the transaction message to sign
                 byte[] messageBytes = null;
                 try
                 {
@@ -1127,7 +1127,7 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                // Step 4: Sign the message using Privy
+                //Sign the message using Privy
                 string messageBase64 = System.Convert.ToBase64String(messageBytes);
                 Debug.Log($"[SignTransactionWithPrivy] Signing transaction message ({messageBytes.Length} bytes)...");
 
@@ -1150,13 +1150,12 @@ namespace Solracer.Auth
                 byte[] signatureBytes = System.Convert.FromBase64String(signatureBase64);
                 Debug.Log($"[SignTransactionWithPrivy] Received signature: {signatureBytes.Length} bytes");
 
-                // Step 5: Add signature to transaction
+                //Add signature to transaction
                 try
                 {
-                    // Get the signer's public key (first account in the transaction)
+                    // Get the signer's public key
                     PublicKey signerPubKey = new PublicKey(WalletAddress);
                     
-                    // Find and update the signature in the transaction's Signatures list
                     bool signatureAdded = false;
                     if (transaction.Signatures != null && transaction.Signatures.Count > 0)
                     {
@@ -1218,7 +1217,7 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                // Step 6: Serialize the signed transaction
+                // Serialize the signed transaction
                 byte[] signedTransactionBytes = null;
                 try
                 {
@@ -1246,7 +1245,7 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                // Step 7: Return base64-encoded signed transaction
+                // Return base64-encoded signed transaction
                 string signedTransactionBase64 = System.Convert.ToBase64String(signedTransactionBytes);
                 Debug.Log($"[SignTransactionWithPrivy] Transaction signed successfully! Signed transaction: {signedTransactionBytes.Length} bytes (base64: {signedTransactionBase64.Length} chars)");
                 return signedTransactionBase64;

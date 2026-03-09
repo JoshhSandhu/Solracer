@@ -1,12 +1,15 @@
 services:
   backend-ts:
     build: .
+    restart: always
     ports:
       - "8001:8001"
-    volumes:
-      - ./certs:/app/certs:ro
     environment:
-      USE_HTTPS: "true"
+      USE_HTTPS: "false"
       HOST: "0.0.0.0"
       PORT: "8001"
-      CERTS_DIR: "/app/certs"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"

@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 namespace Solracer.Game
 {
     /// <summary>
-    /// Debug helper for ATV controller - shows speed, input, and tire rotation.
+    /// Debug helper for ATV controller - shows speed, input, and tire rotation
     /// </summary>
     public class ATVControllerDebug : MonoBehaviour
     {

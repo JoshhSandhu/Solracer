@@ -55,6 +55,7 @@ test-ledger/
 # Exclude all .md files EXCEPT README.md files
 # Pattern: exclude all .md, then un-exclude README.md at any level
 *.md
+*.md.resolved
 !README.md
 !**/README.md
 !**/TECHNICAL-GUIDE.md

@@ -6,13 +6,13 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-solracer_program = "5Qe7B4LEMjmfbWgt2ctKY8ZzesDobubBi79HwPABJFkQ"
+solracer_program = "2g9tQ4g6Qki95UBTGN4NcQ4ggpz5XRa6eQJ8MCuznr8S"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

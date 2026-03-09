@@ -1,5 +1,5 @@
 /**
- * Payout routes — provides payout status and processing endpoints
+ * Payout routes  provides payout status and processing endpoints
  * matching what Unity's PayoutAPIClient expects.
  *
  * GET  /payouts/:race_id                 → payout status
@@ -12,7 +12,7 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { getPayoutForRace } from "../store/memory.js";
 
 export async function payoutRoutes(app: FastifyInstance): Promise<void> {
-  // GET /payouts/:race_id — payout status
+  // GET /payouts/:race_id  payout status
   app.get(
     "/payouts/:race_id",
     async (
@@ -46,7 +46,7 @@ export async function payoutRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // POST /payouts/:race_id/process — process payout (stub: marks as paid)
+  // POST /payouts/:race_id/process  process payout (stub: marks as paid)
   app.post(
     "/payouts/:race_id/process",
     async (
@@ -78,7 +78,7 @@ export async function payoutRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
-  // GET /payouts/:race_id/settle-transaction — settle TX (stub)
+  // GET /payouts/:race_id/settle-transaction  settle TX (stub)
   app.get(
     "/payouts/:race_id/settle-transaction",
     async (
@@ -97,14 +97,14 @@ export async function payoutRoutes(app: FastifyInstance): Promise<void> {
           .send({ detail: `Race ${race_id} does not need on-chain settlement or not found` });
       }
 
-      // Stub — in a full implementation this would build a settle_race IX
+      // Stub  in a full implementation this would build a settle_race IX
       return reply.status(400).send({
-        detail: "Settlement not needed — race already settled in memory",
+        detail: "Settlement not needed  race already settled in memory",
       });
     },
   );
 
-  // POST /payouts/:race_id/retry — retry failed payout (stub)
+  // POST /payouts/:race_id/retry  retry failed payout (stub)
   app.post(
     "/payouts/:race_id/retry",
     async (

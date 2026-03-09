@@ -1,4 +1,4 @@
-# Solracer Unity — Technical Guide
+# Solracer Unity  Technical Guide
 
 > Deep-dive architecture, track pipeline, physics, and integration details.  
 > For quick start, see [README.md](README.md).
@@ -108,9 +108,9 @@ Responsibilities:
 - Passes the decoded float[] to `TrackGenerator.SetTrackData()`
 - Calls `TrackGenerator.GenerateTrackFromData(loadedData)`
 - In **competitive mode**, writes to `RaceData`:
-  - `RaceData.TrackHash` — SHA-256 of the track geometry blob
-  - `RaceData.TrackHourStartUTC` — oracle hour bucket identifier
-  - `RaceData.TrackTokenMint` — token used for this track
+  - `RaceData.TrackHash`  SHA-256 of the track geometry blob
+  - `RaceData.TrackHourStartUTC`  oracle hour bucket identifier
+  - `RaceData.TrackTokenMint`  token used for this track
 - Populates `LoadedTrackData` for downstream consumers
 
 ### TrackGenerator Responsibilities
@@ -118,9 +118,9 @@ Responsibilities:
 `TrackGenerator` is **geometry-only**. It has no knowledge of networking, game mode, or backend state.
 
 API surface:
-- `SetTrackData(float[])` — stores normalized height data
-- `GenerateTrackFromData(LoadedTrackData)` — builds LineRenderer + EdgeCollider2D + populates `TrackPoints`
-- `TrackPoints` (Vector2[]) — read by `RaceManager`, `CoinSpawner`, `SupportResistanceManager`, `GhostCandleLayer`
+- `SetTrackData(float[])`  stores normalized height data
+- `GenerateTrackFromData(LoadedTrackData)`  builds LineRenderer + EdgeCollider2D + populates `TrackPoints`
+- `TrackPoints` (Vector2[])  read by `RaceManager`, `CoinSpawner`, `SupportResistanceManager`, `GhostCandleLayer`
 
 TrackGenerator does **not** call the backend. It never reads `GameModeData` or `RaceData` directly.
 
@@ -147,9 +147,9 @@ Tracks are deterministic per `(tokenMint, hourStartUTC)`. Given the same inputs,
 ### Difficulty Classification
 
 Backend-v2 classifies tracks based on price volatility:
-- `easy` — low volatility, smooth terrain
-- `medium` — moderate hills
-- `hard` — high volatility, sharp peaks
+- `easy`  low volatility, smooth terrain
+- `medium`  moderate hills
+- `hard`  high volatility, sharp peaks
 
 Stored in `LoadedTrackData.Difficulty`. Currently unused in gameplay balance but available for UI display and future difficulty gating.
 
@@ -172,9 +172,9 @@ These are `null` in practice mode. `RaceData.ClearRaceData()` resets all three.
 If Backend-v2 returns an error, times out, or returns an invalid blob:
 
 1. TrackLoader logs a warning
-2. Falls back to `TrackDataProvider.GetMockTrackData()` — sine-wave terrain
+2. Falls back to `TrackDataProvider.GetMockTrackData()`  sine-wave terrain
 3. `LoadedTrackData.IsFromOracle = false`, `TrackHash = null`
-4. Race proceeds normally — game never blocks
+4. Race proceeds normally  game never blocks
 
 In competitive mode, a mock fallback means `RaceData.TrackHash = null`. The backend must handle this case by not requiring a track commitment for that race. This is an unresolved edge case.
 
@@ -183,7 +183,7 @@ In competitive mode, a mock fallback means `RaceData.TrackHash = null`. The back
 - `TrackAPIClientV2` caches `TrackDetailResponse` in-memory keyed by `"tokenMint:hourStartUTC"`
 - Cache is bounded by realistic usage (~72 entries max per 3 tokens × 24 hours)
 - One automatic retry after 2s on network failure
-- No cache invalidation (intentional — same hour slot always yields same data)
+- No cache invalidation (intentional  same hour slot always yields same data)
 
 ---
 
@@ -191,7 +191,7 @@ In competitive mode, a mock fallback means `RaceData.TrackHash = null`. The back
 
 ### RaceData (Static)
 
-`RaceData` is the cross-scene data store for an active race. It is never reset automatically — callers are responsible.
+`RaceData` is the cross-scene data store for an active race. It is never reset automatically  callers are responsible.
 
 ```csharp
 // Active race identity
@@ -212,7 +212,7 @@ RaceData.TrackHourStartUTC
 RaceData.TrackTokenMint
 ```
 
-**Critical:** Call `RaceData.ClearRaceData()` before each new competitive race to prevent stale fields carrying over. This is currently only done in `LobbyScreen.ResetCreateUI()` (cancel path). A normal race completion does not call `ClearRaceData()` — this should be fixed.
+**Critical:** Call `RaceData.ClearRaceData()` before each new competitive race to prevent stale fields carrying over. This is currently only done in `LobbyScreen.ResetCreateUI()` (cancel path). A normal race completion does not call `ClearRaceData()`  this should be fixed.
 
 ### RaceManager Lifecycle
 
@@ -224,7 +224,7 @@ Awake()
   └── SetupFinishLine()
 
 async Start()
-  ├── [Competitive] WaitForBothPlayersReady() — polls up to 60s
+  ├── [Competitive] WaitForBothPlayersReady()  polls up to 60s
   │     └── StartCoroutine(CountdownCoroutine()) → StartRace()
   └── [Practice] StartRace() immediately
 
@@ -271,9 +271,9 @@ Simple enum wrapper. Defaults to `Practice`. Set to `Competitive` by `ModeSelect
 
 `AuthenticationFlowManager.SignTransaction(base64)` routes to the appropriate path based on `AuthenticationData.CurrentWalletType`.
 
-### Privy Transaction Signing — Critical Detail
+### Privy Transaction Signing  Critical Detail
 
-Privy's embedded wallet API does not expose a `SignTransaction` method — it only exposes `SignMessage`. Solracer works around this by:
+Privy's embedded wallet API does not expose a `SignTransaction` method  it only exposes `SignMessage`. Solracer works around this by:
 
 1. Deserializing the transaction (Solana Unity SDK `Transaction.Deserialize`)
 2. Compiling the message bytes (`transaction.CompileMessage()`)
@@ -315,7 +315,7 @@ LobbyScreen.OnCreateGameClicked()
       → TransactionAPIClient.SubmitTransactionAsync({ instruction_type: "create_race" })
       ← returns race_id (on-chain race PDA identifier)
   → RaceData.CurrentRaceId = race_id
-  → StartStatusPolling() — polls GET /races/{id}/status every 2s
+  → StartStatusPolling()  polls GET /races/{id}/status every 2s
 ```
 
 ### Join Race (Player 2)
@@ -368,19 +368,19 @@ ResultsScreen.OnClaimPrizeClicked()
 
 ### ATVController Overview
 
-The ATV uses a torque-driven wheel physics model — both tires have independent `Rigidbody2D` components connected to the ATV body via physics joints (configured in scene prefab). Input applies torque to both tires simultaneously, which propels the body forward via friction.
+The ATV uses a torque-driven wheel physics model  both tires have independent `Rigidbody2D` components connected to the ATV body via physics joints (configured in scene prefab). Input applies torque to both tires simultaneously, which propels the body forward via friction.
 
 ```
 ATVController
-├── Rigidbody2D (body) — Continuous collision detection, linear/angular damping
-├── frontTire Rigidbody2D — default settings, torque applied
-├── backTire Rigidbody2D  — default settings, torque applied
-└── InputSystem (BikeControler asset) — Accelerate / Brake / Rotate actions
+├── Rigidbody2D (body)  Continuous collision detection, linear/angular damping
+├── frontTire Rigidbody2D  default settings, torque applied
+├── backTire Rigidbody2D   default settings, torque applied
+└── InputSystem (BikeControler asset)  Accelerate / Brake / Rotate actions
 ```
 
 ### Tire Tunneling Risk
 
-The ATV body `Rigidbody2D` is configured with `CollisionDetectionMode2D.Continuous` in `ConfigureRigidbody()`. **The tire Rigidbodies are not configured in code** — they retain their Inspector defaults, typically `Discrete`.
+The ATV body `Rigidbody2D` is configured with `CollisionDetectionMode2D.Continuous` in `ConfigureRigidbody()`. **The tire Rigidbodies are not configured in code**  they retain their Inspector defaults, typically `Discrete`.
 
 At `maxSpeed = 20f` units/second, thin track section colliders (~0.1–0.2 units wide) can be tunneled through by a tire using Discrete detection in a single physics step. This is the primary cause of tires clipping through the track.
 
@@ -394,7 +394,7 @@ Additionally, the raycast direction is always `Vector2.down` in world space. Whe
 
 **Why it matters:** `ApplyMidAirRotation()` checks `IsGrounded()` before applying torque. False-positive grounding (from the ATV's own collider or wrong direction) suppresses mid-air rotation control. False-negative (missed terrain) applies unwanted torque while on the ground, destabilizing the vehicle.
 
-### Mid-Air Rotation — Shared Input
+### Mid-Air Rotation  Shared Input
 
 The accelerate input (`currentAccelerateInput`) is used for both tire torque and mid-air rotation simultaneously. There is no dedicated "lean" input binding.
 
@@ -410,11 +410,11 @@ The combined angular momentum can cause the ATV to over-rotate mid-air. On landi
 
 `LimitMaxSpeed()` hard-clamps `atvRigidbody.linearVelocity = velocity.normalized * maxSpeed` every FixedUpdate.
 
-This discontinuously overrides the velocity vector each physics frame when at max speed. It prevents smooth physics-based deceleration and creates an "invisible wall" feeling. More importantly, it overrides the velocity that the physics engine computed based on tire friction — this can create frame-to-frame velocity discontinuities that the constraint solver (joints) must compensate for, introducing jitter.
+This discontinuously overrides the velocity vector each physics frame when at max speed. It prevents smooth physics-based deceleration and creates an "invisible wall" feeling. More importantly, it overrides the velocity that the physics engine computed based on tire friction  this can create frame-to-frame velocity discontinuities that the constraint solver (joints) must compensate for, introducing jitter.
 
 ### No BikeController.cs
 
-The audit tasked this file for review, but `BikeController.cs` does not exist in the project. The vehicle is controlled entirely by `ATVController.cs`. The input asset is named `BikeControler` (typo — missing second 'l'). This is a naming artifact from an earlier prototype.
+The audit tasked this file for review, but `BikeController.cs` does not exist in the project. The vehicle is controlled entirely by `ATVController.cs`. The input asset is named `BikeControler` (typo  missing second 'l'). This is a naming artifact from an earlier prototype.
 
 ---
 
@@ -441,11 +441,11 @@ This hash is submitted on-chain as `input_hash` in the `submit_result` transacti
 
 ### Current Limitations
 
-1. **Timer does not reset when recording starts.** `InputFrame.time` uses `Time.fixedTime` — the absolute time since game start. If the race scene was loaded 5 seconds in, all timestamps are offset by 5. For replay, the backend must apply the same offset.
+1. **Timer does not reset when recording starts.** `InputFrame.time` uses `Time.fixedTime`  the absolute time since game start. If the race scene was loaded 5 seconds in, all timestamps are offset by 5. For replay, the backend must apply the same offset.
 
 2. **Mobile input is not recorded.** `MobileInputControls` calls `SetUIAccelerateInput()` / `SetUIBrakeInput()` on `ATVController`. These UI inputs are combined with keyboard in `ATVController.Update()`. `InputTraceRecorder` reads directly from the Input System action, not from the combined value. Mobile-only input is lost from the trace.
 
-3. **Recorder object persists with DontDestroyOnLoad** but is not reset between races. `StartRecording()` calls `inputTrace.Clear()`, so data is correct per-race. However, the recorder accumulates in the DDOL scene — on repeated plays, old recorders from previous races are not destroyed (though only the one found first by `FindAnyObjectByType` is used).
+3. **Recorder object persists with DontDestroyOnLoad** but is not reset between races. `StartRecording()` calls `inputTrace.Clear()`, so data is correct per-race. However, the recorder accumulates in the DDOL scene  on repeated plays, old recorders from previous races are not destroyed (though only the one found first by `FindAnyObjectByType` is used).
 
 ---
 
@@ -466,21 +466,21 @@ This hash is submitted on-chain as `input_hash` in the `submit_result` transacti
 
 `AuthenticationFlowManager` is a DontDestroyOnLoad MonoBehaviour that owns both auth logic **and** UI panel references. When the Login scene unloads, all 9 panel/button/text references become null. They are re-wired via `SetAuthPanelReferences()` called from `LoginScreen.Start()`.
 
-This means: if any code calls `ShowWelcomePanel()`, `HideAllPanels()`, etc. while not in the Login scene, they silently do nothing. This is a design-level smell — auth logic and scene-specific UI should not live in the same class.
+This means: if any code calls `ShowWelcomePanel()`, `HideAllPanels()`, etc. while not in the Login scene, they silently do nothing. This is a design-level smell  auth logic and scene-specific UI should not live in the same class.
 
-### LobbyScreen — Async/Coroutine Mixed Model
+### LobbyScreen  Async/Coroutine Mixed Model
 
 `LobbyScreen` uses two concurrent polling systems:
-- `statusPollCoroutine` — calls `PollRaceStatus()` (async void) on a timer
-- `publicRacesRefreshCoroutine` — calls `RefreshPublicRaces()` (async void) on a timer
+- `statusPollCoroutine`  calls `PollRaceStatus()` (async void) on a timer
+- `publicRacesRefreshCoroutine`  calls `RefreshPublicRaces()` (async void) on a timer
 
 `PollRaceStatus()` is `async void` called from a coroutine. If multiple calls overlap (e.g., ready button fires while coroutine is mid-poll), state updates can race. The winner/loser indicator can flicker or be set incorrectly.
 
-### ResultsScreen — Polling Architecture
+### ResultsScreen  Polling Architecture
 
 Two polling coroutines may run simultaneously:
-- `raceStatusPollingCoroutine` — polls `GetRaceStatusAsync` every 2.5s
-- `payoutPollingCoroutine` — polls `GetPayoutStatus` every 3s
+- `raceStatusPollingCoroutine`  polls `GetRaceStatusAsync` every 2.5s
+- `payoutPollingCoroutine`  polls `GetPayoutStatus` every 3s
 
 The race status polling is supposed to stop when payout data is available. This logic is in `LoadPayoutStatus()` and `PollRaceStatus()`. If the stop-polling call is missed in an edge case, both coroutines run indefinitely until scene destruction.
 
@@ -488,7 +488,7 @@ The race status polling is supposed to stop when payout data is available. This 
 
 ## 9. Static State Bus
 
-Six static C# classes act as the global state bus between scenes. None use events or notifications — consumers poll or read directly.
+Six static C# classes act as the global state bus between scenes. None use events or notifications  consumers poll or read directly.
 
 ### Reset Responsibility Map
 
@@ -497,9 +497,9 @@ Six static C# classes act as the global state bus between scenes. None use event
 | `RaceData` | `LobbyScreen`, `TrackLoader`, `RaceManager` | `LobbyScreen.ResetCreateUI()` (cancel only) | ✅ Not reset on normal race completion |
 | `GameModeData` | `ModeSelectionScreen`, `LobbyScreen` | `GameModeData.Reset()` (not called) | ✅ Never reset after competitive race |
 | `GameOverData` | `RaceManager.TriggerGameOver/Complete` | Overwritten each call | OK |
-| `CoinSelectionData` | `TokenPickerScreen` | Not explicitly reset | OK — overwritten per session |
+| `CoinSelectionData` | `TokenPickerScreen` | Not explicitly reset | OK  overwritten per session |
 | `AuthenticationData` | `AuthenticationFlowManager` | `Reset()` on logout | OK |
-| `TrackDataProvider` | Static initializer | `ResetCache()` — never called | ✅ Same mock track for entire session |
+| `TrackDataProvider` | Static initializer | `ResetCache()`  never called | ✅ Same mock track for entire session |
 
 ---
 
@@ -553,7 +553,7 @@ Set in **Player Settings → Other Settings → Scripting Define Symbols**:
 
 ### Input Asset Naming Note
 
-The Input Actions asset is named `BikeControler` (intentional historical typo — missing second 'l'). `ATVController.InitializeInput()` searches for it by name:
+The Input Actions asset is named `BikeControler` (intentional historical typo  missing second 'l'). `ATVController.InitializeInput()` searches for it by name:
 ```csharp
 inputActionsAsset = Resources.FindObjectsOfTypeAll<InputActionAsset>()
     .FirstOrDefault(asset => asset.name == "BikeControler");

@@ -9,7 +9,7 @@ namespace Solracer.Config
     public static class APIConfig
     {
         // API URLs for different environments
-        private const string PRODUCTION_URL = "https://api.lynxjosh.cyou";
+        private const string PRODUCTION_URL = "https://solracer.lynxjosh.cyou";
         private const string STAGING_URL = "https://staging-api.solracer.com";
         private const string LOCAL_URL = "https://localhost:8000";
         
@@ -59,16 +59,16 @@ namespace Solracer.Config
                 return PRODUCTION_URL;
             #endif
 
-            // Priority 3: Editor uses backend-ts; builds use production
-            #if UNITY_EDITOR
-                string url = LOCAL_BACKEND_TS_URL;
-                Debug.Log($"[APIConfig] Using API base URL: {url}");
-                return url;
-            #else
-                string url = LOCAL_BACKEND_TS_URL;
-                Debug.Log($"[APIConfig] Using API base URL: {url}");
-                return url;
-            #endif
+            // Priority 3: Editor uses local backend-ts; device builds use production domain
+        #if UNITY_EDITOR
+            string url = LOCAL_BACKEND_TS_URL;
+            Debug.Log($"[APIConfig] Using API base URL: {url}");
+            return url;
+        #else
+            string url = PRODUCTION_URL;
+            Debug.Log($"[APIConfig] Using API base URL: {url}");
+            return url;
+        #endif
         }
 
         /// <summary>
@@ -113,6 +113,18 @@ namespace Solracer.Config
         {
             return TRACK_API_V2_URL;
         }
+
+        /// <summary>
+        /// MagicBlock Ephemeral Rollup RPC endpoint (devnet).
+        /// Used by ErGhostRelay for sending/reading ghost positions on-chain.
+        /// </summary>
+        public static string GetErRpcUrl() => "https://devnet.magicblock.app";
+
+        /// <summary>
+        /// Base Solana devnet RPC endpoint.
+        /// Used by ErLifecycleManager for init_position_pda / delegate_position_pda.
+        /// </summary>
+        public static string GetBaseDevnetUrl() => "https://api.devnet.solana.com";
 
         /// <summary>
         /// Check if the API URL is a local development URL (requires certificate bypass)

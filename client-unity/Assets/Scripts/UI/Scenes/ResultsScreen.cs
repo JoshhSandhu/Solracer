@@ -120,6 +120,7 @@ namespace Solracer.UI
         private bool isProcessingTransaction;
         private bool isWinner;
         private bool isSolToken = true;
+        private bool _loserUIActivated;   // true once mode-selection button shown for loser
         private string myWallet;
 
         #region Unity Lifecycle
@@ -671,6 +672,7 @@ namespace Solracer.UI
         public void OnPlayAgainClicked()
         {
             StopAllPolling();
+            SessionKeyStore.Clear();
             RaceData.ClearRaceData();
             GameOverData.Reset();
             SceneManager.LoadScene(SceneNames.Race);
@@ -679,6 +681,7 @@ namespace Solracer.UI
         public void OnModeSelectionClicked()
         {
             StopAllPolling();
+            SessionKeyStore.Clear();
             RaceData.ClearRaceData();
             GameOverData.Reset();
             GameModeData.Reset();
@@ -1187,6 +1190,7 @@ namespace Solracer.UI
                         SetButtonActive(claimPrizeButton, false);
                         SetButtonActive(fallbackTxnButton, false);
                         SetButtonActive(modeSelectionButton, true);
+                        _loserUIActivated = true;
                         
                         Debug.Log("[ResultsScreen] Loser UI activated - mode selection button shown");
                         
@@ -1422,9 +1426,46 @@ namespace Solracer.UI
 
                     if (status.is_settled)
                     {
-                        // Race settled - stop polling and refresh payout
-                        StopRaceStatusPolling();
-                        LoadPayoutStatus();
+                        if (_loserUIActivated)
+                        {
+                            // Loser UI already showing — nothing left to do
+                            raceStatusPollingCoroutine = null;
+                            yield break;
+                        }
+
+                        // Race settled: refresh payout (winner) or activate loser UI
+                        // NOTE: Do NOT call StopRaceStatusPolling() here — that calls
+                        // StopCoroutine on THIS coroutine, killing it before yield.
+                        // Instead, null the reference and let yield break end naturally.
+                        raceStatusPollingCoroutine = null;
+
+                        // Try to get payout (winner will find one; loser gets 404 → null)
+                        var payoutTask = PayoutAPIClient.Instance.GetPayoutStatus(RaceData.CurrentRaceId);
+                        while (!payoutTask.IsCompleted) yield return null;
+
+                        if (payoutTask.Result != null)
+                        {
+                            // We're the winner — update UI directly with payout we already have
+                            currentPayoutStatus = payoutTask.Result;
+                            UpdatePayoutUI(payoutTask.Result);
+
+                            // Start payout polling if still pending
+                            if (payoutTask.Result.swap_status == "pending" || payoutTask.Result.swap_status == "swapping")
+                            {
+                                bool imWinner2 = !string.IsNullOrEmpty(payoutTask.Result.winner_wallet) && payoutTask.Result.winner_wallet == myWallet;
+                                if (imWinner2)
+                                {
+                                    StartPayoutPolling();
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // No payout → we're the loser; activate mode selection button directly
+                            var checkTask = CheckRaceStatusForWinner();
+                            while (!checkTask.IsCompleted) yield return null;
+                        }
+
                         yield break;
                     }
                     else

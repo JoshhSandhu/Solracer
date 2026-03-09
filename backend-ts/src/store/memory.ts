@@ -332,21 +332,21 @@ export function getRaceStatus(
       race.player2_wallet !== null,
     player1_result: p1
       ? {
-          wallet_address: p1.wallet_address,
-          player_number: 1,
-          finish_time_ms: p1.finish_time_ms,
-          coins_collected: p1.coins_collected,
-          verified: true,
-        }
+        wallet_address: p1.wallet_address,
+        player_number: 1,
+        finish_time_ms: p1.finish_time_ms,
+        coins_collected: p1.coins_collected,
+        verified: true,
+      }
       : null,
     player2_result: p2
       ? {
-          wallet_address: p2.wallet_address,
-          player_number: 2,
-          finish_time_ms: p2.finish_time_ms,
-          coins_collected: p2.coins_collected,
-          verified: true,
-        }
+        wallet_address: p2.wallet_address,
+        player_number: 2,
+        finish_time_ms: p2.finish_time_ms,
+        coins_collected: p2.coins_collected,
+        verified: true,
+      }
       : null,
   };
 }
@@ -486,7 +486,7 @@ export function registerRaceFromChain(
   txSignature: string,
   isPrivate = false,
 ): RaceResponse | { error: string; status: number } {
-  // Idempotent — don't duplicate if already registered
+  // Idempotent  don't duplicate if already registered
   if (races.has(raceId)) {
     return toRaceResponse(races.get(raceId)!);
   }
@@ -533,6 +533,11 @@ export function registerRaceFromChain(
 
   races.set(raceId, race);
   return toRaceResponse(race);
+}
+
+/** Returns the raw internal Race record (not the response DTO). Used by ghost relay for participant validation. */
+export function getRaceRaw(raceId: string): Race | undefined {
+  return races.get(raceId);
 }
 
 export function listPublicRaces(
