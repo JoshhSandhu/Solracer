@@ -4,12 +4,12 @@ using UnityEngine.InputSystem;
 namespace Solracer.Game
 {
     /// <summary>
-    /// Debug helper for ATV controller - shows speed, input, and tire rotation.
+    /// Debug helper for ATV controller - shows speed, input, and tire rotation
     /// </summary>
     public class ATVControllerDebug : MonoBehaviour
     {
         [SerializeField] private ATVController atvController;
-        [SerializeField] private bool showDebugGUI = true;
+        [SerializeField] private bool showDebugGUI = false;
         [SerializeField] private bool logInputEvents = false;
 
         private void Start()

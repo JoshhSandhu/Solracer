@@ -3,6 +3,7 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
 using Solracer.Auth;
+using Solracer.Config;
 
 namespace Solracer.UI
 {
@@ -107,10 +108,10 @@ namespace Solracer.UI
 
         [Header("Scene Names")]
         [Tooltip("Scene to load after successful login")]
-        [SerializeField] private string tokenPickerSceneName = "TokenPicker";
+        [SerializeField] private string tokenPickerSceneName = SceneNames.TokenPicker;
 
         [Tooltip("Scene to load for guest mode (ModeSelection)")]
-        [SerializeField] private string modeSelectionSceneName = "ModeSelection";
+        [SerializeField] private string modeSelectionSceneName = SceneNames.ModeSelection;
 
         [Header("Settings")]
         [Tooltip("Enable debug logging")]

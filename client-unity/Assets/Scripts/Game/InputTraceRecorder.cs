@@ -14,7 +14,7 @@ namespace Solracer.Game
     {
         [Header("Recording Settings")]
         [Tooltip("Fixed timestep for recording (should match Unity's Fixed Timestep)")]
-        [SerializeField] private float recordingInterval = 0.0167f; //60 FPS
+        [SerializeField] private float recordingInterval = -1f; // Uses Time.fixedDeltaTime when negative
 
         [Tooltip("Input actions asset")]
         [SerializeField] private InputActionAsset inputActionsAsset;
@@ -66,7 +66,8 @@ namespace Solracer.Game
             }
         }
 
-        //start recording input trace.
+        private float EffectiveInterval => recordingInterval > 0 ? recordingInterval : Time.fixedDeltaTime;
+
         public void StartRecording()
         {
             if (isRecording)
@@ -78,6 +79,20 @@ namespace Solracer.Game
             inputTrace.Clear();
             lastRecordTime = 0f;
             isRecording = true;
+
+            if (inputActionsAsset == null)
+            {
+                var atvController = FindAnyObjectByType<ATVController>();
+                if (atvController != null)
+                {
+                    var asset = atvController.GetComponent<UnityEngine.InputSystem.PlayerInput>()?.actions;
+                    if (asset != null)
+                    {
+                        inputActionsAsset = asset;
+                        Debug.Log("[InputTraceRecorder] Auto-found InputActionAsset from ATVController");
+                    }
+                }
+            }
 
             if (inputActionsAsset != null)
             {
@@ -119,7 +134,7 @@ namespace Solracer.Game
                 return;
             }
 
-            if (Time.fixedTime - lastRecordTime >= recordingInterval) //record at fixed intervals
+            if (Time.fixedTime - lastRecordTime >= EffectiveInterval)
             {
                 RecordInputFrame();
                 lastRecordTime = Time.fixedTime;

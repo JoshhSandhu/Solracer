@@ -5,6 +5,7 @@ using TMPro;
 using Solracer.Game;
 using Solracer.Network;
 using Solracer.Auth;
+using Solracer.Config;
 using System.Threading.Tasks;
 using System;
 
@@ -119,6 +120,7 @@ namespace Solracer.UI
         private bool isProcessingTransaction;
         private bool isWinner;
         private bool isSolToken = true;
+        private bool _loserUIActivated;   // true once mode-selection button shown for loser
         private string myWallet;
 
         #region Unity Lifecycle
@@ -188,13 +190,13 @@ namespace Solracer.UI
         /// </summary>
         private async void RetryResultSubmission()
         {
-            if (!RaceData.NeedsResultSubmission())
-                return;
-
-            ShowWaitingState("Submitting result...");
-
             try
             {
+                if (!RaceData.NeedsResultSubmission())
+                    return;
+
+                ShowWaitingState("Submitting result...");
+
                 string raceId = RaceData.CurrentRaceId;
                 float finishTime = RaceData.PlayerFinishTime;
                 int coinsCollected = RaceData.PlayerCoinsCollected;
@@ -227,6 +229,8 @@ namespace Solracer.UI
                         ShowWaitingState(message);
                     }
                 );
+
+                if (this == null) return;
 
                 RaceData.SetResultSubmitted(success);
 
@@ -668,13 +672,20 @@ namespace Solracer.UI
         public void OnPlayAgainClicked()
         {
             StopAllPolling();
-            SceneManager.LoadScene("Race");
+            SessionKeyStore.Clear();
+            RaceData.ClearRaceData();
+            GameOverData.Reset();
+            SceneManager.LoadScene(SceneNames.Race);
         }
 
         public void OnModeSelectionClicked()
         {
             StopAllPolling();
-            SceneManager.LoadScene("ModeSelection");
+            SessionKeyStore.Clear();
+            RaceData.ClearRaceData();
+            GameOverData.Reset();
+            GameModeData.Reset();
+            SceneManager.LoadScene(SceneNames.ModeSelection);
         }
 
         /// <summary>
@@ -682,11 +693,18 @@ namespace Solracer.UI
         /// </summary>
         public async void OnClaimPrizeClicked()
         {
-            if (isProcessingTransaction) return;
-            
-            // Determine method based on token type
-            string method = isSolToken ? "claim_prize" : "jupiter_swap";
-            await ProcessClaimPrize(method);
+            try
+            {
+                if (isProcessingTransaction) return;
+                
+                // Determine method based on token type
+                string method = isSolToken ? "claim_prize" : "jupiter_swap";
+                await ProcessClaimPrize(method);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ResultsScreen] Error: {ex}");
+            }
         }
 
         /// <summary>
@@ -694,21 +712,28 @@ namespace Solracer.UI
         /// </summary>
         public async void OnFallbackTxnClicked()
         {
-            if (isProcessingTransaction) return;
-            
-            // First check if we need to submit result
-            if (RaceData.NeedsResultSubmission())
+            try
             {
-                Debug.Log("[ResultsScreen] Fallback button: Retrying result submission...");
-                isProcessingTransaction = true;
-                SetButtonActive(fallbackTxnButton, false);
-                await RetryResultSubmissionAsync();
-                isProcessingTransaction = false;
-                return;
+                if (isProcessingTransaction) return;
+                
+                // First check if we need to submit result
+                if (RaceData.NeedsResultSubmission())
+                {
+                    Debug.Log("[ResultsScreen] Fallback button: Retrying result submission...");
+                    isProcessingTransaction = true;
+                    SetButtonActive(fallbackTxnButton, false);
+                    await RetryResultSubmissionAsync();
+                    isProcessingTransaction = false;
+                    return;
+                }
+                
+                // Otherwise, process as claim prize fallback
+                await ProcessClaimPrize("fallback_sol");
             }
-            
-            // Otherwise, process as claim prize fallback
-            await ProcessClaimPrize("fallback_sol");
+            catch (Exception ex)
+            {
+                Debug.LogError($"[ResultsScreen] Error: {ex}");
+            }
         }
         
         /// <summary>
@@ -1165,6 +1190,7 @@ namespace Solracer.UI
                         SetButtonActive(claimPrizeButton, false);
                         SetButtonActive(fallbackTxnButton, false);
                         SetButtonActive(modeSelectionButton, true);
+                        _loserUIActivated = true;
                         
                         Debug.Log("[ResultsScreen] Loser UI activated - mode selection button shown");
                         
@@ -1400,9 +1426,46 @@ namespace Solracer.UI
 
                     if (status.is_settled)
                     {
-                        // Race settled - stop polling and refresh payout
-                        StopRaceStatusPolling();
-                        LoadPayoutStatus();
+                        if (_loserUIActivated)
+                        {
+                            // Loser UI already showing — nothing left to do
+                            raceStatusPollingCoroutine = null;
+                            yield break;
+                        }
+
+                        // Race settled: refresh payout (winner) or activate loser UI
+                        // NOTE: Do NOT call StopRaceStatusPolling() here — that calls
+                        // StopCoroutine on THIS coroutine, killing it before yield.
+                        // Instead, null the reference and let yield break end naturally.
+                        raceStatusPollingCoroutine = null;
+
+                        // Try to get payout (winner will find one; loser gets 404 → null)
+                        var payoutTask = PayoutAPIClient.Instance.GetPayoutStatus(RaceData.CurrentRaceId);
+                        while (!payoutTask.IsCompleted) yield return null;
+
+                        if (payoutTask.Result != null)
+                        {
+                            // We're the winner — update UI directly with payout we already have
+                            currentPayoutStatus = payoutTask.Result;
+                            UpdatePayoutUI(payoutTask.Result);
+
+                            // Start payout polling if still pending
+                            if (payoutTask.Result.swap_status == "pending" || payoutTask.Result.swap_status == "swapping")
+                            {
+                                bool imWinner2 = !string.IsNullOrEmpty(payoutTask.Result.winner_wallet) && payoutTask.Result.winner_wallet == myWallet;
+                                if (imWinner2)
+                                {
+                                    StartPayoutPolling();
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // No payout → we're the loser; activate mode selection button directly
+                            var checkTask = CheckRaceStatusForWinner();
+                            while (!checkTask.IsCompleted) yield return null;
+                        }
+
                         yield break;
                     }
                     else

@@ -1,0 +1,15 @@
+services:
+  backend-ts:
+    build: .
+    restart: always
+    ports:
+      - "8001:8001"
+    environment:
+      USE_HTTPS: "false"
+      HOST: "0.0.0.0"
+      PORT: "8001"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"

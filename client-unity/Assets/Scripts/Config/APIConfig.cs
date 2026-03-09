@@ -9,9 +9,15 @@ namespace Solracer.Config
     public static class APIConfig
     {
         // API URLs for different environments
-        private const string PRODUCTION_URL = "https://api.solracer.com";
+        private const string PRODUCTION_URL = "https://solracer.lynxjosh.cyou";
         private const string STAGING_URL = "https://staging-api.solracer.com";
         private const string LOCAL_URL = "https://localhost:8000";
+        
+        // backend-ts Fastify server for local Competitive-mode testing
+        private const string LOCAL_BACKEND_TS_URL = "https://192.168.29.123:8001";
+        
+        // Backend-v2 track API URL
+        private const string TRACK_API_V2_URL = "https://api.lynxjosh.cyou";
         
         // For local network testing (replace with your computer's IP address)
         // To find your IP: Windows: ipconfig, Mac/Linux: ifconfig or ip addr
@@ -53,20 +59,16 @@ namespace Solracer.Config
                 return PRODUCTION_URL;
             #endif
 
-            // Priority 3: For phone testing with local backend on same network
-            // Uncomment the line below and replace IP with your computer's IP address
-            #if UNITY_EDITOR
-                Debug.Log("[APIConfig] Unity Editor detected - using localhost");
-                return LOCAL_URL;
-            #else
-                // In built game (phone/device), use network IP
-                Debug.Log("[APIConfig] Built game detected - using network IP");
-                return LOCAL_NETWORK_URL;
-            #endif
-
-            // Default: Use local URL for development
-            //Debug.LogWarning("[APIConfig] No build define set - using local URL. Set DEVELOPMENT_BUILD, STAGING_BUILD, or PRODUCTION_BUILD in Scripting Define Symbols.");
-            //return LOCAL_URL;
+            // Priority 3: Editor uses local backend-ts; device builds use production domain
+        #if UNITY_EDITOR
+            string url = LOCAL_BACKEND_TS_URL;
+            Debug.Log($"[APIConfig] Using API base URL: {url}");
+            return url;
+        #else
+            string url = PRODUCTION_URL;
+            Debug.Log($"[APIConfig] Using API base URL: {url}");
+            return url;
+        #endif
         }
 
         /// <summary>
@@ -102,6 +104,27 @@ namespace Solracer.Config
         {
             return GetApiBaseUrl();
         }
+
+        /// <summary>
+        /// Get the Backend-v2 track API base URL.
+        /// Used by TrackLoader / TrackAPIClientV2 for oracle track data.
+        /// </summary>
+        public static string GetTrackApiBaseUrl()
+        {
+            return TRACK_API_V2_URL;
+        }
+
+        /// <summary>
+        /// MagicBlock Ephemeral Rollup RPC endpoint (devnet).
+        /// Used by ErGhostRelay for sending/reading ghost positions on-chain.
+        /// </summary>
+        public static string GetErRpcUrl() => "https://devnet.magicblock.app";
+
+        /// <summary>
+        /// Base Solana devnet RPC endpoint.
+        /// Used by ErLifecycleManager for init_position_pda / delegate_position_pda.
+        /// </summary>
+        public static string GetBaseDevnetUrl() => "https://api.devnet.solana.com";
 
         /// <summary>
         /// Check if the API URL is a local development URL (requires certificate bypass)

@@ -152,11 +152,10 @@ namespace Solracer.Auth
         }
 
         /// <summary>
-        /// Sign in using MWA - same as connect for MWA (authorize flow)
+        /// Sign in using MWA
         /// </summary>
         public async Task<MWAConnectionResult> SignInAsync()
         {
-            // For MWA, SignIn is the same as Connect (authorize)
             return await ConnectAsync();
         }
 
@@ -179,7 +178,7 @@ namespace Solracer.Auth
 
                 Debug.Log($"[MWAWalletAdapter] Signing message ({message.Length} bytes)...");
 
-                // Use SDK's SignMessage - this triggers MWA bottom sheet
+                // Use SDK's SignMessage
                 byte[] signature = await _walletAdapter.SignMessage(message);
 
                 if (signature != null && signature.Length > 0)
@@ -214,8 +213,8 @@ namespace Solracer.Auth
         }
 
         /// <summary>
-        /// Sign a Solana transaction using MWA wallet.
-        /// Takes base64-encoded transaction bytes from backend, returns signed transaction base64.
+        /// Sign a Solana transaction using MWA wallet
+        /// Takes base64-encoded transaction bytes from backend, returns signed transaction base64
         /// </summary>
         public async Task<string> SignTransactionAsync(string transactionBase64)
         {
@@ -229,15 +228,15 @@ namespace Solracer.Auth
 
                 Debug.Log($"[MWAWalletAdapter] Signing transaction (base64 length: {transactionBase64.Length})...");
 
-                // Step 1: Decode base64 to bytes
+                //Decode base64 to bytes
                 byte[] transactionBytes = Convert.FromBase64String(transactionBase64);
                 Debug.Log($"[MWAWalletAdapter] Decoded transaction: {transactionBytes.Length} bytes");
 
-                // Step 2: Deserialize transaction
+                //Deserialize transaction
                 Transaction transaction = Transaction.Deserialize(transactionBytes);
                 Debug.Log($"[MWAWalletAdapter] Deserialized transaction. Instructions: {transaction.Instructions?.Count ?? 0}");
 
-                // Step 3: Sign transaction using MWA SDK - this triggers the wallet bottom sheet
+                //Sign transaction using MWA SDK - this triggers the wallet bottom sheet
                 Transaction signedTransaction = await _walletAdapter.SignTransaction(transaction);
 
                 if (signedTransaction == null)
@@ -246,7 +245,7 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                // Step 4: Serialize the signed transaction
+                //Serialize the signed transaction
                 byte[] signedTransactionBytes = signedTransaction.Serialize();
                 Debug.Log($"[MWAWalletAdapter] Serialized signed transaction: {signedTransactionBytes.Length} bytes");
 
@@ -257,7 +256,7 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                // Step 5: Return base64-encoded signed transaction
+                //Return base64-encoded signed transaction
                 string signedTransactionBase64 = Convert.ToBase64String(signedTransactionBytes);
                 Debug.Log($"[MWAWalletAdapter] Transaction signed successfully! ({signedTransactionBytes.Length} bytes)");
 
@@ -294,7 +293,7 @@ namespace Solracer.Auth
                     transactions[i] = Transaction.Deserialize(txBytes);
                 }
 
-                // Sign all transactions - this triggers the wallet bottom sheet once
+                // Sign all transactions
                 Transaction[] signedTransactions = await _walletAdapter.SignAllTransactions(transactions);
 
                 if (signedTransactions == null || signedTransactions.Length == 0)

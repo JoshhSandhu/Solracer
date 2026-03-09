@@ -7,6 +7,7 @@ using System.Linq;
 using System.Collections;
 using Privy;
 using System.Threading.Tasks;
+using Solracer.Config;
 using Solracer.UI;
 using Solana.Unity.Rpc.Models;
 using Solana.Unity.Wallet;
@@ -84,11 +85,17 @@ namespace Solracer.Auth
 
         private async void Start()
         {
-            HideAllPanels(); //to ensure all the panels are hidden
-            
-            await InitializePrivy();
-            SetupUI();
-            StartAuthenticationFlow();
+            try
+            {
+                HideAllPanels();
+                await InitializePrivy();
+                SetupUI();
+                StartAuthenticationFlow();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[AuthenticationFlowManager] Start error: {ex}");
+            }
         }
 
         private async Task InitializePrivy()
@@ -144,41 +151,49 @@ namespace Solracer.Auth
             //Auth panel buttons
             if (connectWalletButton != null)
             {
+                connectWalletButton.onClick.RemoveAllListeners();
                 connectWalletButton.onClick.AddListener(ConnectWallet);
             }
 
             if (loginEmailButton != null)
             {
+                loginEmailButton.onClick.RemoveAllListeners();
                 loginEmailButton.onClick.AddListener(ShowEmailLoginPanel);
             }
 
             //Email Login UI
             if (sendCodeButton != null)
             {
+                sendCodeButton.onClick.RemoveAllListeners();
                 sendCodeButton.onClick.AddListener(SendOTPCode);
             }
             if (backToAuthButton != null)
             {
+                backToAuthButton.onClick.RemoveAllListeners();
                 backToAuthButton.onClick.AddListener(ShowAuthPanel);
             }
 
             //OTP verification UI
             if (verifyCodeButton != null)
             {
+                verifyCodeButton.onClick.RemoveAllListeners();
                 verifyCodeButton.onClick.AddListener(VerifyOTPCode);
             }
             if (backToEmailButton != null)
             {
+                backToEmailButton.onClick.RemoveAllListeners();
                 backToEmailButton.onClick.AddListener(ShowEmailLoginPanel);
             }
 
             //welcome Panel buttons
             if (logoutButton != null)
             {
+                logoutButton.onClick.RemoveAllListeners();
                 logoutButton.onClick.AddListener(Logout);
             }
             if (continueButton != null)
             {
+                continueButton.onClick.RemoveAllListeners();
                 continueButton.onClick.AddListener(OnContinueClicked);
             }
 
@@ -187,15 +202,21 @@ namespace Solracer.Auth
 
         private async void StartAuthenticationFlow()
         {
-            if (privyInstance != null)
+            try
             {
-                var authState = await privyInstance.GetAuthState();
-                if (authState == AuthState.Authenticated)
+                if (privyInstance != null)
                 {
-                    isAuthenticated = true;
-                    AuthenticationData.IsAuthenticated = true;
+                    var authState = await privyInstance.GetAuthState();
+                    if (authState == AuthState.Authenticated)
+                    {
+                        isAuthenticated = true;
+                        AuthenticationData.IsAuthenticated = true;
+                    }
                 }
-                //if the user is not authenticated all the panels will remain hidden
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[AuthenticationFlowManager] StartAuthenticationFlow error: {ex}");
             }
         }
 
@@ -236,28 +257,35 @@ namespace Solracer.Auth
 
         private async void OnAuthStateChanged(AuthState newState)
         {
-            switch (newState)
+            try
             {
-                case AuthState.Authenticated:
-                    isAuthenticated = true;
-                    AuthenticationData.IsAuthenticated = true;
-                    await CheckWalletStatus();
-                    break;
-                case AuthState.Unauthenticated:
-                    isAuthenticated = false;
-                    hasWallet = false;
-                    walletAddress = "";
-                    AuthenticationData.Reset();
-                    HideAllPanels();        //hide all panels when user logs out
-                    
-                    if (loginScreen != null)        //show login canvas if LoginScreen is available
-                    {
-                        loginScreen.ShowLoginCanvas();
-                    }
-                    break;
-            }
+                switch (newState)
+                {
+                    case AuthState.Authenticated:
+                        isAuthenticated = true;
+                        AuthenticationData.IsAuthenticated = true;
+                        await CheckWalletStatus();
+                        break;
+                    case AuthState.Unauthenticated:
+                        isAuthenticated = false;
+                        hasWallet = false;
+                        walletAddress = "";
+                        AuthenticationData.Reset();
+                        HideAllPanels();
 
-            OnAuthenticationStateChanged?.Invoke(isAuthenticated);
+                        if (loginScreen != null)
+                        {
+                            loginScreen.ShowLoginCanvas();
+                        }
+                        break;
+                }
+
+                OnAuthenticationStateChanged?.Invoke(isAuthenticated);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[AuthenticationFlowManager] OnAuthStateChanged error: {ex}");
+            }
         }
 
         private void ShowAuthPanel()
@@ -738,7 +766,7 @@ namespace Solracer.Auth
                 }
                 else
                 {
-                    UnityEngine.SceneManagement.SceneManager.LoadScene("Login");
+                    UnityEngine.SceneManagement.SceneManager.LoadScene(SceneNames.Login);
                 }
             }
             catch (Exception e)
@@ -750,61 +778,61 @@ namespace Solracer.Auth
         private void OnContinueClicked()
         {
             HideAllPanels();
-            UnityEngine.SceneManagement.SceneManager.LoadScene("TokenPicker");
+            UnityEngine.SceneManagement.SceneManager.LoadScene(SceneNames.TokenPicker);
         }
 
         private async void UpdateWelcomePanel()
         {
-            // Check if user is connected via MWA or Privy
-            bool isMWA = AuthenticationData.IsMWAWallet;
-
-            if (walletAddressText != null)
+            try
             {
-                string solanaAddress;
-                
-                if (isMWA)
-                {
-                    // For MWA users, get wallet address from AuthenticationData
-                    solanaAddress = AuthenticationData.WalletAddress;
-                }
-                else
-                {
-                    // For Privy users, get wallet address from Privy SDK
-                    solanaAddress = await GetSolanaWalletAddress();
-                }
+                bool isMWA = AuthenticationData.IsMWAWallet;
 
-                if (!string.IsNullOrEmpty(solanaAddress) && solanaAddress != "No Wallet")
+                if (walletAddressText != null)
                 {
-                    // Use UIStyleHelper for consistent truncation (BDVvR5...hK6ckt format)
-                    walletAddressText.text = UIStyleHelper.TruncateWallet(solanaAddress, 6, 6);
-                }
-                else
-                {
-                    walletAddressText.text = "Wallet Not Created";
-                }
-            }
+                    string solanaAddress;
 
-            if (userInfoText != null)
-            {
-                if (isMWA)
-                {
-                    // For MWA users, show "MWA Wallet" instead of Privy user ID
-                    userInfoText.text = "MWA Wallet";
-                }
-                else
-                {
-                    // For Privy users, get user ID from Privy SDK
-                    var user = await privyInstance.GetUser();
-                    if (user != null && !string.IsNullOrEmpty(user.Id))
+                    if (isMWA)
                     {
-                        // Use UIStyleHelper for consistent truncation (cmhk...zwl0 format)
-                        userInfoText.text = UIStyleHelper.TruncateUserId(user.Id, 4, 4);
+                        solanaAddress = AuthenticationData.WalletAddress;
                     }
                     else
                     {
-                        userInfoText.text = "Unknown";
+                        solanaAddress = await GetSolanaWalletAddress();
+                    }
+
+                    if (!string.IsNullOrEmpty(solanaAddress) && solanaAddress != "No Wallet")
+                    {
+                        walletAddressText.text = UIStyleHelper.TruncateWallet(solanaAddress, 6, 6);
+                    }
+                    else
+                    {
+                        walletAddressText.text = "Wallet Not Created";
                     }
                 }
+
+                if (userInfoText != null)
+                {
+                    if (isMWA)
+                    {
+                        userInfoText.text = "MWA Wallet";
+                    }
+                    else
+                    {
+                        var user = await privyInstance.GetUser();
+                        if (user != null && !string.IsNullOrEmpty(user.Id))
+                        {
+                            userInfoText.text = UIStyleHelper.TruncateUserId(user.Id, 4, 4);
+                        }
+                        else
+                        {
+                            userInfoText.text = "Unknown";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[AuthenticationFlowManager] UpdateWelcomePanel error: {ex}");
             }
         }
 
@@ -1056,11 +1084,11 @@ namespace Solracer.Auth
 
                 Debug.Log($"[SignTransactionWithPrivy] Transaction base64 length: {transactionBase64.Length}");
 
-                // Step 1: Decode base64 to bytes
+                //Decode base64 to bytes
                 byte[] transactionBytes = System.Convert.FromBase64String(transactionBase64);
                 Debug.Log($"[SignTransactionWithPrivy] Decoded transaction: {transactionBytes.Length} bytes");
 
-                // Step 2: Deserialize transaction using Solana Unity SDK
+                //Deserialize transaction using Solana Unity SDK
                 Transaction transaction = null;
                 try
                 {
@@ -1080,7 +1108,7 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                // Step 3: Get the transaction message to sign
+                //Get the transaction message to sign
                 byte[] messageBytes = null;
                 try
                 {
@@ -1099,7 +1127,7 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                // Step 4: Sign the message using Privy
+                //Sign the message using Privy
                 string messageBase64 = System.Convert.ToBase64String(messageBytes);
                 Debug.Log($"[SignTransactionWithPrivy] Signing transaction message ({messageBytes.Length} bytes)...");
 
@@ -1122,13 +1150,12 @@ namespace Solracer.Auth
                 byte[] signatureBytes = System.Convert.FromBase64String(signatureBase64);
                 Debug.Log($"[SignTransactionWithPrivy] Received signature: {signatureBytes.Length} bytes");
 
-                // Step 5: Add signature to transaction
+                //Add signature to transaction
                 try
                 {
-                    // Get the signer's public key (first account in the transaction)
+                    // Get the signer's public key
                     PublicKey signerPubKey = new PublicKey(WalletAddress);
                     
-                    // Find and update the signature in the transaction's Signatures list
                     bool signatureAdded = false;
                     if (transaction.Signatures != null && transaction.Signatures.Count > 0)
                     {
@@ -1190,7 +1217,7 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                // Step 6: Serialize the signed transaction
+                // Serialize the signed transaction
                 byte[] signedTransactionBytes = null;
                 try
                 {
@@ -1218,7 +1245,7 @@ namespace Solracer.Auth
                     return null;
                 }
 
-                // Step 7: Return base64-encoded signed transaction
+                // Return base64-encoded signed transaction
                 string signedTransactionBase64 = System.Convert.ToBase64String(signedTransactionBytes);
                 Debug.Log($"[SignTransactionWithPrivy] Transaction signed successfully! Signed transaction: {signedTransactionBytes.Length} bytes (base64: {signedTransactionBase64.Length} chars)");
                 return signedTransactionBase64;

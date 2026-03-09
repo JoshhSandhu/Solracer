@@ -7,8 +7,12 @@ using Solracer.Config;
 
 namespace Solracer.Network
 {
+    #region Legacy Python Backend
+
     /// <summary>
-    /// API client for fetching track data from backend (24hr candles)
+    /// Legacy track API client.
+    /// Used by demo backend.
+    /// Will be replaced by Backend-v2 TrackAPIClientV2.
     /// </summary>
     public class TrackAPIClient : MonoBehaviour
     {
@@ -67,10 +71,12 @@ namespace Solracer.Network
 
                 using (UnityWebRequest webRequest = UnityWebRequest.Get(url))
                 {
-                    // Add certificate handler for self-signed certs (development only)
-                    #if !UNITY_EDITOR
+                    webRequest.timeout = 15;
+
+                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
-                    #endif
+                    }
 
                     var operation = webRequest.SendWebRequest();
 
@@ -138,6 +144,8 @@ namespace Solracer.Network
         public float x;  // Index (0 to point_count-1)
         public float y;  // Normalized value (0-1)
     }
+
+    #endregion
 
     #endregion
 }

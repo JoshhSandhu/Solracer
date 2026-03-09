@@ -11,6 +11,7 @@ namespace Solracer.Network
         private static string currentRacePDA = null;
         private static string currentTransactionSignature = null;
         private static float entryFeeSol = 0.01f; //default entry fee
+        private static string opponentWalletAddress = null;
 
         // Race completion flags
         private static bool hasFinishedRace = false;
@@ -18,6 +19,11 @@ namespace Solracer.Network
         private static float playerFinishTime = 0f;
         private static int playerCoinsCollected = 0;
         private static string playerInputHash = null;
+
+        // Track commitment data (set only in competitive mode)
+        private static string trackHash = null;
+        private static string trackHourStartUTC = null;
+        private static string trackTokenMint = null;
 
         public static string CurrentRaceId
         {
@@ -89,6 +95,44 @@ namespace Solracer.Network
         }
 
         /// <summary>
+        /// Track hash for ER commitment. Only set in competitive mode.
+        /// </summary>
+        public static string TrackHash
+        {
+            get => trackHash;
+            set => trackHash = value;
+        }
+
+        /// <summary>
+        /// Track hour for ER commitment. Only set in competitive mode.
+        /// </summary>
+        public static string TrackHourStartUTC
+        {
+            get => trackHourStartUTC;
+            set => trackHourStartUTC = value;
+        }
+
+        /// <summary>
+        /// Token mint used for track. Only set in competitive mode.
+        /// </summary>
+        public static string TrackTokenMint
+        {
+            get => trackTokenMint;
+            set => trackTokenMint = value;
+        }
+
+        /// <summary>
+        /// Wallet address of the opponent in a competitive race.
+        /// Set by the lobby/join flow when player2 joins.
+        /// Used by GhostRelayController to filter opponent ghost state.
+        /// </summary>
+        public static string OpponentWalletAddress
+        {
+            get => opponentWalletAddress;
+            set => opponentWalletAddress = value;
+        }
+
+        /// <summary>
         /// Mark the race as finished and store player results
         /// </summary>
         public static void SetRaceFinished(float finishTime, int coinsCollected, string inputHash)
@@ -123,6 +167,17 @@ namespace Solracer.Network
             playerFinishTime = 0f;
             playerCoinsCollected = 0;
             playerInputHash = null;
+            
+            // Clear track commitment
+            trackHash = null;
+            trackHourStartUTC = null;
+            trackTokenMint = null;
+
+            // Clear ghost relay
+            opponentWalletAddress = null;
+
+            // Clear session key so next race gets a fresh one
+            SessionKeyStore.Clear();
         }
 
         //check if race is currently active

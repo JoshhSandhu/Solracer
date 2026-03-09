@@ -2,12 +2,14 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Solracer.Network;
 using Solracer.Auth;
 using Solracer.Game;
+using Solracer.Config;
 using Toggle.UI;
 
 namespace Solracer.UI
@@ -58,7 +60,7 @@ namespace Solracer.UI
         [Space]
         [Header("Settings")]
         [SerializeField] private float statusPollInterval = 2f;
-        [SerializeField] private bool debugLogging = true;
+        [SerializeField] private bool debugLogging = false;
 
         [Header("Design System")]
         [Tooltip("Reference to SolracerColors asset (optional - will load from Resources if null)")]
@@ -88,6 +90,7 @@ namespace Solracer.UI
         private string currentRaceId;
         private bool isPlayer1;
         private bool isPolling = false;
+        private bool isNavigating = false;
         private Coroutine statusPollCoroutine;
         private Coroutine publicRacesRefreshCoroutine;
         private List<PublicRaceListItem> currentPublicRaces = new List<PublicRaceListItem>();
@@ -114,7 +117,7 @@ namespace Solracer.UI
             if (authManager == null || !authManager.IsAuthenticated)
             {
                 Debug.LogError("[LobbyScreen] User not authenticated - returning to mode selection");
-                SceneManager.LoadScene("ModeSelection");
+                SceneManager.LoadScene(SceneNames.ModeSelection);
                 return;
             }
         }
@@ -295,7 +298,7 @@ namespace Solracer.UI
             if (createTabPanel != null)
             {
                 var formCard = createTabPanel.GetComponentInChildren<Image>();
-                if (formCard != null && formCard.gameObject.name.Contains("Form") || formCard.gameObject.name.Contains("Card"))
+                if (formCard != null && (formCard.gameObject.name.Contains("Form") || formCard.gameObject.name.Contains("Card")))
                 {
                     UIStyleHelper.StyleFormCard(formCard.gameObject);
                 }
@@ -371,96 +374,103 @@ namespace Solracer.UI
 
         private async void OnCreateGameClicked()
         {
-            if (raceClient == null || authManager == null)
+            try
             {
-                Debug.LogError("[LobbyScreen] Race client or auth manager not initialized");
-                return;
-            }
-
-            bool isPrivate = privateToggle != null && privateToggle.CurrentValue;
-            float entryFee = GetSelectedEntryFee();
-
-            // Get token mint from CoinSelectionData or use SOL default
-            CoinType selectedCoin = CoinSelectionData.SelectedCoin;
-            string tokenMint = CoinSelectionData.GetCoinMintAddress(selectedCoin);
-            if (string.IsNullOrEmpty(tokenMint))
-            {
-                tokenMint = "So11111111111111111111111111111111111111112"; // SOL mint fallback
-            }
-
-            if (createGameButton != null)
-                createGameButton.interactable = false;
-
-            // LobbyScreen is always competitive mode - create race on-chain with SOL escrow
-            // Set GameModeData in case it wasn't set properly
-            GameModeData.CurrentMode = GameMode.Competitive;
-            
-            Debug.Log("[LobbyScreen] Creating race on-chain...");
-            string onChainRaceId = await OnChainRaceManager.CreateRaceOnChainAsync(
-                tokenMint,
-                entryFee,
-                (message, progress) =>
+                if (raceClient == null || authManager == null)
                 {
-                    Debug.Log($"[LobbyScreen] {message} ({progress * 100:F0}%)");
+                    Debug.LogError("[LobbyScreen] Race client or auth manager not initialized");
+                    return;
                 }
-            );
 
-            if (!string.IsNullOrEmpty(onChainRaceId))
-            {
-                Debug.Log($"[LobbyScreen] Race created on-chain: {onChainRaceId}");
-                
-                // Race was created on-chain AND in database by /transactions/submit
-                // Use the on-chain race_id directly - don't call CreateRaceAsync again!
-                currentRaceId = onChainRaceId;
-                isPlayer1 = true;
-                RaceData.CurrentRaceId = onChainRaceId;
-                RaceData.EntryFeeSol = entryFee;
-                
-                // Get race status to show waiting UI
-                var raceStatus = await raceClient.GetRaceStatusAsync(onChainRaceId);
-                if (raceStatus != null)
+                bool isPrivate = privateToggle != null && privateToggle.CurrentValue;
+                float entryFee = GetSelectedEntryFee();
+
+                // Get token mint from CoinSelectionData or use SOL default
+                CoinType selectedCoin = CoinSelectionData.SelectedCoin;
+                string tokenMint = CoinSelectionData.GetCoinMintAddress(selectedCoin);
+                if (string.IsNullOrEmpty(tokenMint))
                 {
-                    var raceResponse = new RaceResponse
+                    tokenMint = "So11111111111111111111111111111111111111112"; // SOL mint fallback
+                }
+
+                if (createGameButton != null)
+                    createGameButton.interactable = false;
+
+                // LobbyScreen is always competitive mode - create race on-chain with SOL escrow
+                // Set GameModeData in case it wasn't set properly
+                GameModeData.CurrentMode = GameMode.Competitive;
+                
+                Debug.Log("[LobbyScreen] Creating race on-chain...");
+                string onChainRaceId = await OnChainRaceManager.CreateRaceOnChainAsync(
+                    tokenMint,
+                    entryFee,
+                    (message, progress) =>
                     {
-                        race_id = onChainRaceId,
-                        token_mint = tokenMint,
-                        entry_fee_sol = entryFee,
-                        player1_wallet = authManager.WalletAddress,
-                        status = raceStatus.status,
-                        is_private = isPrivate
-                        // Note: join_code not available from status endpoint - will be shown if private race
-                    };
-                    ShowWaitingUI(raceResponse);
-                    StartStatusPolling();
+                        Debug.Log($"[LobbyScreen] {message} ({progress * 100:F0}%)");
+                    }
+                );
+
+                if (!string.IsNullOrEmpty(onChainRaceId))
+                {
+                    Debug.Log($"[LobbyScreen] Race created on-chain: {onChainRaceId}");
+                    
+                    // Race was created on-chain AND in database by /transactions/submit
+                    // Use the on-chain race_id directly - don't call CreateRaceAsync again!
+                    currentRaceId = onChainRaceId;
+                    isPlayer1 = true;
+                    RaceData.CurrentRaceId = onChainRaceId;
+                    RaceData.EntryFeeSol = entryFee;
+                    
+                    // Get race status to show waiting UI
+                    var raceStatus = await raceClient.GetRaceStatusAsync(onChainRaceId);
+                    if (raceStatus != null)
+                    {
+                        var raceResponse = new RaceResponse
+                        {
+                            race_id = onChainRaceId,
+                            token_mint = tokenMint,
+                            entry_fee_sol = entryFee,
+                            player1_wallet = authManager.WalletAddress,
+                            status = raceStatus.status,
+                            is_private = isPrivate
+                            // Note: join_code not available from status endpoint - will be shown if private race
+                        };
+                        ShowWaitingUI(raceResponse);
+                        StartStatusPolling();
+                    }
+                    else
+                    {
+                        Debug.LogWarning("[LobbyScreen] Could not get race status, but race was created");
+                        // Create a minimal response for UI
+                        var raceResponse = new RaceResponse
+                        {
+                            race_id = onChainRaceId,
+                            token_mint = tokenMint,
+                            entry_fee_sol = entryFee,
+                            player1_wallet = authManager.WalletAddress,
+                            status = "waiting",
+                            is_private = isPrivate
+                        };
+                        ShowWaitingUI(raceResponse);
+                        StartStatusPolling();
+                    }
                 }
                 else
                 {
-                    Debug.LogWarning("[LobbyScreen] Could not get race status, but race was created");
-                    // Create a minimal response for UI
-                    var raceResponse = new RaceResponse
-                    {
-                        race_id = onChainRaceId,
-                        token_mint = tokenMint,
-                        entry_fee_sol = entryFee,
-                        player1_wallet = authManager.WalletAddress,
-                        status = "waiting",
-                        is_private = isPrivate
-                    };
-                    ShowWaitingUI(raceResponse);
-                    StartStatusPolling();
+                    // On-chain race creation failed - don't fall back to database-only mode
+                    // because that creates races that can't work with on-chain operations
+                    Debug.LogError("[LobbyScreen] Failed to create race on-chain. Please try again.");
+                    
+                    // Re-enable the create button so user can try again
+                    if (createGameButton != null)
+                        createGameButton.interactable = true;
+                        
+                    // TODO: Show user-friendly error message UI
                 }
             }
-            else
+            catch (Exception ex)
             {
-                // On-chain race creation failed - don't fall back to database-only mode
-                // because that creates races that can't work with on-chain operations
-                Debug.LogError("[LobbyScreen] Failed to create race on-chain. Please try again.");
-                
-                // Re-enable the create button so user can try again
-                if (createGameButton != null)
-                    createGameButton.interactable = true;
-                    
-                // TODO: Show user-friendly error message UI
+                Debug.LogError($"[LobbyScreen] Error: {ex}");
             }
         }
 
@@ -522,14 +532,21 @@ namespace Solracer.UI
 
         private async void OnCancelRaceClicked()
         {
-            if (string.IsNullOrEmpty(currentRaceId) || authManager == null)
-                return;
-
-            bool cancelled = await raceClient.CancelRaceAsync(currentRaceId, authManager.WalletAddress);
-            if (cancelled)
+            try
             {
-                ResetCreateUI();
-                StopPolling();
+                if (string.IsNullOrEmpty(currentRaceId) || authManager == null)
+                    return;
+
+                bool cancelled = await raceClient.CancelRaceAsync(currentRaceId, authManager.WalletAddress);
+                if (cancelled)
+                {
+                    ResetCreateUI();
+                    StopPolling();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[LobbyScreen] Error: {ex}");
             }
         }
 
@@ -609,82 +626,96 @@ namespace Solracer.UI
 
         private async void OnJoinByCodeClicked()
         {
-            if (raceClient == null || authManager == null || joinCodeInput == null)
-                return;
-
-            string code = joinCodeInput.text.Trim().ToUpper();
-            if (string.IsNullOrEmpty(code) || code.Length != 6)
+            try
             {
-                Debug.LogWarning("[LobbyScreen] Invalid join code");
-                return;
-            }
+                if (raceClient == null || authManager == null || joinCodeInput == null)
+                    return;
 
-            if (joinByCodeButton != null)
-                joinByCodeButton.interactable = false;
-
-            var response = await raceClient.JoinRaceByCodeAsync(code, authManager.WalletAddress);
-
-            if (response != null && !string.IsNullOrEmpty(response.race_id))
-            {
-                currentRaceId = response.race_id;
-                isPlayer1 = false;
-                RaceData.CurrentRaceId = response.race_id;
-                RaceData.EntryFeeSol = response.entry_fee_sol;
-
-                // Join race on-chain (competitive mode - this activates the race on-chain)
-                GameModeData.CurrentMode = GameMode.Competitive;
-                Debug.Log($"[LobbyScreen] Joining race on-chain: {response.race_id}");
-                bool joinedOnChain = await OnChainRaceManager.JoinRaceOnChainAsync(
-                    response.race_id,
-                    (message, progress) =>
-                    {
-                        Debug.Log($"[LobbyScreen] {message} ({progress * 100:F0}%)");
-                    }
-                );
-
-                if (!joinedOnChain)
+                string code = joinCodeInput.text.Trim().ToUpper();
+                if (string.IsNullOrEmpty(code) || code.Length != 6)
                 {
-                    Debug.LogWarning("[LobbyScreen] On-chain join failed, but continuing with database join");
+                    Debug.LogWarning("[LobbyScreen] Invalid join code");
+                    return;
+                }
+
+                if (joinByCodeButton != null)
+                    joinByCodeButton.interactable = false;
+
+                var response = await raceClient.JoinRaceByCodeAsync(code, authManager.WalletAddress);
+
+                if (response != null && !string.IsNullOrEmpty(response.race_id))
+                {
+                    currentRaceId = response.race_id;
+                    isPlayer1 = false;
+                    RaceData.CurrentRaceId = response.race_id;
+                    RaceData.EntryFeeSol = response.entry_fee_sol;
+
+                    // Join race on-chain (competitive mode - this activates the race on-chain)
+                    GameModeData.CurrentMode = GameMode.Competitive;
+                    Debug.Log($"[LobbyScreen] Joining race on-chain: {response.race_id}");
+                    bool joinedOnChain = await OnChainRaceManager.JoinRaceOnChainAsync(
+                        response.race_id,
+                        (message, progress) =>
+                        {
+                            Debug.Log($"[LobbyScreen] {message} ({progress * 100:F0}%)");
+                        }
+                    );
+
+                    if (!joinedOnChain)
+                    {
+                        Debug.LogWarning("[LobbyScreen] On-chain join failed, but continuing with database join");
+                    }
+                    else
+                    {
+                        Debug.Log($"[LobbyScreen] Successfully joined race on-chain!");
+                    }
+
+                    // Switch to create tab to show waiting UI
+                    ShowTab(true);
+                    ShowWaitingUI(response);
+                    StartStatusPolling();
                 }
                 else
                 {
-                    Debug.Log($"[LobbyScreen] Successfully joined race on-chain!");
+                    Debug.LogError("[LobbyScreen] Failed to join race by code");
+                    if (joinByCodeButton != null)
+                        joinByCodeButton.interactable = true;
                 }
-
-                // Switch to create tab to show waiting UI
-                ShowTab(true);
-                ShowWaitingUI(response);
-                StartStatusPolling();
             }
-            else
+            catch (Exception ex)
             {
-                Debug.LogError("[LobbyScreen] Failed to join race by code");
-                if (joinByCodeButton != null)
-                    joinByCodeButton.interactable = true;
+                Debug.LogError($"[LobbyScreen] Error: {ex}");
             }
         }
 
         private async void RefreshPublicRaces()
         {
-            if (raceClient == null)
-                return;
-
-            string filterToken = null;
-            float? filterEntryFee = null;
-
-            // Get filters from dropdowns
-            if (filterTokenDropdown != null && filterTokenDropdown.value > 0)
+            try
             {
-                // TODO: Map dropdown value to token mint
-            }
-            if (filterEntryFeeDropdown != null && filterEntryFeeDropdown.value >= 0)
-            {
-                filterEntryFee = GetEntryFeeFromIndex(filterEntryFeeDropdown.value);
-            }
+                if (raceClient == null)
+                    return;
 
-            var races = await raceClient.GetPublicRacesAsync(filterToken, filterEntryFee);
-            currentPublicRaces = races;
-            UpdatePublicRacesList();
+                string filterToken = null;
+                float? filterEntryFee = null;
+
+                // Get filters from dropdowns
+                if (filterTokenDropdown != null && filterTokenDropdown.value > 0)
+                {
+                    // TODO: Map dropdown value to token mint
+                }
+                if (filterEntryFeeDropdown != null && filterEntryFeeDropdown.value >= 0)
+                {
+                    filterEntryFee = GetEntryFeeFromIndex(filterEntryFeeDropdown.value);
+                }
+
+                var races = await raceClient.GetPublicRacesAsync(filterToken, filterEntryFee);
+                currentPublicRaces = races;
+                UpdatePublicRacesList();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[LobbyScreen] Error: {ex}");
+            }
         }
 
         private void UpdatePublicRacesList()
@@ -731,48 +762,55 @@ namespace Solracer.UI
 
         private async void OnJoinPublicRace(string raceId)
         {
-            if (raceClient == null || authManager == null)
-                return;
-
-            var response = await raceClient.JoinRaceByIdAsync(raceId, authManager.WalletAddress);
-
-            if (response != null && !string.IsNullOrEmpty(response.race_id))
+            try
             {
-                currentRaceId = response.race_id;
-                isPlayer1 = false;
-                RaceData.CurrentRaceId = response.race_id;
-                RaceData.EntryFeeSol = response.entry_fee_sol;
+                if (raceClient == null || authManager == null)
+                    return;
 
-                // Join race on-chain (competitive mode - this activates the race on-chain)
-                GameModeData.CurrentMode = GameMode.Competitive;
-                Debug.Log($"[LobbyScreen] Joining race on-chain: {response.race_id}");
-                bool joinedOnChain = await OnChainRaceManager.JoinRaceOnChainAsync(
-                    response.race_id,
-                    (message, progress) =>
-                    {
-                        Debug.Log($"[LobbyScreen] {message} ({progress * 100:F0}%)");
-                    }
-                );
+                var response = await raceClient.JoinRaceByIdAsync(raceId, authManager.WalletAddress);
 
-                if (!joinedOnChain)
+                if (response != null && !string.IsNullOrEmpty(response.race_id))
                 {
-                    Debug.LogWarning("[LobbyScreen] On-chain join failed, but continuing with database join");
+                    currentRaceId = response.race_id;
+                    isPlayer1 = false;
+                    RaceData.CurrentRaceId = response.race_id;
+                    RaceData.EntryFeeSol = response.entry_fee_sol;
+
+                    // Join race on-chain (competitive mode - this activates the race on-chain)
+                    GameModeData.CurrentMode = GameMode.Competitive;
+                    Debug.Log($"[LobbyScreen] Joining race on-chain: {response.race_id}");
+                    bool joinedOnChain = await OnChainRaceManager.JoinRaceOnChainAsync(
+                        response.race_id,
+                        (message, progress) =>
+                        {
+                            Debug.Log($"[LobbyScreen] {message} ({progress * 100:F0}%)");
+                        }
+                    );
+
+                    if (!joinedOnChain)
+                    {
+                        Debug.LogWarning("[LobbyScreen] On-chain join failed, but continuing with database join");
+                    }
+                    else
+                    {
+                        Debug.Log($"[LobbyScreen] Successfully joined race on-chain!");
+                    }
+
+                    // Switch to create tab to show waiting UI
+                    ShowTab(true);
+                    ShowWaitingUI(response);
+                    StartStatusPolling();
                 }
                 else
                 {
-                    Debug.Log($"[LobbyScreen] Successfully joined race on-chain!");
+                    Debug.LogError("[LobbyScreen] Failed to join public race");
+                    // Refresh list to remove invalid race
+                    RefreshPublicRaces();
                 }
-
-                // Switch to create tab to show waiting UI
-                ShowTab(true);
-                ShowWaitingUI(response);
-                StartStatusPolling();
             }
-            else
+            catch (Exception ex)
             {
-                Debug.LogError("[LobbyScreen] Failed to join public race");
-                // Refresh list to remove invalid race
-                RefreshPublicRaces();
+                Debug.LogError($"[LobbyScreen] Error: {ex}");
             }
         }
 
@@ -781,7 +819,7 @@ namespace Solracer.UI
             while (true)
             {
                 yield return new WaitForSeconds(3f); // Refresh every 3 seconds
-                if (!createTabPanel.activeSelf) // Only refresh if on join tab
+                if (createTabPanel != null && !createTabPanel.activeSelf) // Only refresh if on join tab
                 {
                     RefreshPublicRaces();
                 }
@@ -822,25 +860,33 @@ namespace Solracer.UI
 
         private async void PollRaceStatus()
         {
-            if (raceClient == null || string.IsNullOrEmpty(currentRaceId))
-                return;
-
-            var status = await raceClient.GetRaceStatusAsync(currentRaceId);
-
-            if (status == null)
+            try
             {
-                Debug.LogWarning("[LobbyScreen] Failed to get race status");
-                return;
+                if (raceClient == null || string.IsNullOrEmpty(currentRaceId))
+                    return;
+
+                var status = await raceClient.GetRaceStatusAsync(currentRaceId);
+
+                if (status == null)
+                {
+                    Debug.LogWarning("[LobbyScreen] Failed to get race status");
+                    return;
+                }
+
+                UpdateUIFromStatus(status);
+
+                // Check if both players are ready
+                if (status.both_ready && status.status == "active")
+                {
+                    if (isNavigating) return;
+                    isNavigating = true;
+                    StopPolling();
+                    LoadRaceScene();
+                }
             }
-
-            UpdateUIFromStatus(status);
-
-            // Check if both players are ready
-            if (status.both_ready && status.status == "active")
+            catch (Exception ex)
             {
-                // Both ready - start race countdown
-                StopPolling();
-                LoadRaceScene();
+                Debug.LogError($"[LobbyScreen] Error: {ex}");
             }
         }
 
@@ -862,7 +908,11 @@ namespace Solracer.UI
                 if (status.player2_wallet != null)
                 {
                     waitingStatusText.text = "Opponent joined!";
-                    
+
+                    // Store opponent wallet for ghost relay
+                    RaceData.OpponentWalletAddress = isPlayer1
+                        ? status.player2_wallet
+                        : status.player1_wallet;
                     // Show ready button if not ready yet
                     bool isReady = isPlayer1 ? status.player1_ready : status.player2_ready;
                     if (readyButton != null)
@@ -891,14 +941,21 @@ namespace Solracer.UI
 
         private async void OnReadyClicked()
         {
-            if (raceClient == null || authManager == null || string.IsNullOrEmpty(currentRaceId))
-                return;
-
-            bool success = await raceClient.MarkPlayerReadyAsync(currentRaceId, authManager.WalletAddress);
-            if (success)
+            try
             {
-                // Refresh status immediately
-                PollRaceStatus();
+                if (raceClient == null || authManager == null || string.IsNullOrEmpty(currentRaceId))
+                    return;
+
+                bool success = await raceClient.MarkPlayerReadyAsync(currentRaceId, authManager.WalletAddress);
+                if (success)
+                {
+                    // Refresh status immediately
+                    PollRaceStatus();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[LobbyScreen] Error: {ex}");
             }
         }
 
@@ -946,13 +1003,7 @@ namespace Solracer.UI
             if (debugLogging)
                 Debug.Log("[LobbyScreen] Loading Race scene - both players ready");
             
-            SceneManager.LoadScene("Race");
-        }
-
-        private Button FindButtonByName(string name)
-        {
-            GameObject obj = GameObject.Find(name);
-            return obj != null ? obj.GetComponent<Button>() : null;
+            SceneManager.LoadScene(SceneNames.Race);
         }
 
         /// <summary>
@@ -972,7 +1023,7 @@ namespace Solracer.UI
         /// </summary>
         private void OnBackButtonClicked()
         {
-            SceneManager.LoadScene("ModeSelection");
+            SceneManager.LoadScene(SceneNames.ModeSelection);
         }
 
         #endregion

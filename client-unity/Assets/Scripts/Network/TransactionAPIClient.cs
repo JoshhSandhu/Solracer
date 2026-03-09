@@ -70,9 +70,9 @@ namespace Solracer.Network
                     webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
                     webRequest.downloadHandler = new DownloadHandlerBuffer();
                     webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.timeout = 15;
 
-                    // Bypass certificate validation for local development URLs
-                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    if (APIConfig.IsLocalUrl(apiBaseUrl) && apiBaseUrl.StartsWith("https://"))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
                     }
@@ -126,9 +126,9 @@ namespace Solracer.Network
                     webRequest.uploadHandler = new UploadHandlerRaw(bodyRaw);
                     webRequest.downloadHandler = new DownloadHandlerBuffer();
                     webRequest.SetRequestHeader("Content-Type", "application/json");
+                    webRequest.timeout = 15;
 
-                    // Bypass certificate validation for local development URLs
-                    if (APIConfig.IsLocalUrl(apiBaseUrl))
+                    if (APIConfig.IsLocalUrl(apiBaseUrl) && apiBaseUrl.StartsWith("https://"))
                     {
                         webRequest.certificateHandler = new CertificateHandlerBypass();
                     }
@@ -193,7 +193,16 @@ namespace Solracer.Network
         public int finish_time_ms;       // for submit_result
         public int coins_collected;      // for submit_result
         public string input_hash;        // for submit_result (64 hex characters)
+        /// <summary>
+        /// Base58 ephemeral session public key.
+        /// When provided for create_race/join_race, the backend bundles delegate_session
+        /// into the same transaction (one wallet popup covers both).
+        /// When provided for submit_result/claim_prize, the backend signs with this key
+        /// instead of the player wallet (silent  no popup).
+        /// </summary>
+        public string session_key;
     }
+
 
     /// <summary>
     /// Response model for building a Solana transaction.
