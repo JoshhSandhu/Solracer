@@ -134,7 +134,7 @@ export function buildSubmitResultIx(
     { pubkey: authority,    isSigner: true,  isWritable: false },
   ];
 
-  // Session PDA is optional — must come BEFORE player_wallet to match Anchor struct
+  // Session PDA is optional, must come BEFORE player_wallet to match Anchor struct
   if (sessionPda) {
     keys.push({ pubkey: sessionPda, isSigner: false, isWritable: false });
   }
@@ -172,7 +172,7 @@ export function buildClaimPrizeIx(
     { pubkey: authority,    isSigner: true,  isWritable: false },
   ];
 
-  // Session PDA is optional — must come BEFORE winner_wallet to match Anchor struct
+  // Session PDA is optional, must come BEFORE winner_wallet to match Anchor struct
   if (sessionPda) {
     keys.push({ pubkey: sessionPda, isSigner: false, isWritable: false });
   }

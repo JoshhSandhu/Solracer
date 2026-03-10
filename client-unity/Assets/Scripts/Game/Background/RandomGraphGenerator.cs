@@ -24,6 +24,11 @@ namespace Solracer.Game.Background
         
         private bool isInitialized = false;
 
+        // Instance-owned shared assets (one per component, never static)
+        private Texture2D _sharedTex;
+        private Sprite _sharedSprite;
+        private Material _sharedLineMaterial;
+
         /// <summary>
         /// Data for a single graph segment
         /// </summary>
@@ -63,6 +68,9 @@ namespace Solracer.Game.Background
             this.graphLineColor = lineColor;
             this.graphLineWidth = lineWidth;
             this.mainCamera = camera;
+
+            // Create instance-owned shared assets
+            CreateSharedAssets();
             
             GenerateSegments();
             
@@ -157,7 +165,7 @@ namespace Solracer.Game.Background
             segment.graphLine = lineRenderer;
             
             // Set up line renderer
-            lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+            lineRenderer.material = _sharedLineMaterial;
             lineRenderer.startColor = graphLineColor;
             lineRenderer.endColor = graphLineColor;
             lineRenderer.startWidth = graphLineWidth;
@@ -207,7 +215,7 @@ namespace Solracer.Game.Background
             body.transform.localPosition = Vector3.zero;
             
             SpriteRenderer bodySr = body.AddComponent<SpriteRenderer>();
-            bodySr.sprite = CreateRectSprite();
+            bodySr.sprite = _sharedSprite;
             bodySr.color = color;
             bodySr.sortingOrder = -900;
             bodySr.sortingLayerName = "Default";
@@ -220,7 +228,7 @@ namespace Solracer.Game.Background
             topWick.transform.localPosition = new Vector3(0, bodyHeight / 2 + wickHeight / 2, 0);
             
             SpriteRenderer topSr = topWick.AddComponent<SpriteRenderer>();
-            topSr.sprite = CreateRectSprite();
+            topSr.sprite = _sharedSprite;
             topSr.color = color;
             topSr.sortingOrder = -901;
             topSr.sortingLayerName = "Default";
@@ -233,7 +241,7 @@ namespace Solracer.Game.Background
             bottomWick.transform.localPosition = new Vector3(0, -bodyHeight / 2 - wickHeight / 2, 0);
             
             SpriteRenderer bottomSr = bottomWick.AddComponent<SpriteRenderer>();
-            bottomSr.sprite = CreateRectSprite();
+            bottomSr.sprite = _sharedSprite;
             bottomSr.color = color;
             bottomSr.sortingOrder = -901;
             bottomSr.sortingLayerName = "Default";
@@ -241,12 +249,16 @@ namespace Solracer.Game.Background
             bottomWick.transform.localScale = new Vector3(bodyWidth * 0.2f, wickHeight, 1);
         }
 
-        private Sprite CreateRectSprite()
+        /// <summary>
+        /// Creates instance-owned shared texture, sprite, and material for all visuals.
+        /// </summary>
+        private void CreateSharedAssets()
         {
-            Texture2D tex = new Texture2D(1, 1);
-            tex.SetPixel(0, 0, Color.white);
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
+            _sharedTex = new Texture2D(1, 1);
+            _sharedTex.SetPixel(0, 0, Color.white);
+            _sharedTex.Apply();
+            _sharedSprite = Sprite.Create(_sharedTex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
+            _sharedLineMaterial = new Material(Shader.Find("Sprites/Default"));
         }
 
         private void Update()
@@ -265,6 +277,15 @@ namespace Solracer.Game.Background
             
             // Apply scroll offset to graph
             transform.localPosition = new Vector3(-scrollOffset, 0, 0);
+        }
+
+        private void OnDestroy()
+        {
+            // Clean up instance-owned assets
+            if (_sharedSprite != null) { Destroy(_sharedSprite); _sharedSprite = null; }
+            if (_sharedTex != null) { Destroy(_sharedTex); _sharedTex = null; }
+            if (_sharedLineMaterial != null) { Destroy(_sharedLineMaterial); _sharedLineMaterial = null; }
+            segments.Clear();
         }
     }
 }

@@ -6,6 +6,7 @@ using Solracer.Game;
 using Solracer.Network;
 using Solracer.Auth;
 using Solracer.Config;
+using Solracer.UI.Toast;
 using System.Threading.Tasks;
 using System;
 
@@ -237,11 +238,13 @@ namespace Solracer.UI
                 if (success)
                 {
                     Debug.Log("[ResultsScreen] Retry submission successful!");
+                    ToastManager.Instance?.ShowSuccess("Your result has been recorded");
                     ShowWaitingState("Waiting for opponent...");
                 }
                 else
                 {
                     Debug.LogWarning("[ResultsScreen] Retry submission failed");
+                    ToastManager.Instance?.ShowError("Result could not be sent, tap Retry");
                     ShowErrorState("Failed to submit result. Please try again.");
                     SetButtonActive(fallbackTxnButton, true);
                 }
@@ -789,12 +792,14 @@ namespace Solracer.UI
                 if (success)
                 {
                     Debug.Log("[ResultsScreen] Retry submission successful!");
+                    ToastManager.Instance?.ShowSuccess("Your result has been recorded");
                     ShowWaitingState("Waiting for opponent...");
                     SetButtonActive(fallbackTxnButton, false);
                 }
                 else
                 {
                     Debug.LogWarning("[ResultsScreen] Retry submission failed again");
+                    ToastManager.Instance?.ShowError("Result could not be sent, tap Retry");
                     ShowErrorState("Failed to submit result. Please try again.");
                     SetButtonActive(fallbackTxnButton, true);
                 }
@@ -907,6 +912,7 @@ namespace Solracer.UI
                 if (success)
                 {
                     Debug.Log("[ResultsScreen] Prize claimed successfully!");
+                    ToastManager.Instance?.ShowSuccess("Funds transferred to your wallet");
                     if (prizeStatusText != null)
                         prizeStatusText.text = "Prize Claimed!";
                     
@@ -922,6 +928,7 @@ namespace Solracer.UI
                 {
                     // Transaction failed - show error and enable fallback button
                     ShowErrorState("Transaction failed. Try fallback option.");
+                    ToastManager.Instance?.ShowError("Transaction failed, try fallback");
                     SetButtonActive(fallbackTxnButton, true);
                     SetButtonActive(claimPrizeButton, false);
                 }
@@ -930,6 +937,7 @@ namespace Solracer.UI
             {
                 Debug.LogError($"[ResultsScreen] Error claiming prize: {ex.Message}");
                 ShowErrorState($"Error: {ex.Message}");
+                ToastManager.Instance?.ShowError(ex.Message);
                 SetButtonActive(fallbackTxnButton, true);
                 SetButtonActive(claimPrizeButton, false);
             }
@@ -1428,13 +1436,13 @@ namespace Solracer.UI
                     {
                         if (_loserUIActivated)
                         {
-                            // Loser UI already showing — nothing left to do
+                            // Loser UI already showing, nothing left to do
                             raceStatusPollingCoroutine = null;
                             yield break;
                         }
 
                         // Race settled: refresh payout (winner) or activate loser UI
-                        // NOTE: Do NOT call StopRaceStatusPolling() here — that calls
+                        // NOTE: Do NOT call StopRaceStatusPolling() here, that calls
                         // StopCoroutine on THIS coroutine, killing it before yield.
                         // Instead, null the reference and let yield break end naturally.
                         raceStatusPollingCoroutine = null;
@@ -1445,7 +1453,7 @@ namespace Solracer.UI
 
                         if (payoutTask.Result != null)
                         {
-                            // We're the winner — update UI directly with payout we already have
+                            // We're the winner, update UI directly with payout we already have
                             currentPayoutStatus = payoutTask.Result;
                             UpdatePayoutUI(payoutTask.Result);
 

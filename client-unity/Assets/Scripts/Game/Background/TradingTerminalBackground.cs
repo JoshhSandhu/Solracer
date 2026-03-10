@@ -8,6 +8,10 @@ namespace Solracer.Game.Background
     /// Main controller for the Trading Terminal Background system.
     /// Creates and manages all background layers in the correct rendering order.
     /// 
+    /// Initialization is event-driven: subscribes to TrackGenerator.OnTrackDataReady
+    /// so layers are created only after track data is guaranteed available.
+    /// If track data is regenerated, layers rebuild automatically.
+    /// 
     /// Layer Order (back to front):
     /// - Layer 0: Solid Dark Background (#09090B)
     /// - Layer 1: Ghost Candles (5% opacity, 5% parallax)
@@ -52,14 +56,11 @@ namespace Solracer.Game.Background
         [Tooltip("Enable ghost candles at track data points")]
         [SerializeField] private bool enableGhostCandles = true;
         
-        [Tooltip("(Legacy - unused) Candles now spawn at track points")]
-        [SerializeField, Range(5, 50)] private int ghostCandleCount = 25;
+        [Tooltip("Bullish color (near resistance/high price) - Crypto Neon GREEN")]
+        [SerializeField] private Color ghostCandleGreen = new Color(0f, 0.9f, 0.46f, 1f); // #00E676, Binance green
         
-        [Tooltip("Bullish color (near resistance/high price) - GREEN")]
-        [SerializeField] private Color ghostCandleGreen = new Color(0.1f, 0.6f, 0.3f, 1f);
-        
-        [Tooltip("Bearish color (near support/low price) - RED")]
-        [SerializeField] private Color ghostCandleRed = new Color(0.6f, 0.15f, 0.15f, 1f);
+        [Tooltip("Bearish color (near support/low price) - Crypto Vivid RED")]
+        [SerializeField] private Color ghostCandleRed = new Color(1f, 0.32f, 0.32f, 1f); // #FF5252, TradingView red
         
         [Tooltip("Ghost candle opacity - subtle background effect")]
         [SerializeField, Range(0.02f, 1f)] private float ghostCandleOpacity = 0.06f;
@@ -111,19 +112,22 @@ namespace Solracer.Game.Background
         private GhostCandleLayer ghostCandleLayer;
         private SupportResistanceManager srManager;
 
+        // Cached runtime assets for cleanup
+        private Texture2D _bgPanelTex;
+        private Sprite _bgPanelSprite;
+
         // State
         private Vector3 lastCameraPosition;
         private bool isInitialized = false;
 
         private void Awake()
         {
-            // Find camera if not assigned
+            // Cache references once, avoid per-frame lookups
             if (mainCamera == null)
             {
                 mainCamera = Camera.main;
             }
 
-            // Find player if not assigned
             if (playerTransform == null)
             {
                 GameObject atv = GameObject.Find("ATV");
@@ -133,26 +137,85 @@ namespace Solracer.Game.Background
                 }
             }
 
-            // Find track generator if not assigned
             if (trackGenerator == null)
             {
                 trackGenerator = FindAnyObjectByType<TrackGenerator>();
             }
         }
 
-        private async void Start()
+        private void OnEnable()
         {
-            try
+            SubscribeToTrackGenerator();
+        }
+
+        private void OnDisable()
+        {
+            UnsubscribeFromTrackGenerator();
+        }
+
+        private void OnDestroy()
+        {
+            UnsubscribeFromTrackGenerator();
+            DestroyRuntimeAssets();
+        }
+
+        /// <summary>
+        /// Subscribes to TrackGenerator.OnTrackDataReady.
+        /// Includes missed-event guard: if track data is already available, initializes immediately.
+        /// Also includes fallback: if trackGenerator is null, attempts resolution once.
+        /// </summary>
+        private void SubscribeToTrackGenerator()
+        {
+            // Fallback resolve if still null (handles odd load-order scenes)
+            if (trackGenerator == null)
             {
-                await System.Threading.Tasks.Task.Delay(100);
-                Initialize();
+                trackGenerator = FindAnyObjectByType<TrackGenerator>();
             }
-            catch (Exception ex)
+
+            if (trackGenerator == null)
             {
-                Debug.LogError($"[TradingTerminalBackground] Start error: {ex}");
+                Debug.LogWarning("[TradingTerminalBackground] TrackGenerator not found, background cannot initialize");
+                return;
+            }
+
+            trackGenerator.OnTrackDataReady += OnTrackDataReady;
+
+            // Missed-event guard: if track data is already available, initialize now
+            if (trackGenerator.TrackPoints != null && trackGenerator.TrackPoints.Length > 0)
+            {
+                Initialize();
             }
         }
 
+        private void UnsubscribeFromTrackGenerator()
+        {
+            if (trackGenerator != null)
+            {
+                trackGenerator.OnTrackDataReady -= OnTrackDataReady;
+            }
+        }
+
+        /// <summary>
+        /// Callback when track data becomes ready (or is regenerated).
+        /// On first call, initializes. On subsequent calls, rebuilds layers.
+        /// </summary>
+        private void OnTrackDataReady(Vector2[] trackPoints)
+        {
+            if (!isInitialized)
+            {
+                Initialize();
+            }
+            else
+            {
+                // Track data was regenerated after init, rebuild layers
+                Debug.Log("[TradingTerminalBackground] Track data regenerated, rebuilding background layers");
+                RefreshBackground();
+            }
+        }
+
+        /// <summary>
+        /// Idempotent initialization, safe to call from both event callback and missed-event guard.
+        /// </summary>
         private void Initialize()
         {
             if (isInitialized) return;
@@ -227,7 +290,8 @@ namespace Solracer.Game.Background
 
             // Create a large quad for background
             SpriteRenderer sr = backgroundPanel.AddComponent<SpriteRenderer>();
-            sr.sprite = CreateSolidSprite(backgroundColor);
+            _bgPanelSprite = CreateSolidSprite(backgroundColor);
+            sr.sprite = _bgPanelSprite;
             sr.sortingOrder = -1000;
             
             // Make it huge to cover any camera movement
@@ -236,7 +300,7 @@ namespace Solracer.Game.Background
 
         /// <summary>
         /// Creates the ghost candle layer (Layer 1)
-        /// Candles are now positioned at track data points with color based on S/R proximity
+        /// Candles are positioned at track data points with color based on S/R proximity
         /// </summary>
         private void CreateGhostCandleLayer()
         {
@@ -246,7 +310,6 @@ namespace Solracer.Game.Background
 
             ghostCandleLayer = candleLayerObj.AddComponent<GhostCandleLayer>();
             ghostCandleLayer.Initialize(
-                ghostCandleCount,
                 ghostCandleGreen,
                 ghostCandleRed,
                 ghostCandleOpacity,
@@ -334,26 +397,46 @@ namespace Solracer.Game.Background
         }
 
         /// <summary>
-        /// Creates a simple solid color sprite
+        /// Creates a simple solid color sprite (instance-owned)
         /// </summary>
         private Sprite CreateSolidSprite(Color color)
         {
-            Texture2D tex = new Texture2D(1, 1);
-            tex.SetPixel(0, 0, color);
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
+            _bgPanelTex = new Texture2D(1, 1);
+            _bgPanelTex.SetPixel(0, 0, color);
+            _bgPanelTex.Apply();
+            return Sprite.Create(_bgPanelTex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
         }
 
         /// <summary>
-        /// Refreshes all background layers (useful after settings change)
+        /// Destroys runtime-created texture/sprite assets to prevent leaks.
+        /// Called by OnDestroy and RefreshBackground.
+        /// </summary>
+        private void DestroyRuntimeAssets()
+        {
+            if (_bgPanelSprite != null) { Destroy(_bgPanelSprite); _bgPanelSprite = null; }
+            if (_bgPanelTex != null) { Destroy(_bgPanelTex); _bgPanelTex = null; }
+        }
+
+        /// <summary>
+        /// Refreshes all background layers (useful after settings change or track reload).
+        /// Hard-resets all references and cached assets before re-initialization.
         /// </summary>
         public void RefreshBackground()
         {
-            // Clean up existing
+            // Destroy child objects
             if (backgroundPanel != null) Destroy(backgroundPanel);
             if (parallaxGrid != null) Destroy(parallaxGrid.gameObject);
             if (ghostCandleLayer != null) Destroy(ghostCandleLayer.gameObject);
             if (srManager != null) Destroy(srManager.gameObject);
+
+            // Clear references to avoid stale pointers before end-of-frame destruction
+            backgroundPanel = null;
+            parallaxGrid = null;
+            ghostCandleLayer = null;
+            srManager = null;
+
+            // Destroy cached runtime assets
+            DestroyRuntimeAssets();
 
             isInitialized = false;
             Initialize();

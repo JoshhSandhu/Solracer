@@ -6,7 +6,7 @@ namespace Solracer.Network
     public class GhostCarRenderer : MonoBehaviour
     {
         [Header("References")]
-        [Tooltip("The RaceManager in the scene — provides access to GhostRelay.")]
+        [Tooltip("The RaceManager in the scene, provides access to GhostRelay.")]
         [SerializeField] private RaceManager raceManager;
 
         [Header("Smoothing")]
@@ -81,21 +81,21 @@ namespace Solracer.Network
             // Get dead-reckoned target position
             Vector2 targetPos = relay.GetExtrapolatedOpponentPosition() + positionOffset;
 
-            // Don't show ghost if opponent is still at (0,0) — PDA was just initialized
+            // Don't show ghost if opponent is still at (0,0), PDA was just initialized
             if (!_receivedFirstPosition)
             {
                 if (Mathf.Abs(targetPos.x) < 0.01f && Mathf.Abs(targetPos.y) < 0.01f)
                 {
-                    // Still at origin — don't show yet
+                    // Still at origin, don't show yet
                     SetVisible(false);
                     return;
                 }
 
-                // First real position arrived — teleport to it
+                // First real position arrived, teleport to it
                 _receivedFirstPosition = true;
                 transform.position = new Vector3(targetPos.x, targetPos.y, transform.position.z);
                 _smoothVelocity = Vector2.zero;
-                Debug.Log($"[GhostCarRenderer] First position received — teleported to ({targetPos.x:F1}, {targetPos.y:F1})");
+                Debug.Log($"[GhostCarRenderer] First position received, teleported to ({targetPos.x:F1}, {targetPos.y:F1})");
             }
 
             SetVisible(true);

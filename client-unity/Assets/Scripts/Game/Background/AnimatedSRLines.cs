@@ -30,6 +30,10 @@ namespace Solracer.Game.Background
         
         private bool isInitialized = false;
 
+        // Instance-owned shared sprite assets (one per component, never static)
+        private Texture2D _sharedTex;
+        private Sprite _sharedSprite;
+
         /// <summary>
         /// Data for a single price level line
         /// </summary>
@@ -63,6 +67,9 @@ namespace Solracer.Game.Background
             this.labelFont = font;
             this.labelFontSize = fontSize;
             this.mainCamera = camera;
+
+            // Create instance-owned shared sprite
+            CreateSharedSprite();
             
             CreateLines();
             
@@ -151,7 +158,7 @@ namespace Solracer.Game.Background
                 dashObj.transform.localPosition = new Vector3(currentX + dashLength / 2f, 0, 0);
                 
                 SpriteRenderer sr = dashObj.AddComponent<SpriteRenderer>();
-                sr.sprite = CreateDashSprite();
+                sr.sprite = _sharedSprite;
                 sr.color = color;
                 sr.sortingOrder = -500;
                 
@@ -202,12 +209,15 @@ namespace Solracer.Game.Background
             line.label.color = labelColor;
         }
 
-        private Sprite CreateDashSprite()
+        /// <summary>
+        /// Creates an instance-owned shared sprite for all dashes.
+        /// </summary>
+        private void CreateSharedSprite()
         {
-            Texture2D tex = new Texture2D(1, 1);
-            tex.SetPixel(0, 0, Color.white);
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
+            _sharedTex = new Texture2D(1, 1);
+            _sharedTex.SetPixel(0, 0, Color.white);
+            _sharedTex.Apply();
+            _sharedSprite = Sprite.Create(_sharedTex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
         }
 
         private void Update()
@@ -239,6 +249,14 @@ namespace Solracer.Game.Background
                     }
                 }
             }
+        }
+
+        private void OnDestroy()
+        {
+            // Clean up instance-owned texture/sprite assets
+            if (_sharedSprite != null) { Destroy(_sharedSprite); _sharedSprite = null; }
+            if (_sharedTex != null) { Destroy(_sharedTex); _sharedTex = null; }
+            lines.Clear();
         }
     }
 }

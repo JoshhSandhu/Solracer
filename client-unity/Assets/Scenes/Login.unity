@@ -177,7 +177,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: User ID
+  m_text: Balance
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: d45d855b130400940bbd581293ca2fd5, type: 2}
   m_sharedMaterial: {fileID: 6318157448518163892, guid: d45d855b130400940bbd581293ca2fd5, type: 2}
@@ -1359,6 +1359,84 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!1 &515237078
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 515237080}
+  - component: {fileID: 515237079}
+  m_Layer: 0
+  m_Name: ToastManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &515237079
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 515237078}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7faf51d74536e414ba7c1d241c43bb8e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Solracer.UI.Toast.ToastManager
+  successToastPrefab: {fileID: 2606148687629012759, guid: 65caaa21c0094e540ae5be1218e8b466, type: 3}
+  errorToastPrefab: {fileID: 2606148687629012759, guid: 90b60200ec269e64f9c662d51ef2514f, type: 3}
+  warningToastPrefab: {fileID: 2606148687629012759, guid: 741a4b35f07f4c74b9bc386c81387356, type: 3}
+  infoToastPrefab: {fileID: 2606148687629012759, guid: 61c11d84063f5de4ca1960e966f158be, type: 3}
+  fallbackToastPrefab: {fileID: 2606148687629012759, guid: 90b60200ec269e64f9c662d51ef2514f, type: 3}
+  toastRoot: {fileID: 0}
+  successStyle:
+    backgroundColor: {r: 0.05, g: 0.55, b: 0.25, a: 0.95}
+    titleColor: {r: 1, g: 1, b: 1, a: 1}
+    messageColor: {r: 0.9, g: 1, b: 0.9, a: 1}
+    iconTint: {r: 1, g: 1, b: 1, a: 1}
+    defaultDuration: 3
+  errorStyle:
+    backgroundColor: {r: 0.7, g: 0.1, b: 0.1, a: 0.95}
+    titleColor: {r: 1, g: 1, b: 1, a: 1}
+    messageColor: {r: 1, g: 0.9, b: 0.9, a: 1}
+    iconTint: {r: 1, g: 1, b: 1, a: 1}
+    defaultDuration: 4
+  warningStyle:
+    backgroundColor: {r: 0.7, g: 0.5, b: 0.05, a: 0.95}
+    titleColor: {r: 1, g: 1, b: 1, a: 1}
+    messageColor: {r: 1, g: 0.97, b: 0.88, a: 1}
+    iconTint: {r: 1, g: 1, b: 1, a: 1}
+    defaultDuration: 3.5
+  infoStyle:
+    backgroundColor: {r: 0.15, g: 0.35, b: 0.65, a: 0.95}
+    titleColor: {r: 1, g: 1, b: 1, a: 1}
+    messageColor: {r: 0.9, g: 0.95, b: 1, a: 1}
+    iconTint: {r: 1, g: 1, b: 1, a: 1}
+    defaultDuration: 3
+  maxConcurrent: 1
+  dedupeWindowSeconds: 2
+  slideDistance: 60
+  animDuration: 0.3
+--- !u!4 &515237080
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 515237078}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &563146722
 GameObject:
   m_ObjectHideFlags: 0
@@ -2008,7 +2086,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: cmhk...zwl0
+  m_text: 0.2 Sol
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: d45d855b130400940bbd581293ca2fd5, type: 2}
   m_sharedMaterial: {fileID: 6318157448518163892, guid: d45d855b130400940bbd581293ca2fd5, type: 2}
@@ -4881,3 +4959,4 @@ SceneRoots:
   - {fileID: 1171349901}
   - {fileID: 1634763068}
   - {fileID: 319077297}
+  - {fileID: 515237080}

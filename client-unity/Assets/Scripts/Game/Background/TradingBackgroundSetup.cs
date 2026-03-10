@@ -20,11 +20,19 @@ namespace Solracer.Game.Background
         [Tooltip("Automatically set up background on Start")]
         [SerializeField] private bool autoSetup = true;
         
-        [Header("Theme Presets")]
+        [Header("Theme Presets (NOT YET IMPLEMENTED)")]
+        /// <summary>
+        /// Theme selection. Currently a stub, does not alter runtime behavior.
+        /// Future: use to configure colors, speeds, and visual presets.
+        /// </summary>
         [SerializeField] private BackgroundTheme theme = BackgroundTheme.CryptoTerminal;
         
-        [Header("Performance")]
-        [Tooltip("Reduce effects for mobile/low-end devices")]
+        [Header("Performance (NOT YET IMPLEMENTED)")]
+        /// <summary>
+        /// Low-end mode flag. Currently a stub, does not disable any effects.
+        /// Future: reduce candle count, disable grid, simplify S/R lines.
+        /// </summary>
+        [Tooltip("Reduce effects for mobile/low-end devices (stub, not yet implemented)")]
         [SerializeField] private bool lowEndMode = false;
 
         public enum BackgroundTheme

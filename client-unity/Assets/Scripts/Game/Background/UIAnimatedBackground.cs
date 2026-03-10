@@ -106,6 +106,10 @@ namespace Solracer.Game.Background
         private AnimatedParallaxGrid animatedGrid;
         private AnimatedSRLines animatedSR;
         private RandomGraphGenerator randomGraph;
+
+        // Cached runtime assets for cleanup
+        private Texture2D _bgPanelTex;
+        private Sprite _bgPanelSprite;
         
         private bool isInitialized = false;
 
@@ -162,7 +166,8 @@ namespace Solracer.Game.Background
             backgroundPanel.transform.localPosition = Vector3.zero;
 
             SpriteRenderer sr = backgroundPanel.AddComponent<SpriteRenderer>();
-            sr.sprite = CreateSolidSprite(backgroundColor);
+            _bgPanelSprite = CreateSolidSprite(backgroundColor);
+            sr.sprite = _bgPanelSprite;
             sr.sortingOrder = -1000;
             backgroundPanel.transform.localScale = new Vector3(1000, 500, 1);
         }
@@ -229,24 +234,46 @@ namespace Solracer.Game.Background
 
         private Sprite CreateSolidSprite(Color color)
         {
-            Texture2D tex = new Texture2D(1, 1);
-            tex.SetPixel(0, 0, color);
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
+            _bgPanelTex = new Texture2D(1, 1);
+            _bgPanelTex.SetPixel(0, 0, color);
+            _bgPanelTex.Apply();
+            return Sprite.Create(_bgPanelTex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
         }
 
         /// <summary>
-        /// Refreshes all background layers
+        /// Refreshes all background layers.
+        /// Hard-resets references and cached assets before re-initialization.
         /// </summary>
         public void RefreshBackground()
         {
+            // Destroy child objects
             if (backgroundPanel != null) Destroy(backgroundPanel);
             if (animatedGrid != null) Destroy(animatedGrid.gameObject);
             if (animatedSR != null) Destroy(animatedSR.gameObject);
             if (randomGraph != null) Destroy(randomGraph.gameObject);
 
+            // Clear references to avoid stale pointers
+            backgroundPanel = null;
+            animatedGrid = null;
+            animatedSR = null;
+            randomGraph = null;
+
+            // Destroy cached runtime assets
+            DestroyRuntimeAssets();
+
             isInitialized = false;
             Initialize();
+        }
+
+        private void DestroyRuntimeAssets()
+        {
+            if (_bgPanelSprite != null) { Destroy(_bgPanelSprite); _bgPanelSprite = null; }
+            if (_bgPanelTex != null) { Destroy(_bgPanelTex); _bgPanelTex = null; }
+        }
+
+        private void OnDestroy()
+        {
+            DestroyRuntimeAssets();
         }
     }
 }
