@@ -38,6 +38,10 @@ namespace Solracer.Game.Background
         
         private bool isInitialized = false;
 
+        // Instance-owned shared sprite assets (one per component, never static)
+        private Texture2D _sharedTex;
+        private Sprite _sharedSprite;
+
         /// <summary>
         /// Data for a single price level line
         /// </summary>
@@ -46,10 +50,12 @@ namespace Solracer.Game.Background
             public GameObject container;
             public List<SpriteRenderer> dashSprites = new List<SpriteRenderer>();
             public TextMeshPro label;
+            public GameObject labelObject; // Tracked separately for cleanup
             public float worldY;
             public float priceValue;
             public bool isResistance;
             public string labelText;
+            public float cachedAlpha = -1f; // For per-frame recolor optimization
         }
 
         /// <summary>
@@ -76,6 +82,9 @@ namespace Solracer.Game.Background
             this.labelFontSize = labelFontSize;
             this.mainCamera = camera;
             this.trackGenerator = trackGenerator;
+
+            // Create instance-owned shared sprite
+            CreateSharedSprite();
             
             // Recalculate base height from track if available
             if (trackGenerator != null && trackGenerator.TrackPoints != null && trackGenerator.TrackPoints.Length > 0)
@@ -184,7 +193,7 @@ namespace Solracer.Game.Background
                 }
             }
             
-            // Create dashed line using individual dash sprites
+            // Create dashed line using individual dash sprites (shared sprite asset)
             float currentX = startX;
             float endX = startX + lineExtent + 100f; // Extra padding at end
             int dashIndex = 0;
@@ -196,7 +205,7 @@ namespace Solracer.Game.Background
                 dashObj.transform.localPosition = new Vector3(currentX + dashLength / 2f, 0, 0);
                 
                 SpriteRenderer sr = dashObj.AddComponent<SpriteRenderer>();
-                sr.sprite = CreateDashSprite();
+                sr.sprite = _sharedSprite;
                 sr.color = color;
                 sr.sortingOrder = -500;
                 
@@ -230,10 +239,11 @@ namespace Solracer.Game.Background
             if (mainCamera == null) return;
             
             // Create label as a root object (not parented to line container)
-            // This makes positioning easier since we set world position directly
+            // Track it explicitly for cleanup in UpdateBaseHeight
             GameObject labelObj = new GameObject($"Label_{line.labelText}");
             labelObj.transform.SetParent(transform); // Parent to manager, not line
             
+            line.labelObject = labelObj; // Track for explicit cleanup
             line.label = labelObj.AddComponent<TextMeshPro>();
             line.label.text = line.labelText;
             line.label.fontSize = labelFontSize;
@@ -280,17 +290,21 @@ namespace Solracer.Game.Background
             labelObj.transform.position = new Vector3(screenRightX - 0.5f, line.worldY, 0);
         }
 
-        private Sprite CreateDashSprite()
+        /// <summary>
+        /// Creates an instance-owned shared sprite for all dashes.
+        /// </summary>
+        private void CreateSharedSprite()
         {
-            Texture2D tex = new Texture2D(1, 1);
-            tex.SetPixel(0, 0, Color.white);
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
+            _sharedTex = new Texture2D(1, 1);
+            _sharedTex.SetPixel(0, 0, Color.white);
+            _sharedTex.Apply();
+            _sharedSprite = Sprite.Create(_sharedTex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
         }
 
         /// <summary>
         /// Updates label positions to stay on the right side of screen
-        /// and updates line visibility based on camera position
+        /// and updates line visibility based on camera position.
+        /// Optimized: skips per-dash recoloring when alpha hasn't changed.
         /// </summary>
         public void UpdateVisibility(Vector3 cameraPosition)
         {
@@ -314,13 +328,11 @@ namespace Solracer.Game.Background
                 if (line.container == null) continue;
                 
                 // Update label position to stay on right side of screen
-                // Labels should be at the right edge of the camera view, aligned with their S/R line
                 if (line.label != null)
                 {
-                    // Position at right edge of screen, at the line's Y level
                     line.label.transform.position = new Vector3(
-                        screenRightX - labelPadding,  // Right edge with small padding
-                        line.worldY,                   // Same Y as the S/R line
+                        screenRightX - labelPadding,
+                        line.worldY,
                         0f
                     );
                 }
@@ -330,6 +342,14 @@ namespace Solracer.Game.Background
                 float fadeDistance = viewHeight * 1.5f;
                 float alpha = 1f - Mathf.Clamp01((distanceFromCenter - viewHeight) / fadeDistance);
                 
+                // Per-frame optimization: skip dash recoloring if alpha hasn't meaningfully changed
+                if (Mathf.Abs(alpha - line.cachedAlpha) < 0.001f)
+                {
+                    // Alpha unchanged, skip expensive per-dash color writes
+                    continue;
+                }
+                line.cachedAlpha = alpha;
+
                 // Apply fade to dashes
                 Color baseColor = line.isResistance ? resistanceColor : supportColor;
                 Color fadedColor = baseColor;
@@ -354,26 +374,34 @@ namespace Solracer.Game.Background
         }
 
         /// <summary>
-        /// Updates the base height and regenerates lines
+        /// Updates the base height and regenerates lines.
+        /// Fixed: now also destroys label objects to prevent label accumulation.
         /// </summary>
         public void UpdateBaseHeight(float newBaseHeight)
         {
             baseHeight = newBaseHeight;
             
-            // Clean up existing lines
-            foreach (var line in resistanceLines)
-            {
-                if (line.container != null) Destroy(line.container);
-            }
-            foreach (var line in supportLines)
-            {
-                if (line.container != null) Destroy(line.container);
-            }
+            // Clean up existing lines AND their labels
+            DestroyAllLines(resistanceLines);
+            DestroyAllLines(supportLines);
             resistanceLines.Clear();
             supportLines.Clear();
             
             // Regenerate
             CreateLines();
+        }
+
+        /// <summary>
+        /// Destroys all line containers and their associated label objects.
+        /// Labels are parented to manager (not line container), so must be destroyed explicitly.
+        /// </summary>
+        private void DestroyAllLines(List<PriceLevelLine> lines)
+        {
+            foreach (var line in lines)
+            {
+                if (line.container != null) Destroy(line.container);
+                if (line.labelObject != null) Destroy(line.labelObject);
+            }
         }
 
         /// <summary>
@@ -416,6 +444,15 @@ namespace Solracer.Game.Background
                 }
             }
             return nearest;
+        }
+
+        private void OnDestroy()
+        {
+            // Clean up instance-owned texture/sprite assets
+            if (_sharedSprite != null) { Destroy(_sharedSprite); _sharedSprite = null; }
+            if (_sharedTex != null) { Destroy(_sharedTex); _sharedTex = null; }
+            resistanceLines.Clear();
+            supportLines.Clear();
         }
     }
 }

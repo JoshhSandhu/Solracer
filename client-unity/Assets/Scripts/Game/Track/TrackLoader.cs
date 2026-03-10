@@ -2,6 +2,7 @@ using UnityEngine;
 using System;
 using System.Threading.Tasks;
 using Solracer.Network;
+using Solracer.UI.Toast;
 
 namespace Solracer.Game
 {
@@ -28,6 +29,8 @@ namespace Solracer.Game
         /// Full context of the currently loaded track.
         /// </summary>
         public LoadedTrackData CurrentTrack { get; private set; }
+
+        private static bool _hasShownTrackFallbackToast = false;
 
         private async void Start()
         {
@@ -179,6 +182,12 @@ namespace Solracer.Game
 
             trackGenerator.SetTrackData(mockData);
             trackGenerator.GenerateTrackFromData(mockData);
+
+            if (!_hasShownTrackFallbackToast)
+            {
+                _hasShownTrackFallbackToast = true;
+                ToastManager.Instance?.ShowWarning("Using offline track data");
+            }
         }
 
         /// <summary>

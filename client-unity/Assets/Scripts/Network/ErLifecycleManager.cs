@@ -10,12 +10,12 @@ namespace Solracer.Network
     ///
     /// The on-chain lifecycle (init_position_pda + delegate_position_pda) is now
     /// handled entirely by the backend-ts, bundled into the same transaction as
-    /// create_race / join_race — so only ONE wallet popup is needed.
+    /// create_race / join_race, so only ONE wallet popup is needed.
     ///
     /// This class only needs to:
     ///   1. Read the session keypair from SessionKeyStore (populated during create/join tx)
     ///   2. Derive the PlayerPosition PDA locally for use by ErGhostRelay
-    ///   3. Return the result synchronously — no RPC calls needed here
+    ///   3. Return the result synchronously, no RPC calls needed here
     /// </summary>
     public static class ErLifecycleManager
     {
@@ -31,7 +31,7 @@ namespace Solracer.Network
 
         /// <summary>
         /// Retrieve the session keypair from SessionKeyStore and compute the
-        /// PlayerPosition PDA for the given race.  No network calls are made —
+        /// PlayerPosition PDA for the given race.  No network calls are made,
         /// the backend already sent init_position_pda + delegate_position_pda
         /// inside the create_race / join_race transaction.
         /// </summary>
@@ -46,9 +46,9 @@ namespace Solracer.Network
             if (sessionPrivate == null || sessionPublic == null)
             {
                 // Fallback: generate a fresh keypair.
-                // This should not happen in the normal flow — session key is always
+                // This should not happen in the normal flow, session key is always
                 // generated before calling the backend create/join endpoint.
-                Debug.LogWarning("[ErLifecycleManager] No session key in store — generating fresh keypair (fallback)");
+                Debug.LogWarning("[ErLifecycleManager] No session key in store, generating fresh keypair (fallback)");
                 byte[] seed = new byte[32];
                 using (var rng = RandomNumberGenerator.Create())
                     rng.GetBytes(seed);
@@ -120,7 +120,7 @@ namespace Solracer.Network
             {
                 // If Chaos.NaCl can interpret this as a public key, it's on-curve
                 // We can't call that from here easily, so we use the SHA256 approach
-                // The Solana runtime uses a different check — just return false here
+                // The Solana runtime uses a different check, just return false here
                 // and let the bump loop find a valid off-curve point naturally.
                 return false;
             }

@@ -6,9 +6,11 @@ using System;
 using System.Linq;
 using System.Collections;
 using Privy;
+using Solracer.UI.Toast;
 using System.Threading.Tasks;
 using Solracer.Config;
 using Solracer.UI;
+using Solana.Unity.Rpc;
 using Solana.Unity.Rpc.Models;
 using Solana.Unity.Wallet;
 
@@ -455,6 +457,7 @@ namespace Solracer.Auth
 
                     Debug.Log($"[ConnectWallet] MWA wallet connected successfully");
                     Debug.Log($"[ConnectWallet] Wallet address: {walletAddress}");
+                    ToastManager.Instance?.ShowSuccess($"Wallet connected: {walletAddress}");
                     
                     // Notify listeners
                     OnAuthenticationStateChanged?.Invoke(true);
@@ -464,6 +467,7 @@ namespace Solracer.Auth
                 else
                 {
                     Debug.LogWarning($"[ConnectWallet] MWA wallet connection failed: {connectionResult.ErrorMessage}");
+                    ToastManager.Instance?.ShowError(connectionResult.ErrorMessage ?? "Wallet connection was rejected");
                     ShowAuthPanel();
                 }
             }
@@ -471,6 +475,7 @@ namespace Solracer.Auth
             {
                 Debug.LogError($"[ConnectWallet] MWA wallet connection failed: {e.Message}");
                 Debug.LogError($"[ConnectWallet] Stack trace: {e.StackTrace}");
+                ToastManager.Instance?.ShowError(e.Message);
                 ShowAuthPanel();
             }
         }
@@ -557,11 +562,13 @@ namespace Solracer.Auth
                 else
                 {
                     Debug.LogWarning("Email login failed - invalid code");
+            ToastManager.Instance?.ShowError("Invalid or expired code");
                 }
             }
             catch (Exception e)
             {
                 Debug.LogError($"Email code verification failed: {e.Message}");
+                ToastManager.Instance?.ShowError(e.Message);
             }
         }
 
@@ -772,6 +779,7 @@ namespace Solracer.Auth
             catch (Exception e)
             {
                 Debug.LogError($"Logout failed: {e.Message}");
+                ToastManager.Instance?.ShowError(e.Message);
             }
         }
 
@@ -812,21 +820,33 @@ namespace Solracer.Auth
 
                 if (userInfoText != null)
                 {
-                    if (isMWA)
+                    string addr = AuthenticationData.WalletAddress;
+                    if (!string.IsNullOrEmpty(addr) && addr != "No Wallet")
                     {
-                        userInfoText.text = "MWA Wallet";
+                        userInfoText.text = "Loading...";
+                        try
+                        {
+                            var rpcClient = ClientFactory.GetClient(Cluster.DevNet);
+                            var balanceResult = await rpcClient.GetBalanceAsync(addr);
+                            if (balanceResult.WasSuccessful)
+                            {
+                                double sol = balanceResult.Result.Value / 1_000_000_000.0;
+                                userInfoText.text = $"{sol:F4} SOL";
+                            }
+                            else
+                            {
+                                userInfoText.text = "0 SOL";
+                            }
+                        }
+                        catch (Exception balanceEx)
+                        {
+                            Debug.LogWarning($"[AuthenticationFlowManager] Failed to fetch balance: {balanceEx.Message}");
+                            userInfoText.text = "-- SOL";
+                        }
                     }
                     else
                     {
-                        var user = await privyInstance.GetUser();
-                        if (user != null && !string.IsNullOrEmpty(user.Id))
-                        {
-                            userInfoText.text = UIStyleHelper.TruncateUserId(user.Id, 4, 4);
-                        }
-                        else
-                        {
-                            userInfoText.text = "Unknown";
-                        }
+                        userInfoText.text = "No Wallet";
                     }
                 }
             }
@@ -899,6 +919,7 @@ namespace Solracer.Auth
             // Copy to clipboard
             GUIUtility.systemCopyBuffer = fullAddress;
             Debug.Log($"[CopyWalletAddress] Copied wallet address to clipboard: {fullAddress}");
+    ToastManager.Instance?.ShowSuccess("Wallet address copied to clipboard");
 
             // Show visual feedback
             StartCoroutine(ShowCopiedFeedback());

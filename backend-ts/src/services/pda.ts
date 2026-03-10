@@ -35,7 +35,7 @@ export function deriveRacePda(
   return PublicKey.findProgramAddressSync(seeds, getProgramId());
 }
 
-/** SHA-256 of the raceId string — matches the on-chain race_id_hash() helper */
+/** SHA-256 of the raceId string, matches the on-chain race_id_hash() helper */
 export function raceIdHash(raceId: string): Buffer {
   return crypto.createHash("sha256").update(raceId, "utf-8").digest();
 }

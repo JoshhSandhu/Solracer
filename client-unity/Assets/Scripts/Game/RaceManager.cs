@@ -7,6 +7,7 @@ using Solracer.Network;
 using Solracer.Auth;
 using Solracer.Config;
 using Solracer.Utils;
+using Solracer.UI.Toast;
 using TMPro;
 
 namespace Solracer.Game
@@ -568,9 +569,15 @@ namespace Solracer.Game
                     }
 
                     RaceData.SetResultSubmitted(submitted);
-                    Debug.Log(submitted
-                        ? "[RaceManager] Result submitted successfully!"
-                        : "[RaceManager] Result submission failed or was cancelled");
+                    if (submitted)
+                    {
+                        Debug.Log("[RaceManager] Result submitted successfully!");
+                    }
+                    else
+                    {
+                        Debug.Log("[RaceManager] Result submission failed or was cancelled");
+                        ToastManager.Instance?.ShowWarning("Result will retry on Results screen");
+                    }
                 }
                 else if (GameModeData.IsCompetitive)
                 {
@@ -665,7 +672,7 @@ namespace Solracer.Game
                     Debug.Log("[RaceManager] Initializing ER ghost relay...");
 
                     // Backend already handled init_position_pda + delegate_position_pda
-                    // inside the create_race / join_race transaction — just retrieve keys.
+                    // inside the create_race / join_race transaction, just retrieve keys.
                     var initResult = ErLifecycleManager.PrepareSessionKey(raceId, myWallet);
 
                     var erRelay = new ErGhostRelay(

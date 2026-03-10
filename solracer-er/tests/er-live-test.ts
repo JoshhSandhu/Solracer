@@ -72,7 +72,7 @@ async function main() {
     await waitForTx(baseConnection, initTx);
 
     const acct = await baseConnection.getAccountInfo(positionPda, "confirmed");
-    if (!acct) throw new Error("Position PDA not found after init — RPC lag?");
+    if (!acct) throw new Error("Position PDA not found after init, RPC lag?");
     console.log(`    Account: ${acct.data.length} bytes, owner ${acct.owner.toBase58()} ✔`);
 
     // ── Step 2: Delegate to MagicBlock ──────────────────────────────────────

@@ -8,6 +8,7 @@ using Solracer.Config;
 using Solracer.Game;
 using Solracer.Network;
 using Solracer.Auth;
+using Solracer.UI.Toast;
 
 namespace Solracer.UI
 {
@@ -594,6 +595,7 @@ namespace Solracer.UI
                     {
                         Debug.LogError("TokenPickerScreen: Failed to create race on-chain");
                         UpdateLoadingText("Failed to create race. Please try again.");
+                        ToastManager.Instance?.ShowError("On-chain transaction rejected");
                         ShowLoadingUI(false);
                         isCreatingRace = false;
                         return;
@@ -625,6 +627,7 @@ namespace Solracer.UI
             {
                 Debug.LogError($"TokenPickerScreen: Error creating race: {e.Message}");
                 UpdateLoadingText($"Error: {e.Message}");
+                ToastManager.Instance?.ShowError(e.Message);
                 ShowLoadingUI(false);
                 isCreatingRace = false;
             }
