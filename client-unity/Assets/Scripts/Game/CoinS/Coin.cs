@@ -61,17 +61,15 @@ namespace Solracer.Game
                 Debug.Log($"Coin: OnTriggerEnter2D called with: {other.gameObject.name}");
             }
 
-            if (other.GetComponent<Rigidbody2D>() != null)
+            // Check if the colliding object is any part of the ATV (body, tires, etc.)
+            ATVController atv = other.GetComponentInParent<ATVController>();
+            if (atv != null)
             {
-                Transform parent = other.transform.parent;
-                if (parent != null && parent.GetComponent<ATVController>() != null)
+                if (debugLogging)
                 {
-                    if (debugLogging)
-                    {
-                        Debug.Log($"Coin: Detected ATV tire");
-                    }
-                    Collect();
+                    Debug.Log($"Coin: Detected ATV part - {other.gameObject.name}");
                 }
+                Collect();
             }
         }
 

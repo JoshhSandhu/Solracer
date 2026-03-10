@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -22,6 +23,12 @@ namespace Solracer.Game
     [RequireComponent(typeof(EdgeCollider2D))]
     public class TrackGenerator : MonoBehaviour
     {
+        /// <summary>
+        /// Fired after GenerateTrackFromData() completes successfully.
+        /// Subscribers receive the generated TrackPoints array.
+        /// Also fires on track reload/regeneration, allowing listeners to rebuild.
+        /// </summary>
+        public event Action<Vector2[]> OnTrackDataReady;
         [Header("Track Settings")]
         [Tooltip("Total length of the track in world units")]
         [SerializeField] private float trackLength = 100f;
@@ -163,6 +170,9 @@ namespace Solracer.Game
             SetupEdgeCollider();
 
             Debug.Log($"[TrackGenerator] Generated track with {trackPoints.Length} points (from {trackData.Length} data points), length: {trackLength}");
+
+            // Notify subscribers that track data is ready (or has been regenerated)
+            OnTrackDataReady?.Invoke(TrackPoints);
         }
 
         #region Legacy Methods (Obsolete  use TrackLoader + GenerateTrackFromData instead)

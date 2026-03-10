@@ -238,13 +238,25 @@ namespace Solracer.Game
             // Use Continuous collision detection to prevent tunneling through colliders at high speed
             atvRigidbody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
 
+            // CRITICAL: Also set CCD on the tires they are separate Rigidbody2Ds
+            // and the default Discrete mode causes wheel tunneling on high-speed impacts
+            // (e.g. after big drops where the car falls and hits the track)
+            if (frontTire != null)
+            {
+                frontTire.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            }
+            if (backTire != null)
+            {
+                backTire.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+            }
+
             //config of the physics properties
             atvRigidbody.linearDamping = 0.1f;  //slight air resistance
             atvRigidbody.angularDamping = 2f;   //prevent excessive rotation
 
             atvRigidbody.WakeUp();
 
-            Debug.Log("ATVController: Rigidbody2D configured with Continuous collision detection");
+            Debug.Log("ATVController: Rigidbody2D configured with Continuous collision detection (body + tires)");
         }
 
         /// <summary>

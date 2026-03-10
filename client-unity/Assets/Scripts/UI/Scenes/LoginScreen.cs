@@ -4,6 +4,7 @@ using UnityEngine.SceneManagement;
 using TMPro;
 using Solracer.Auth;
 using Solracer.Config;
+using Solracer.UI.Toast;
 
 namespace Solracer.UI
 {
@@ -391,6 +392,7 @@ namespace Solracer.UI
             AuthenticationData.IsAuthenticated = false;
             AuthenticationData.Reset();
 
+            ToastManager.Instance?.ShowInfo("Playing as guest, progress won't be saved");
             LoadModeSelectionScene();
         }
 
@@ -431,6 +433,7 @@ namespace Solracer.UI
             catch (System.Exception e)
             {
                 Debug.LogError($"LoginScreen: Failed to load scene '{tokenPickerSceneName}': {e.Message}");
+                ToastManager.Instance?.ShowError("Could not load next screen");
             }
         }
 
@@ -533,11 +536,11 @@ namespace Solracer.UI
                 // Truncation will be handled by AuthenticationFlowManager
             }
 
-            // Style user ID label
+            // Style balance label
             if (userIdLabelText != null)
             {
                 UIStyleHelper.SetFont(userIdLabelText, UIStyleHelper.FontType.Exo2);
-                userIdLabelText.text = "User ID";
+                userIdLabelText.text = "Balance";
                 userIdLabelText.color = colorScheme.textSecondary;
                 userIdLabelText.fontStyle = FontStyles.Normal;
             }

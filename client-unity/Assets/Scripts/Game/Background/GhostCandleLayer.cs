@@ -40,6 +40,13 @@ namespace Solracer.Game.Background
         // Sampling - don't create a candle for every point
         private int candleSpacing = 3; // Create candle every N points
 
+        // Instance-owned shared sprite assets (one per component, never static)
+        private Texture2D _sharedTex;
+        private Sprite _sharedSprite;
+
+        // Epsilon to prevent division by zero in S/R range calculations
+        private const float RANGE_EPSILON = 0.001f;
+
         /// <summary>
         /// Individual ghost candle data
         /// </summary>
@@ -54,9 +61,10 @@ namespace Solracer.Game.Background
         }
 
         /// <summary>
-        /// Initializes the ghost candle layer using track data
+        /// Initializes the ghost candle layer using track data.
+        /// candleCount parameter removed, candle count is determined by track point density.
         /// </summary>
-        public void Initialize(int candleCount, Color greenColor, Color redColor, 
+        public void Initialize(Color greenColor, Color redColor, 
                               float opacity, Camera camera, TrackGenerator trackGenerator)
         {
             this.bullishColor = greenColor;
@@ -64,6 +72,9 @@ namespace Solracer.Game.Background
             this.opacity = opacity;
             this.mainCamera = camera;
             this.trackGenerator = trackGenerator;
+
+            // Create shared sprite asset (instance-owned)
+            CreateSharedSprite();
             
             // Calculate S/R levels from track data
             CalculateSupportResistanceLevels();
@@ -109,6 +120,7 @@ namespace Solracer.Game.Background
             
             // Add some padding for visual effect
             float range = maxY - minY;
+            if (range < RANGE_EPSILON) range = RANGE_EPSILON; // Epsilon guard
             supportLevel = minY - range * 0.1f;
             resistanceLevel = maxY + range * 0.1f;
             
@@ -154,26 +166,27 @@ namespace Solracer.Game.Background
             candle.isBullish = priceChange >= 0;
             
             // Calculate candle size based on price change magnitude
-            float changeRatio = Mathf.Abs(priceChange) / (resistanceLevel - supportLevel);
+            // Epsilon guard: prevent division by zero when S/R range collapses
+            float range = resistanceLevel - supportLevel;
+            if (range < RANGE_EPSILON) range = RANGE_EPSILON;
+            float changeRatio = Mathf.Abs(priceChange) / range;
             changeRatio = Mathf.Clamp01(changeRatio * 3f); // Scale up for visibility
             
             float bodyWidth = Mathf.Lerp(minCandleWidth, maxCandleWidth, changeRatio);
             float bodyHeight = Mathf.Lerp(minCandleHeight, maxCandleHeight, changeRatio);
             
-            // Position candle - slightly offset from track line (behind it)
+            // Position candle anchored to the track point's Y position.
+            // Bullish: body extends upward from track. Bearish: body extends downward.
             float candleX = currentPoint.x;
             float candleY = currentPoint.y;
             
-            // For bullish: candle body goes from current to next (green)
-            // For bearish: candle body goes from next to current (red)
-            float openPrice = candle.isBullish ? currentPoint.y : nextPoint.y;
-            float closePrice = candle.isBullish ? nextPoint.y : currentPoint.y;
-            float bodyCenter = (openPrice + closePrice) / 2f;
+            // Offset so the candle base sits on the track line
+            float bodyOffset = candle.isBullish ? bodyHeight / 2f : -bodyHeight / 2f;
             
             // Create candle container
             candle.gameObject = new GameObject($"Candle_{index}");
             candle.gameObject.transform.SetParent(transform);
-            candle.gameObject.transform.position = new Vector3(candleX, bodyCenter, 0);
+            candle.gameObject.transform.position = new Vector3(candleX, candleY + bodyOffset, 0);
             
             // Calculate color based on proximity to S/R levels
             Color candleColor = CalculateCandleColor(currentPoint.y, candle.isBullish);
@@ -189,12 +202,16 @@ namespace Solracer.Game.Background
         }
 
         /// <summary>
-        /// Calculates candle color based on price position between S/R levels
+        /// Calculates candle color based on price position between S/R levels.
+        /// Includes epsilon guard to prevent NaN from zero-range.
         /// </summary>
         private Color CalculateCandleColor(float priceLevel, bool isBullish)
         {
-            // Calculate how close to resistance (1.0) vs support (0.0)
+            // Epsilon guard: prevent division by zero
             float range = resistanceLevel - supportLevel;
+            if (range < RANGE_EPSILON) range = RANGE_EPSILON;
+
+            // Calculate how close to resistance (1.0) vs support (0.0)
             float normalizedPosition = (priceLevel - supportLevel) / range;
             normalizedPosition = Mathf.Clamp01(normalizedPosition);
             
@@ -220,7 +237,7 @@ namespace Solracer.Game.Background
         }
 
         /// <summary>
-        /// Creates the candle body sprite
+        /// Creates the candle body sprite using shared sprite asset
         /// </summary>
         private void CreateCandleBody(GhostCandle candle, float width, float height, Color color)
         {
@@ -229,7 +246,7 @@ namespace Solracer.Game.Background
             body.transform.localPosition = Vector3.zero;
             
             candle.bodyRenderer = body.AddComponent<SpriteRenderer>();
-            candle.bodyRenderer.sprite = CreateRectSprite();
+            candle.bodyRenderer.sprite = _sharedSprite;
             candle.bodyRenderer.sortingOrder = -900;
             candle.bodyRenderer.sortingLayerName = "Default";
             candle.bodyRenderer.color = color;
@@ -238,7 +255,7 @@ namespace Solracer.Game.Background
         }
 
         /// <summary>
-        /// Creates top and bottom wicks
+        /// Creates top and bottom wicks using shared sprite asset
         /// </summary>
         private void CreateCandleWicks(GhostCandle candle, float bodyWidth, float bodyHeight, float wickHeight, Color color)
         {
@@ -252,7 +269,7 @@ namespace Solracer.Game.Background
             topWick.transform.localPosition = new Vector3(0, bodyHeight / 2 + wickHeight / 2, 0);
             
             candle.topWickRenderer = topWick.AddComponent<SpriteRenderer>();
-            candle.topWickRenderer.sprite = CreateRectSprite();
+            candle.topWickRenderer.sprite = _sharedSprite;
             candle.topWickRenderer.sortingOrder = -901;
             candle.topWickRenderer.sortingLayerName = "Default";
             candle.topWickRenderer.color = wickColor;
@@ -264,7 +281,7 @@ namespace Solracer.Game.Background
             bottomWick.transform.localPosition = new Vector3(0, -bodyHeight / 2 - wickHeight / 2, 0);
             
             candle.bottomWickRenderer = bottomWick.AddComponent<SpriteRenderer>();
-            candle.bottomWickRenderer.sprite = CreateRectSprite();
+            candle.bottomWickRenderer.sprite = _sharedSprite;
             candle.bottomWickRenderer.sortingOrder = -901;
             candle.bottomWickRenderer.sortingLayerName = "Default";
             candle.bottomWickRenderer.color = wickColor;
@@ -293,12 +310,16 @@ namespace Solracer.Game.Background
             }
         }
 
-        private Sprite CreateRectSprite()
+        /// <summary>
+        /// Creates a single shared white 1x1 texture+sprite for all candles.
+        /// Instance-owned: each GhostCandleLayer has its own copy.
+        /// </summary>
+        private void CreateSharedSprite()
         {
-            Texture2D tex = new Texture2D(1, 1);
-            tex.SetPixel(0, 0, Color.white);
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
+            _sharedTex = new Texture2D(1, 1);
+            _sharedTex.SetPixel(0, 0, Color.white);
+            _sharedTex.Apply();
+            _sharedSprite = Sprite.Create(_sharedTex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1);
         }
 
         /// <summary>
@@ -339,6 +360,14 @@ namespace Solracer.Game.Background
                     candle.bottomWickRenderer.color = c;
                 }
             }
+        }
+
+        private void OnDestroy()
+        {
+            // Clean up instance-owned texture/sprite assets
+            if (_sharedSprite != null) { Destroy(_sharedSprite); _sharedSprite = null; }
+            if (_sharedTex != null) { Destroy(_sharedTex); _sharedTex = null; }
+            candles.Clear();
         }
     }
 }

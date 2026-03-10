@@ -7,6 +7,7 @@ using Solracer.Auth;
 using Solracer.Config;
 using Solracer.Game;
 using Solracer.Network;
+using Solracer.UI.Toast;
 
 namespace Solracer.UI
 {
@@ -181,6 +182,7 @@ namespace Solracer.UI
             if (!AuthenticationData.CanAccessCompetitiveMode)
             {
                 Debug.LogWarning("ModeSelectionScreen: Competitive mode requires authentication. Please login first.");
+                ToastManager.Instance?.ShowWarning("Sign in to play competitive mode");
                 return;
             }
 

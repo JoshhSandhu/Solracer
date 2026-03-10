@@ -10,6 +10,7 @@ using Solracer.Network;
 using Solracer.Auth;
 using Solracer.Game;
 using Solracer.Config;
+using Solracer.UI.Toast;
 using Toggle.UI;
 
 namespace Solracer.UI
@@ -413,6 +414,7 @@ namespace Solracer.UI
                 if (!string.IsNullOrEmpty(onChainRaceId))
                 {
                     Debug.Log($"[LobbyScreen] Race created on-chain: {onChainRaceId}");
+                    ToastManager.Instance?.ShowSuccess("Race created, waiting for opponent");
                     
                     // Race was created on-chain AND in database by /transactions/submit
                     // Use the on-chain race_id directly - don't call CreateRaceAsync again!
@@ -464,8 +466,8 @@ namespace Solracer.UI
                     // Re-enable the create button so user can try again
                     if (createGameButton != null)
                         createGameButton.interactable = true;
-                        
-                    // TODO: Show user-friendly error message UI
+                    
+                    ToastManager.Instance?.ShowError("On-chain transaction rejected");
                 }
             }
             catch (Exception ex)
@@ -526,7 +528,7 @@ namespace Solracer.UI
                 string code = joinCodeText.text.Replace("Join Code: ", "").Trim();
                 GUIUtility.systemCopyBuffer = code;
                 Debug.Log($"[LobbyScreen] Copied join code: {code}");
-                // TODO: Show toast notification
+                ToastManager.Instance?.ShowSuccess("Join code copied to clipboard");
             }
         }
 
@@ -542,6 +544,7 @@ namespace Solracer.UI
                 {
                     ResetCreateUI();
                     StopPolling();
+                    ToastManager.Instance?.ShowInfo("Race has been cancelled");
                 }
             }
             catch (Exception ex)
@@ -635,6 +638,7 @@ namespace Solracer.UI
                 if (string.IsNullOrEmpty(code) || code.Length != 6)
                 {
                     Debug.LogWarning("[LobbyScreen] Invalid join code");
+                    ToastManager.Instance?.ShowWarning("Enter a 6-character join code");
                     return;
                 }
 
@@ -664,10 +668,12 @@ namespace Solracer.UI
                     if (!joinedOnChain)
                     {
                         Debug.LogWarning("[LobbyScreen] On-chain join failed, but continuing with database join");
+                        ToastManager.Instance?.ShowWarning("Joined database, chain sync pending");
                     }
                     else
                     {
                         Debug.Log($"[LobbyScreen] Successfully joined race on-chain!");
+                        ToastManager.Instance?.ShowSuccess("Joined race successfully");
                     }
 
                     // Switch to create tab to show waiting UI
@@ -678,6 +684,7 @@ namespace Solracer.UI
                 else
                 {
                     Debug.LogError("[LobbyScreen] Failed to join race by code");
+                    ToastManager.Instance?.ShowError("Could not join race, invalid code or race full");
                     if (joinByCodeButton != null)
                         joinByCodeButton.interactable = true;
                 }
@@ -790,10 +797,12 @@ namespace Solracer.UI
                     if (!joinedOnChain)
                     {
                         Debug.LogWarning("[LobbyScreen] On-chain join failed, but continuing with database join");
+                        ToastManager.Instance?.ShowWarning("Joined database, chain sync pending");
                     }
                     else
                     {
                         Debug.Log($"[LobbyScreen] Successfully joined race on-chain!");
+                        ToastManager.Instance?.ShowSuccess("Joined race successfully");
                     }
 
                     // Switch to create tab to show waiting UI
