@@ -17,6 +17,7 @@ namespace Solracer.Game
         [Header("References")]
         [SerializeField] private ATVController atvController;
         [SerializeField] private TrackGenerator trackGenerator;
+        [SerializeField] private TrackLoader trackLoader;
 
         [Header("Flip/Respawn Settings")]
         [SerializeField] private float upsideDownAngleThreshold = 90f;
@@ -52,6 +53,7 @@ namespace Solracer.Game
         [SerializeField] private TextMeshProUGUI countdownText;
         [SerializeField] private GameObject countdownPanel;
         [SerializeField] private float countdownInterval = 1f;
+        [SerializeField] private float trackLoadWaitTimeout = 15f;
 
         private bool isGameActive = false;
         private bool hasReachedEnd = false;
@@ -96,6 +98,15 @@ namespace Solracer.Game
                 }
             }
 
+            if (trackLoader == null)
+            {
+                trackLoader = FindAnyObjectByType<TrackLoader>();
+                if (trackLoader != null)
+                {
+                    Debug.Log("RaceManager: Auto-found Track Loader");
+                }
+            }
+
             inputTraceRecorder = FindAnyObjectByType<InputTraceRecorder>();
             if (inputTraceRecorder == null)
             {
@@ -110,6 +121,13 @@ namespace Solracer.Game
 
         private void Start()
         {
+            StartCoroutine(BeginRaceFlowCoroutine());
+        }
+
+        private IEnumerator BeginRaceFlowCoroutine()
+        {
+            yield return WaitForTrackToLoadCoroutine();
+
             if (GameModeData.IsCompetitive && RaceData.HasActiveRace())
             {
                 StartCompetitiveFlow().FireAndForget();
@@ -118,6 +136,35 @@ namespace Solracer.Game
             {
                 StartRace();
             }
+        }
+
+        private IEnumerator WaitForTrackToLoadCoroutine()
+        {
+            float elapsed = 0f;
+
+            while (!IsTrackReady())
+            {
+                if (elapsed >= trackLoadWaitTimeout)
+                {
+                    Debug.LogWarning("[RaceManager] Timed out waiting for track load. Continuing race flow.");
+                    yield break;
+                }
+
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            Debug.Log("[RaceManager] Track is ready. Starting race flow.");
+        }
+
+        private bool IsTrackReady()
+        {
+            if (trackGenerator != null && trackGenerator.TrackPoints != null && trackGenerator.TrackPoints.Length > 0)
+            {
+                return true;
+            }
+
+            return trackLoader != null && trackLoader.IsTrackLoaded;
         }
 
         private async Task StartCompetitiveFlow()
@@ -213,6 +260,7 @@ namespace Solracer.Game
             var raceHUD = FindAnyObjectByType<Solracer.UI.RaceHUD>();
             if (raceHUD != null)
             {
+                raceHUD.PlaySpawnIntro();
                 raceHUD.StartTimer();
             }
 

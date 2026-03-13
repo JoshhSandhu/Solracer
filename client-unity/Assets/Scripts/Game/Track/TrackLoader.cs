@@ -30,10 +30,17 @@ namespace Solracer.Game
         /// </summary>
         public LoadedTrackData CurrentTrack { get; private set; }
 
+        /// <summary>
+        /// True once track geometry has been generated and is ready for race flow.
+        /// </summary>
+        public bool IsTrackLoaded { get; private set; }
+
         private static bool _hasShownTrackFallbackToast = false;
 
         private async void Start()
         {
+            IsTrackLoaded = false;
+
             if (trackGenerator == null)
             {
                 trackGenerator = FindAnyObjectByType<TrackGenerator>();
@@ -154,6 +161,7 @@ namespace Solracer.Game
             // Inject into TrackGenerator
             trackGenerator.SetTrackData(trackData);
             trackGenerator.GenerateTrackFromData(trackData);
+            IsTrackLoaded = true;
         }
 
         /// <summary>
@@ -182,6 +190,7 @@ namespace Solracer.Game
 
             trackGenerator.SetTrackData(mockData);
             trackGenerator.GenerateTrackFromData(mockData);
+            IsTrackLoaded = true;
 
             if (!_hasShownTrackFallbackToast)
             {

@@ -28,6 +28,16 @@ namespace Solracer.UI
         private bool isAccelerating = false;
         private bool isReversing = false;
         private bool isHandbraking = false;
+        private RaceManager raceManager;
+        private Animator accelerateAnimator;
+        private Animator reverseAnimator;
+        private Animator handbrakeAnimator;
+        private bool lastControlsEnabled = true;
+
+        private static readonly int IsHeldHash = Animator.StringToHash("IsHeld");
+        private static readonly int IsDisabledHash = Animator.StringToHash("IsDisabled");
+        private static readonly int PressHash = Animator.StringToHash("Press");
+        private static readonly int ErrorHash = Animator.StringToHash("Error");
 
         private void Awake()
         {
@@ -39,6 +49,9 @@ namespace Solracer.UI
                     atvController = atvObject.GetComponent<ATVController>();
                 }
             }
+
+            raceManager = FindAnyObjectByType<RaceManager>();
+            CacheAnimators();
         }
 
         private void Start()
@@ -48,11 +61,14 @@ namespace Solracer.UI
 
         private void Update()
         {
+            bool controlsEnabled = AreControlsEnabled();
+            UpdateAnimatorDisabledStates(controlsEnabled);
+
             if (atvController != null)
             {
-                atvController.SetUIAccelerateInput(isAccelerating ? 1f : 0f);
-                atvController.SetUIBrakeInput(isReversing ? 1f : 0f);
-                atvController.SetUIHandbrakeInput(isHandbraking ? 1f : 0f);
+                atvController.SetUIAccelerateInput(controlsEnabled && isAccelerating ? 1f : 0f);
+                atvController.SetUIBrakeInput(controlsEnabled && isReversing ? 1f : 0f);
+                atvController.SetUIHandbrakeInput(controlsEnabled && isHandbraking ? 1f : 0f);
             }
         }
 
@@ -61,6 +77,78 @@ namespace Solracer.UI
             ReleaseAccelerate();
             ReleaseReverse();
             ReleaseHandbrake();
+        }
+
+        private void CacheAnimators()
+        {
+            accelerateAnimator = accelerateButton != null ? accelerateButton.GetComponent<Animator>() : null;
+            reverseAnimator = reverseButton != null ? reverseButton.GetComponent<Animator>() : null;
+            handbrakeAnimator = handbrakeButton != null ? handbrakeButton.GetComponent<Animator>() : null;
+        }
+
+        private bool AreControlsEnabled()
+        {
+            if (raceManager == null)
+            {
+                return true;
+            }
+
+            return raceManager.IsGameActive && !raceManager.HasReachedEnd;
+        }
+
+        private void UpdateAnimatorDisabledStates(bool controlsEnabled)
+        {
+            if (lastControlsEnabled == controlsEnabled)
+            {
+                return;
+            }
+
+            lastControlsEnabled = controlsEnabled;
+
+            SetAnimatorDisabledState(accelerateAnimator, !controlsEnabled);
+            SetAnimatorDisabledState(reverseAnimator, !controlsEnabled);
+            SetAnimatorDisabledState(handbrakeAnimator, !controlsEnabled);
+        }
+
+        private void SetAnimatorDisabledState(Animator animator, bool isDisabled)
+        {
+            if (animator == null)
+            {
+                return;
+            }
+
+            animator.SetBool(IsDisabledHash, isDisabled);
+        }
+
+        private void PlayPressAnimation(Animator animator)
+        {
+            if (animator == null)
+            {
+                return;
+            }
+
+            animator.SetTrigger(PressHash);
+            animator.SetBool(IsHeldHash, true);
+        }
+
+        private void ReleaseHeldAnimation(Animator animator)
+        {
+            if (animator == null)
+            {
+                return;
+            }
+
+            animator.SetBool(IsHeldHash, false);
+        }
+
+        private void PlayErrorAnimation(Animator animator)
+        {
+            if (animator == null)
+            {
+                return;
+            }
+
+            animator.SetTrigger(ErrorHash);
         }
 
         /// <summary>
@@ -157,7 +245,14 @@ namespace Solracer.UI
         /// </summary>
         public void PressAccelerate()
         {
+            if (!AreControlsEnabled())
+            {
+                PlayErrorAnimation(accelerateAnimator);
+                return;
+            }
+
             isAccelerating = true;
+            PlayPressAnimation(accelerateAnimator);
         }
 
         /// <summary>
@@ -166,6 +261,7 @@ namespace Solracer.UI
         public void ReleaseAccelerate()
         {
             isAccelerating = false;
+            ReleaseHeldAnimation(accelerateAnimator);
         }
 
         /// <summary>
@@ -173,7 +269,14 @@ namespace Solracer.UI
         /// </summary>
         public void PressReverse()
         {
+            if (!AreControlsEnabled())
+            {
+                PlayErrorAnimation(reverseAnimator);
+                return;
+            }
+
             isReversing = true;
+            PlayPressAnimation(reverseAnimator);
         }
 
         /// <summary>
@@ -182,6 +285,7 @@ namespace Solracer.UI
         public void ReleaseReverse()
         {
             isReversing = false;
+            ReleaseHeldAnimation(reverseAnimator);
         }
 
         /// <summary>
@@ -189,7 +293,14 @@ namespace Solracer.UI
         /// </summary>
         public void PressHandbrake()
         {
+            if (!AreControlsEnabled())
+            {
+                PlayErrorAnimation(handbrakeAnimator);
+                return;
+            }
+
             isHandbraking = true;
+            PlayPressAnimation(handbrakeAnimator);
         }
 
         /// <summary>
@@ -198,6 +309,7 @@ namespace Solracer.UI
         public void ReleaseHandbrake()
         {
             isHandbraking = false;
+            ReleaseHeldAnimation(handbrakeAnimator);
         }
 
         public void SetATVController(ATVController controller)
@@ -211,4 +323,3 @@ namespace Solracer.UI
         public bool IsHandbraking => isHandbraking;
     }
 }
-

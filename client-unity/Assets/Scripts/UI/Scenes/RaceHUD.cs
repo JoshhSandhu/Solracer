@@ -1,7 +1,8 @@
-using UnityEngine;
-using UnityEngine.UI;
+using System.Collections;
 using TMPro;
 using Solracer.Game;
+using UnityEngine;
+using UnityEngine.UI;
 
 namespace Solracer.UI
 {
@@ -13,6 +14,31 @@ namespace Solracer.UI
         [Header("References")]
         [Tooltip("ATV Controller to get speed from")]
         [SerializeField] private ATVController atvController;
+
+        [Header("Spawn Intro")]
+        [Tooltip("Play HUD intro animation when the race starts")]
+        [SerializeField] private bool playSpawnIntro = true;
+
+        [Tooltip("Duration of the slide/fade intro")]
+        [SerializeField] private float spawnIntroDuration = 0.18f;
+
+        [Tooltip("Horizontal distance for the side buttons")]
+        [SerializeField] private float sideButtonOffset = 260f;
+
+        [Tooltip("Vertical distance for the hold button")]
+        [SerializeField] private float holdButtonOffset = 180f;
+
+        [Tooltip("Vertical distance for the speed/timer text")]
+        [SerializeField] private float topTextOffset = 120f;
+
+        [Tooltip("Reverse button that slides in from the left")]
+        [SerializeField] private RectTransform reverseButtonRect;
+
+        [Tooltip("Accelerate button that slides in from the right")]
+        [SerializeField] private RectTransform accelerateButtonRect;
+
+        [Tooltip("Hold/handbrake button that slides in from the bottom")]
+        [SerializeField] private RectTransform holdButtonRect;
 
         [Header("Speed Display")]
         [Tooltip("Text component for speed display")]
@@ -45,6 +71,15 @@ namespace Solracer.UI
         private float currentTime = 0f;
         private bool isTimerRunning = false;
         private float lastUpdateTime;
+        private bool spawnIntroPrepared = false;
+        private bool spawnIntroPlayed = false;
+        private Coroutine spawnIntroCoroutine;
+
+        private Vector2 reverseButtonTargetPosition;
+        private Vector2 accelerateButtonTargetPosition;
+        private Vector2 holdButtonTargetPosition;
+        private Vector2 speedTextTargetPosition;
+        private Vector2 timerTextTargetPosition;
 
         //properties
         //current timer time in seconds
@@ -79,6 +114,10 @@ namespace Solracer.UI
             {
                 timerText = FindTextByName("TimerText") ?? FindTextByName("Timer");
             }
+
+            AutoFindSpawnTargets();
+            CacheTargetPositions();
+            PrepareSpawnIntroState();
         }
 
         private void Start()
@@ -174,6 +213,177 @@ namespace Solracer.UI
                 return obj.GetComponent<TextMeshProUGUI>();
             }
             return null;
+        }
+
+        private void AutoFindSpawnTargets()
+        {
+            if (reverseButtonRect == null)
+            {
+                reverseButtonRect = FindRectByName("ReverseButton");
+            }
+
+            if (accelerateButtonRect == null)
+            {
+                accelerateButtonRect = FindRectByName("AccelerateButton");
+            }
+
+            if (holdButtonRect == null)
+            {
+                holdButtonRect = FindRectByName("Handbrake") ?? FindRectByName("HoldButton");
+            }
+        }
+
+        private RectTransform FindRectByName(string objectName)
+        {
+            GameObject obj = GameObject.Find(objectName);
+            if (obj == null)
+            {
+                return null;
+            }
+
+            return obj.GetComponent<RectTransform>();
+        }
+
+        private void CacheTargetPositions()
+        {
+            if (reverseButtonRect != null)
+            {
+                reverseButtonTargetPosition = reverseButtonRect.anchoredPosition;
+            }
+
+            if (accelerateButtonRect != null)
+            {
+                accelerateButtonTargetPosition = accelerateButtonRect.anchoredPosition;
+            }
+
+            if (holdButtonRect != null)
+            {
+                holdButtonTargetPosition = holdButtonRect.anchoredPosition;
+            }
+
+            if (speedText != null)
+            {
+                speedTextTargetPosition = speedText.rectTransform.anchoredPosition;
+            }
+
+            if (timerText != null)
+            {
+                timerTextTargetPosition = timerText.rectTransform.anchoredPosition;
+            }
+        }
+
+        private void PrepareSpawnIntroState()
+        {
+            if (!playSpawnIntro || spawnIntroPrepared)
+            {
+                return;
+            }
+
+            SetElementState(reverseButtonRect, reverseButtonTargetPosition + Vector2.left * sideButtonOffset, 0f);
+            SetElementState(accelerateButtonRect, accelerateButtonTargetPosition + Vector2.right * sideButtonOffset, 0f);
+            SetElementState(holdButtonRect, holdButtonTargetPosition + Vector2.down * holdButtonOffset, 0f);
+            SetElementState(speedText != null ? speedText.rectTransform : null, speedTextTargetPosition + Vector2.up * topTextOffset, 0f);
+            SetElementState(timerText != null ? timerText.rectTransform : null, timerTextTargetPosition + Vector2.up * topTextOffset, 0f);
+
+            spawnIntroPrepared = true;
+        }
+
+        private void SetElementState(RectTransform rectTransform, Vector2 anchoredPosition, float alpha)
+        {
+            if (rectTransform == null)
+            {
+                return;
+            }
+
+            rectTransform.anchoredPosition = anchoredPosition;
+
+            CanvasGroup canvasGroup = GetOrAddCanvasGroup(rectTransform.gameObject);
+            canvasGroup.alpha = alpha;
+        }
+
+        private CanvasGroup GetOrAddCanvasGroup(GameObject target)
+        {
+            CanvasGroup canvasGroup = target.GetComponent<CanvasGroup>();
+            if (canvasGroup == null)
+            {
+                canvasGroup = target.AddComponent<CanvasGroup>();
+            }
+
+            return canvasGroup;
+        }
+
+        public void PlaySpawnIntro()
+        {
+            if (!playSpawnIntro)
+            {
+                return;
+            }
+
+            if (!spawnIntroPrepared)
+            {
+                CacheTargetPositions();
+                PrepareSpawnIntroState();
+            }
+
+            if (spawnIntroPlayed)
+            {
+                return;
+            }
+
+            spawnIntroPlayed = true;
+
+            if (spawnIntroCoroutine != null)
+            {
+                StopCoroutine(spawnIntroCoroutine);
+            }
+
+            spawnIntroCoroutine = StartCoroutine(PlaySpawnIntroCoroutine());
+        }
+
+        private IEnumerator PlaySpawnIntroCoroutine()
+        {
+            float duration = Mathf.Max(0.01f, spawnIntroDuration);
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                float eased = EaseOutCubic(t);
+
+                UpdateSpawnElement(reverseButtonRect, reverseButtonTargetPosition + Vector2.left * sideButtonOffset, reverseButtonTargetPosition, eased);
+                UpdateSpawnElement(accelerateButtonRect, accelerateButtonTargetPosition + Vector2.right * sideButtonOffset, accelerateButtonTargetPosition, eased);
+                UpdateSpawnElement(holdButtonRect, holdButtonTargetPosition + Vector2.down * holdButtonOffset, holdButtonTargetPosition, eased);
+                UpdateSpawnElement(speedText != null ? speedText.rectTransform : null, speedTextTargetPosition + Vector2.up * topTextOffset, speedTextTargetPosition, eased);
+                UpdateSpawnElement(timerText != null ? timerText.rectTransform : null, timerTextTargetPosition + Vector2.up * topTextOffset, timerTextTargetPosition, eased);
+
+                yield return null;
+            }
+
+            UpdateSpawnElement(reverseButtonRect, reverseButtonTargetPosition, reverseButtonTargetPosition, 1f);
+            UpdateSpawnElement(accelerateButtonRect, accelerateButtonTargetPosition, accelerateButtonTargetPosition, 1f);
+            UpdateSpawnElement(holdButtonRect, holdButtonTargetPosition, holdButtonTargetPosition, 1f);
+            UpdateSpawnElement(speedText != null ? speedText.rectTransform : null, speedTextTargetPosition, speedTextTargetPosition, 1f);
+            UpdateSpawnElement(timerText != null ? timerText.rectTransform : null, timerTextTargetPosition, timerTextTargetPosition, 1f);
+
+            spawnIntroCoroutine = null;
+        }
+
+        private void UpdateSpawnElement(RectTransform rectTransform, Vector2 startPosition, Vector2 endPosition, float t)
+        {
+            if (rectTransform == null)
+            {
+                return;
+            }
+
+            rectTransform.anchoredPosition = Vector2.LerpUnclamped(startPosition, endPosition, t);
+            GetOrAddCanvasGroup(rectTransform.gameObject).alpha = t;
+        }
+
+        private float EaseOutCubic(float t)
+        {
+            float inverse = 1f - t;
+            return 1f - (inverse * inverse * inverse);
         }
 
         //starts the timer
