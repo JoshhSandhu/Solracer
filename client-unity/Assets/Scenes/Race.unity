@@ -1334,13 +1334,13 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 352952907}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.43137255}
+  m_Color: {r: 0, g: 0, b: 0, a: 0}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -1980,7 +1980,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 17581b9a8ad4427459ff8d30dcfd5f10, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Solracer.UI.MobileInputControls
-  atvController: {fileID: 0}
+  atvController: {fileID: 1965750655}
   accelerateButton: {fileID: 1889095062}
   reverseButton: {fileID: 352952908}
   handbrakeButton: {fileID: 1213994376}
@@ -2728,7 +2728,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1213994374}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name: 
@@ -3849,13 +3849,13 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1889095058}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.43137255}
+  m_Color: {r: 0, g: 0, b: 0, a: 0}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -4208,6 +4208,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Solracer.Game.RaceManager
   atvController: {fileID: 1965750655}
   trackGenerator: {fileID: 1640221894}
+  trackLoader: {fileID: 0}
   upsideDownAngleThreshold: 90
   upsideDownTimeThreshold: 7
   respawnHeight: 5
@@ -4226,6 +4227,7 @@ MonoBehaviour:
   countdownText: {fileID: 161417843}
   countdownPanel: {fileID: 1553245405}
   countdownInterval: 1
+  trackLoadWaitTimeout: 15
   useErRelay: 1
 --- !u!4 &2054209001
 Transform:

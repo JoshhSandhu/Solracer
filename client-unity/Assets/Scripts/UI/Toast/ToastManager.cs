@@ -499,7 +499,9 @@ namespace Solracer.UI.Toast
             root.anchorMin = new Vector2(0f, 1f);
             root.anchorMax = new Vector2(1f, 1f);
             root.pivot = new Vector2(0.5f, 1f);
-            root.anchoredPosition = new Vector2(0f, -60f);
+            float topInset = Screen.height - Screen.safeArea.yMax;
+            root.anchoredPosition = new Vector2(0f, -(topInset + 24f));
+
             root.sizeDelta = new Vector2(0f, 0f); // width from stretch, height from content
             root.localScale = Vector3.one;
             root.localRotation = Quaternion.identity;

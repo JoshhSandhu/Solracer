@@ -393,7 +393,7 @@ namespace Solracer.UI
             AuthenticationData.Reset();
 
             ToastManager.Instance?.ShowInfo("Playing as guest, progress won't be saved");
-            LoadModeSelectionScene();
+            LoadTokenPickerScene();
         }
 
         /// <summary>

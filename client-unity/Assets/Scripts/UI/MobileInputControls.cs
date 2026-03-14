@@ -66,9 +66,9 @@ namespace Solracer.UI
 
             if (atvController != null)
             {
-                atvController.SetUIAccelerateInput(controlsEnabled && isAccelerating ? 1f : 0f);
-                atvController.SetUIBrakeInput(controlsEnabled && isReversing ? 1f : 0f);
-                atvController.SetUIHandbrakeInput(controlsEnabled && isHandbraking ? 1f : 0f);
+                atvController.SetUIAccelerateInput( isAccelerating ? 1f : 0f);
+                atvController.SetUIBrakeInput(isReversing ? 1f : 0f);
+                atvController.SetUIHandbrakeInput(isHandbraking ? 1f : 0f);
             }
         }
 

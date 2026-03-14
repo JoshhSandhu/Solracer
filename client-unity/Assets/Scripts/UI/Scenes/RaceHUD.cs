@@ -340,6 +340,13 @@ namespace Solracer.UI
             spawnIntroCoroutine = StartCoroutine(PlaySpawnIntroCoroutine());
         }
 
+        public void BeginCountdownPresentation()
+        {
+            StopTimer();
+            ResetTimer();
+            PlaySpawnIntro();
+        }
+
         private IEnumerator PlaySpawnIntroCoroutine()
         {
             float duration = Mathf.Max(0.01f, spawnIntroDuration);

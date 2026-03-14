@@ -60,6 +60,7 @@ namespace Solracer.Game
         private bool isUpsideDown = false;
         private float upsideDownTimer = 0f;
         private bool countdownComplete = false;
+        private bool countdownStarted = false;
         
         private float stuckTimer = 0f;
         private Vector3 lastPosition;
@@ -134,7 +135,7 @@ namespace Solracer.Game
             }
             else
             {
-                StartRace();
+                BeginCountdownOrStartRace();
             }
         }
 
@@ -208,17 +209,46 @@ namespace Solracer.Game
             if (bothReady)
             {
                 StartGhostRelay();
-                StartCoroutine(CountdownCoroutine());
+                BeginCountdownOrStartRace();
             }
             else
             {
                 Debug.LogWarning("[RaceManager] Both players not ready - starting race anyway");
-                StartRace();
+                BeginCountdownOrStartRace();
             }
+        }
+
+        private void BeginCountdownOrStartRace()
+        {
+            if (isGameActive || countdownStarted)
+            {
+                return;
+            }
+
+            var raceHUD = FindAnyObjectByType<Solracer.UI.RaceHUD>();
+            if (raceHUD != null)
+            {
+                raceHUD.BeginCountdownPresentation();
+            }
+
+            if (countdownPanel == null && countdownText == null)
+            {
+                StartRace();
+                return;
+            }
+
+            StartCoroutine(CountdownCoroutine());
         }
 
         private IEnumerator CountdownCoroutine()
         {
+            if (countdownStarted)
+            {
+                yield break;
+            }
+
+            countdownStarted = true;
+
             if (countdownPanel != null)
                 countdownPanel.SetActive(true);
             if (countdownText != null)
@@ -248,8 +278,15 @@ namespace Solracer.Game
 
         private void StartRace()
         {
+            if (isGameActive)
+            {
+                return;
+            }
+
             isGameActive = true;
+            hasReachedEnd = false;
             countdownComplete = true;
+            countdownStarted = false;
 
             if (inputTraceRecorder != null)
             {
@@ -260,8 +297,7 @@ namespace Solracer.Game
             var raceHUD = FindAnyObjectByType<Solracer.UI.RaceHUD>();
             if (raceHUD != null)
             {
-                raceHUD.PlaySpawnIntro();
-                raceHUD.StartTimer();
+                raceHUD.ResetAndStartTimer();
             }
 
             Debug.Log("RaceManager: Race started!");
