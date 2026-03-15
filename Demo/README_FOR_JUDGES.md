@@ -40,7 +40,7 @@ HOLD is basically to stop both the wheels.
 • Trustless prize distribution
 
 ##Note
-- To run the game a seeker device is required, or alternatively Mock MWA wallet needs to be installed to run the game.
+- To run the game a seeker device is required, or alternatively Mock MWA wallet needs to be installed on an Android device to run the game. IOS is not yet supported.
 
 GitHub:  
 https://github.com/JoshhSandhu/Solracer
