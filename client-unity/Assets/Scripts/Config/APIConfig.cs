@@ -47,21 +47,21 @@ namespace Solracer.Config
                 }
             }
 
-            // Priority 2: Use build defines (set in Build Settings → Player Settings → Scripting Define Symbols)
+            // Priority 2: Use build defines (set in Build Settings -> Player Settings -> Scripting Define Symbols)
             #if DEVELOPMENT_BUILD
-                Debug.Log("[APIConfig] Development build - using local URL");
-                return LOCAL_URL;
+                Debug.Log("[APIConfig] Development build using local URL");
+                return PRODUCTION_URL;
             #elif STAGING_BUILD
-                Debug.Log("[APIConfig] Staging build - using staging URL");
+                Debug.Log("[APIConfig] Staging build using staging URL");
                 return STAGING_URL;
             #elif PRODUCTION_BUILD
-                Debug.Log("[APIConfig] Production build - using production URL");
+                Debug.Log("[APIConfig] Production build using production URL");
                 return PRODUCTION_URL;
             #endif
 
             // Priority 3: Editor uses local backend-ts; device builds use production domain
         #if UNITY_EDITOR
-            string url = LOCAL_BACKEND_TS_URL;
+            string url = PRODUCTION_URL;
             Debug.Log($"[APIConfig] Using API base URL: {url}");
             return url;
         #else
