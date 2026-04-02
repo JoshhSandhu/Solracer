@@ -30,6 +30,7 @@ export { floorToHour, currentHourUTC } from './utils/time';
 export { getPool, closePool } from './db/connection';
 export {
   storeOracleTick,
+  storeOracleTicksBatch,
   getTicksForHour,
   getLatestTickTime,
   storeTrackBucket,
@@ -92,7 +93,7 @@ async function main(): Promise<void> {
     console.log('\n[oracle] Shutting down...');
     const { stopTickWorker: stop } = await import('./workers/oracleIngestionWorker');
     const { closePool: close } = await import('./db/connection');
-    stop();
+    await stop(dbPool);
     await close();
     process.exit(0);
   };

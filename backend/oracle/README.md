@@ -159,7 +159,8 @@ Idempotent, batched (50 rows at a time), crash-safe. Only updates rows where `di
 
 Example `.env`:
 ```
-DATABASE_URL=postgresql://postgres:password@db.project.supabase.co:5432/postgres
+# Use port 6543 for Supabase transaction pooling (PgBouncer) to reduce connection overhead
+DATABASE_URL=postgresql://postgres:password@db.project.supabase.co:6543/postgres
 ORACLE_SUPPORTED_TOKENS=So11111111111111111111111111111111111112,DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263
 TRACK_POINT_COUNT=1000
 RETENTION_HOURS=26
@@ -233,7 +234,8 @@ backend/oracle/
 │   │   └── oracle.types.ts               # Domain types
 │   ├── utils/
 │   │   ├── time.ts                       # floorToHour()
-│   │   └── blob-decoder.ts              # Int16LE blob → float[] decoder
+│   │   ├── blob-decoder.ts              # Int16LE blob → float[] decoder
+│   │   └── track-cache.ts               # Persistent disk cache for track bucket keys
 │   ├── db/
 │   │   ├── schema.sql                    # PostgreSQL DDL
 │   │   ├── connection.ts                 # pg.Pool (with statement_timeout)
