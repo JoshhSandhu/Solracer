@@ -58,9 +58,19 @@ export async function storeOracleTicksBatch(
 ): Promise<void> {
   if (ticks.length === 0) return;
 
-  // For a single tick, use the simpler query
-  if (ticks.length === 1) {
-    return storeOracleTick(pool, ticks[0]);
+  // Deduplicate by (token_mint, tick_time) PostgreSQL's ON CONFLICT DO UPDATE
+  // throws "cannot affect a row a second time" if the same key appears more than
+  // once within the same batch. Keep the last entry (matches single-row UPSERT semantics).
+  const seen = new Map<string, OracleTickInput>();
+  for (const t of ticks) {
+    const key = `${t.token_mint}|${t.tick_time.getTime()}`;
+    seen.set(key, t); // later entries overwrite earlier ones
+  }
+  const deduplicated = [...seen.values()];
+
+  // For a single tick after dedup, use the simpler query
+  if (deduplicated.length === 1) {
+    return storeOracleTick(pool, deduplicated[0]);
   }
 
   const tokenMints: string[] = [];
@@ -69,7 +79,7 @@ export async function storeOracleTicksBatch(
   const publishTimes: Date[] = [];
   const sourceSlots: number[] = [];
 
-  for (const t of ticks) {
+  for (const t of deduplicated) {
     tokenMints.push(t.token_mint);
     tickTimes.push(t.tick_time);
     oraclePrices.push(t.oracle_price);
