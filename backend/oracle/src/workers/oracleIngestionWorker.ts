@@ -22,13 +22,15 @@ import { floorToHour } from '../utils/time';
 import { fetchOraclePricesBatch } from '../services/oracle-fetcher';
 import { generateTrackBucket } from '../services/track-generator';
 import {
-  storeOracleTick,
+  storeOracleTicksBatch,
   getTicksForHour,
   storeTrackBucket,
   trackBucketExists,
   deleteExpiredData,
 } from '../db/repository';
 import type { OracleTickInput } from '../types/oracle.types';
+import { loadTrackCache, saveTrackCache } from '../utils/track-cache';
+import { resolve } from 'path';
 
 // ---------------------------------------------------------------------------
 // Worker State
@@ -53,9 +55,29 @@ const lastTickTimeMap = new Map<string, Date>();
  * In-memory cache: generated track bucket keys for the current period.
  * Key format: `${tokenMint}|${hourISO}|${version}`.
  * Cleared every hour to allow re-checking after the hour rolls.
+ * Persisted to disk so restarts don't trigger redundant SELECTs.
  */
-const generatedTrackCache = new Set<string>();
+let generatedTrackCache = new Set<string>();
 let generatedTrackCacheHour = 0;
+
+/** File path for persisting the track cache across restarts. */
+const TRACK_CACHE_FILE = resolve(__dirname, '..', '..', 'track-cache.json');
+
+// ---------------------------------------------------------------------------
+// Tick Batching Buffer
+// ---------------------------------------------------------------------------
+
+/** Buffer of ticks waiting to be flushed to the database. */
+const pendingTicks: OracleTickInput[] = [];
+
+/** Timestamp of the last flush. */
+let lastFlushTime = Date.now();
+
+/** Flush interval in milliseconds (batch ticks every 30 seconds). */
+const FLUSH_INTERVAL_MS = 30_000;
+
+/** Maximum ticks to buffer before forcing a flush. */
+const MAX_BUFFER_SIZE = 50;
 
 // ---------------------------------------------------------------------------
 // Structured Logger
@@ -129,6 +151,9 @@ function msUntilNextTick(): number {
  * - Track generation is DB-checked (crash-safe).
  */
 export function startTickWorker(pool: Pool, config: OracleConfig): void {
+  // Load persisted track cache from disk
+  generatedTrackCache = loadTrackCache(TRACK_CACHE_FILE);
+
   log({
     ts: now(),
     level: 'info',
@@ -141,11 +166,28 @@ export function startTickWorker(pool: Pool, config: OracleConfig): void {
 /**
  * Stop the tick worker (for graceful shutdown).
  */
-export function stopTickWorker(): void {
+export async function stopTickWorker(pool?: Pool): Promise<void> {
   if (tickTimer) {
     clearTimeout(tickTimer);
     tickTimer = null;
   }
+
+  // Flush any remaining buffered ticks on shutdown
+  if (pool && pendingTicks.length > 0) {
+    try {
+      await flushPendingTicks(pool);
+    } catch (err) {
+      log({
+        ts: now(),
+        level: 'error',
+        msg: 'Failed to flush pending ticks on shutdown',
+        error: String(err),
+      });
+    }
+  }
+
+  // Persist track cache to disk on shutdown
+  saveTrackCache(TRACK_CACHE_FILE, generatedTrackCache);
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +216,25 @@ function scheduleNextTick(pool: Pool, config: OracleConfig): void {
 // Core Tick Cycle
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Tick Buffer Flush
+// ---------------------------------------------------------------------------
+
+async function flushPendingTicks(pool: Pool): Promise<void> {
+  if (pendingTicks.length === 0) return;
+
+  const batch = pendingTicks.splice(0, pendingTicks.length);
+  await storeOracleTicksBatch(pool, batch);
+
+  log({
+    ts: now(),
+    level: 'info',
+    msg: `Flushed ${batch.length} ticks to DB`,
+  });
+
+  lastFlushTime = Date.now();
+}
+
 async function runTickCycle(pool: Pool, config: OracleConfig): Promise<void> {
   // Overlap guard
   if (isRunning) {
@@ -185,7 +246,7 @@ async function runTickCycle(pool: Pool, config: OracleConfig): Promise<void> {
   const tickTime = alignedTickTime();
 
   try {
-    // 1. Batch fetch all oracle prices (single RPC call)
+    // 1. Batch fetch all oracle prices (single RPC call) + buffer ticks
     try {
       await ingestTicksBatch(pool, config.supportedTokens, tickTime);
     } catch (err) {
@@ -198,14 +259,31 @@ async function runTickCycle(pool: Pool, config: OracleConfig): Promise<void> {
       });
     }
 
-    // 2. Check for track generation (after hour close buffer)
+    // 2. Flush buffered ticks if interval elapsed or buffer is full
+    const nowMs = Date.now();
+    if (
+      pendingTicks.length >= MAX_BUFFER_SIZE ||
+      nowMs - lastFlushTime >= FLUSH_INTERVAL_MS
+    ) {
+      try {
+        await flushPendingTicks(pool);
+      } catch (err) {
+        log({
+          ts: now(),
+          level: 'error',
+          msg: 'Tick flush failed',
+          error: String(err),
+        });
+      }
+    }
+
+    // 3. Check for track generation (after hour close buffer)
     const currentMinute = new Date().getUTCMinutes();
     if (currentMinute >= TRACK_GEN_BUFFER_MINUTES) {
       await checkAndGenerateTracks(pool, config);
     }
 
-    // 3. Periodic retention cleanup (once per hour; backoff to 5min on failure)
-    const nowMs = Date.now();
+    // 4. Periodic retention cleanup (once per hour; backoff to 5min on failure)
     if (nowMs - lastCleanupTime >= ONE_HOUR_MS) {
       try {
         const { deletedTicks, deletedBuckets } = await deleteExpiredData(
@@ -243,7 +321,7 @@ async function runTickCycle(pool: Pool, config: OracleConfig): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function ingestTicksBatch(
-  pool: Pool,
+  _pool: Pool,
   tokenMints: string[],
   tickTime: Date,
 ): Promise<void> {
@@ -267,28 +345,18 @@ async function ingestTicksBatch(
   // Single batched RPC call for all tokens
   const priceMap = await fetchOraclePricesBatch(tokenMints);
 
-  // Store each successfully fetched price as a tick
+  // Buffer ticks will be flushed in batch every FLUSH_INTERVAL_MS
   for (const [tokenMint, priceData] of priceMap) {
-    try {
-      const tick: OracleTickInput = {
-        token_mint: priceData.token_mint,
-        tick_time: tickTime,
-        oracle_price: priceData.price,
-        publish_time: priceData.publish_time,
-        source_slot: priceData.source_slot,
-      };
+    const tick: OracleTickInput = {
+      token_mint: priceData.token_mint,
+      tick_time: tickTime,
+      oracle_price: priceData.price,
+      publish_time: priceData.publish_time,
+      source_slot: priceData.source_slot,
+    };
 
-      await storeOracleTick(pool, tick);
-      lastTickTimeMap.set(tokenMint, tickTime);
-    } catch (err) {
-      log({
-        ts: now(),
-        level: 'error',
-        msg: 'Failed to store tick',
-        tokenMint,
-        error: String(err),
-      });
-    }
+    pendingTicks.push(tick);
+    lastTickTimeMap.set(tokenMint, tickTime);
   }
 }
 
@@ -320,6 +388,7 @@ async function checkAndGenerateTracks(
         const exists = await trackBucketExists(pool, tokenMint, targetHour, TRACK_VERSION);
         if (exists) {
           generatedTrackCache.add(cacheKey);
+          saveTrackCache(TRACK_CACHE_FILE, generatedTrackCache);
           continue;
         }
 
@@ -346,6 +415,7 @@ async function checkAndGenerateTracks(
 
         await storeTrackBucket(pool, bucket);
         generatedTrackCache.add(cacheKey);
+        saveTrackCache(TRACK_CACHE_FILE, generatedTrackCache);
 
         log({
           ts: now(),

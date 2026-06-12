@@ -46,6 +46,74 @@ export async function storeOracleTick(
 }
 
 /**
+ * Batch-upsert multiple oracle ticks in a single query.
+ * Uses unnest() with typed arrays to send all rows in one round-trip,
+ * drastically reducing pg protocol overhead (response packets).
+ *
+ * Falls back to single-row upsert if batch is empty.
+ */
+export async function storeOracleTicksBatch(
+  pool: Pool,
+  ticks: OracleTickInput[],
+): Promise<void> {
+  if (ticks.length === 0) return;
+
+  // Deduplicate by (token_mint, tick_time) PostgreSQL's ON CONFLICT DO UPDATE
+  // throws "cannot affect a row a second time" if the same key appears more than
+  // once within the same batch. Keep the last entry (matches single-row UPSERT semantics).
+  const seen = new Map<string, OracleTickInput>();
+  for (const t of ticks) {
+    const key = `${t.token_mint}|${t.tick_time.getTime()}`;
+    seen.set(key, t); // later entries overwrite earlier ones
+  }
+  const deduplicated = [...seen.values()];
+
+  // For a single tick after dedup, use the simpler query
+  if (deduplicated.length === 1) {
+    return storeOracleTick(pool, deduplicated[0]);
+  }
+
+  const tokenMints: string[] = [];
+  const tickTimes: Date[] = [];
+  const oraclePrices: number[] = [];
+  const publishTimes: Date[] = [];
+  const sourceSlots: number[] = [];
+
+  for (const t of deduplicated) {
+    tokenMints.push(t.token_mint);
+    tickTimes.push(t.tick_time);
+    oraclePrices.push(t.oracle_price);
+    publishTimes.push(t.publish_time);
+    sourceSlots.push(t.source_slot);
+  }
+
+  const sql = `
+    INSERT INTO oracle_ticks
+      (token_mint, tick_time, oracle_price, publish_time, source_slot)
+    SELECT * FROM unnest(
+      $1::text[],
+      $2::timestamptz[],
+      $3::double precision[],
+      $4::timestamptz[],
+      $5::bigint[]
+    )
+    ON CONFLICT (token_mint, tick_time)
+    DO UPDATE SET
+      oracle_price  = EXCLUDED.oracle_price,
+      publish_time  = EXCLUDED.publish_time,
+      source_slot   = EXCLUDED.source_slot
+  `;
+
+  await pool.query(sql, [
+    tokenMints,
+    tickTimes,
+    oraclePrices,
+    publishTimes,
+    sourceSlots,
+  ]);
+}
+
+/**
  * Get all ticks for a token within a specific hour window.
  * Returns ticks sorted by tick_time ASC (deterministic ordering).
  */

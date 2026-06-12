@@ -75,7 +75,7 @@ async function main() {
     if (!acct) throw new Error("Position PDA not found after init, RPC lag?");
     console.log(`    Account: ${acct.data.length} bytes, owner ${acct.owner.toBase58()} ✔`);
 
-    // ── Step 2: Delegate to MagicBlock ──────────────────────────────────────
+    //delegate to MB
     console.log("\n[2] Delegating PDA to MagicBlock ER...");
     const delegateSig = await baseProgram.methods
         .delegatePositionPda()
@@ -98,7 +98,7 @@ async function main() {
         commitment: "confirmed",
     });
     if (delegateTxInfo?.meta?.err) {
-        console.error("❌ Delegate tx failed on-chain:", JSON.stringify(delegateTxInfo.meta.err));
+        console.error("Delegate tx failed on-chain:", JSON.stringify(delegateTxInfo.meta.err));
         console.error("   Logs:\n  ", delegateTxInfo.meta.logMessages?.join("\n   "));
         process.exit(1);
     }
@@ -109,7 +109,7 @@ async function main() {
     console.log("\n    Waiting 4s for ER sequencer sync...");
     await new Promise(r => setTimeout(r, 4000));
 
-    // ── Step 3: Update on MagicBlock ER ─────────────────────────────────────
+    //Update on MB ER
     console.log("\n[3] Sending position updates to MagicBlock ER devnet...");
     for (let i = 1; i <= 3; i++) {
         const updateTx = await mbProgram.methods
@@ -127,10 +127,10 @@ async function main() {
     console.log(`\nER State → X: ${erAccount.x}, Y: ${erAccount.y}, Seq: ${erAccount.seq}`);
     if (erAccount.seq !== 3) throw new Error(`Expected seq=3, got ${erAccount.seq}`);
 
-    console.log("\n✅ INTEGRATION TEST SUCCESSFUL");
+    console.log("\n INTEGRATION TEST SUCCESSFUL");
 }
 
 main().catch(err => {
-    console.error("\n❌ TEST FAILED:", err?.message ?? err);
+    console.error("\n TEST FAILED:", err?.message ?? err);
     process.exit(1);
 });
